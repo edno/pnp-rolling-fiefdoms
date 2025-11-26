@@ -377,7 +377,6 @@ function renderBuildingOverlay(options = [], disabled = false) {
       renderSelectionDice();
     });
     div.setAttribute("aria-label", `${hit.code}${opt?.sourceLabel ? ` via ${opt.sourceLabel}` : ""}`);
-    div.title = div.getAttribute("aria-label");
     overlay.appendChild(div);
   });
 }
@@ -935,6 +934,7 @@ function renderGuildOverlay(available = []) {
       div.classList.add("selected");
       state.selectedGuildType = hit.code;
     };
+    div.setAttribute("aria-label", hit.code);
     overlay.appendChild(div);
   });
 }
