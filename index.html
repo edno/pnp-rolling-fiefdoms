@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rolling Fiefdoms Web Prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Shadows+Into+Light&display=swap"
+    rel="stylesheet"
+  />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Lobster+Two:wght@400;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Rolling Fiefdoms</h1>
+  </header>
+  <div id="actionBanner" class="action-banner" aria-live="polite"></div>
+
+  <main>
+    <section class="board-panel">
+      <div class="sheet" id="sheet">
+        <div class="board" id="board"></div>
+        <div id="scoreOverlay" class="score-overlay"></div>
+        <div id="popHousingOverlay" class="pop-housing-overlay"></div>
+        <div id="buildingsOverlay" class="buildings-overlay" aria-label="Select building"></div>
+        <div id="guildsOverlay" class="guilds-overlay" aria-label="Select guild"></div>
+      </div>
+    </section>
+
+    <section class="controls">
+      <div class="panel">
+        <h2>Turn</h2>
+        <button id="rollBtn">Roll Dice</button>
+        <div id="diceView"></div>
+        <div id="pestilence" class="hint"></div>
+        <button id="finishActivation" style="display:none;">Finish Activation</button>
+      </div>
+
+      <div class="panel">
+        <h2>Split & Build</h2>
+        <div class="field">
+          <label>Location Dice</label>
+          <div class="dice-row" id="locDicePreview"></div>
+        </div>
+        <div class="field">
+          <label>Build Dice</label>
+          <div class="dice-row" id="buildDicePreview"></div>
+        </div>
+      </div>
+
+      <div class="panel log-panel">
+        <h2>Log</h2>
+        <div class="log-body">
+          <ul id="log"></ul>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

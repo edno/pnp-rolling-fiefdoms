@@ -1,0 +1,16 @@
+{
+  "name": "rolling-fiefdoms-web",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Lightweight web helper for Rolling Fiefdoms (manual dice split/board tracker).",
+  "scripts": {
+    "lint": "eslint . --ext .js",
+    "test": "npm run lint && vitest run",
+    "serve": "node scripts/serve.js"
+  },
+  "devDependencies": {
+    "eslint": "^8.56.0",
+    "vitest": "^1.3.1"
+  }
+}
