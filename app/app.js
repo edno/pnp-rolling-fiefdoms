@@ -228,6 +228,15 @@ function rollDice() {
   }
   state.forceForfeit = false;
   if (state.pestilence) {
+    // Auto-assign numbered dice to Location; X dice remain for Build
+    const numberedIdx = state.dice
+      .map((d, idx) => ({ d, idx }))
+      .filter(({ d }) => d.face !== "X")
+      .slice(0, 2)
+      .map(({ idx }) => idx);
+    state.locationSelection = numberedIdx;
+  }
+  if (state.pestilence) {
     const target = state.pestilenceInfo?.sectionLabel || "any section";
     pestilenceEl.textContent = `Pestilence! Forfeit a plot in ${target}.`;
     log(
@@ -825,6 +834,10 @@ function forfeitCell(r, c) {
   const context =
     section && state.pestilence ? ` during Pestilence (${section})` : state.pestilence ? " during Pestilence" : "";
   log(`Forfeited row ${r + 1}, col ${c + 1}${context}`);
+  // Resolve pestilence/forfeit state so the turn can advance
+  state.pestilence = false;
+  state.pestilenceInfo = null;
+  state.forceForfeit = false;
   const scoreResult = computeScore(state.board, state.populationNodes, currentWorkerAllocationsForScore());
   updateScoreOverlay(scoreResult.breakdown, scoreResult.total);
   autoAdvance();
