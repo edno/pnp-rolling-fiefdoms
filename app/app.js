@@ -196,16 +196,25 @@ function setupControls() {
   const fiefdomInput = document.getElementById("fiefdomInput");
   if (fiefdomInput) {
     fiefdomInput.value = state.fiefdomName || "";
-    const wrapper = fiefdomInput.closest(".fiefdom-name");
+    const wrapper = fiefdomInput.closest(".fiefdom-overlay");
     const syncFilled = () => {
-      if (wrapper) wrapper.classList.toggle("filled", Boolean(fiefdomInput.value.trim()));
+      if (!wrapper) return;
+      const hasValue = Boolean(fiefdomInput.value && fiefdomInput.value.trim().length);
+      if (hasValue) {
+        wrapper.classList.add("filled");
+      } else {
+        wrapper.classList.remove("filled");
+      }
     };
     syncFilled();
-    fiefdomInput.oninput = (e) => {
+    const handleInput = (e) => {
       state.fiefdomName = e.target.value || "";
       syncFilled();
       updateActionBanner();
     };
+    fiefdomInput.addEventListener("input", handleInput);
+    fiefdomInput.addEventListener("change", handleInput);
+    fiefdomInput.addEventListener("blur", syncFilled);
   }
   renderBuildingOverlay();
   renderGuildOverlay([]);

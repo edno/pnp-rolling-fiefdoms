@@ -27,10 +27,6 @@
 <body class="loading">
   <header>
     <h1>Rolling Fiefdoms</h1>
-    <div class="fiefdom-name">
-      <label for="fiefdomInput">Fiefdom:</label>
-      <input id="fiefdomInput" type="text" maxlength="20" placeholder="Enter fiefdom name" />
-    </div>
   </header>
   <div id="loadingOverlay" class="loading-overlay">
     <div class="spinner" aria-hidden="true"></div>
@@ -41,6 +37,9 @@
   <main>
     <section class="board-panel">
       <div class="sheet" id="sheet">
+        <div class="fiefdom-overlay">
+          <input id="fiefdomInput" type="text" maxlength="20" placeholder="Fiefdom name" />
+        </div>
         <div class="board" id="board"></div>
         <div id="scoreOverlay" class="score-overlay"></div>
         <div id="popHousingOverlay" class="pop-housing-overlay"></div>

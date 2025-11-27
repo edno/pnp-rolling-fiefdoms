@@ -36,37 +36,33 @@ header h1 {
   font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
-.fiefdom-name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: "Shadows Into Light", "Segoe UI", system-ui, -apple-system,
-    sans-serif;
-  font-size: 20px;
+.fiefdom-overlay {
+  position: absolute;
+  top: 8px;
+  left: 210px;
+  width: 220px;
+  text-align: center;
+  z-index: 5;
 }
 
-.fiefdom-name input {
+.fiefdom-overlay input {
+  width: 100%;
+  text-align: center;
   font-family: "Shadows Into Light", "Segoe UI", system-ui, -apple-system,
     sans-serif;
-  font-size: 24px;
+  font-size: 32px;
   padding: 4px 0;
   border: none;
-  border-bottom: 1px solid transparent;
   background: transparent;
   color: var(--muted);
 }
 
-.fiefdom-name input:focus {
+.fiefdom-overlay input:focus {
   outline: none;
-  border-bottom-color: var(--border);
 }
 
-.fiefdom-name.filled input {
+.fiefdom-overlay.filled input {
   color: var(--ink);
-}
-
-.fiefdom-name label {
-  display: none;
 }
 
 .action-banner {
@@ -191,6 +187,7 @@ main {
   gap: 16px;
   padding: 16px;
   align-items: start;
+  position: relative;
 }
 
 .board-panel {
