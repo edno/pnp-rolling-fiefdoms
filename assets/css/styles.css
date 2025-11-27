@@ -68,7 +68,7 @@ header h1 {
 .action-banner {
   margin: 0;
   padding: 10px 24px;
-  background: #f7f3e8;
+  background: var(--background);
   border-bottom: 1px solid var(--border);
   font-weight: 700;
   color: var(--accent);
@@ -205,8 +205,7 @@ main {
   position: relative;
   width: 100%;
   padding-top: 71%; /* image aspect ratio approx 1086/767 */
-  background: url("../../resources/rolling-fiefdoms-player-sheet.png?v=v1")
-    center/contain no-repeat;
+  background: url("../../resources/rolling-fiefdoms-player-sheet.png?v=v1") center/contain no-repeat;
   border-radius: 8px;
   overflow: hidden;
 }
@@ -245,7 +244,7 @@ main {
 .cell .label {
   padding: 4px 6px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.85);
+  background: #fff;
   border: 1px solid var(--border);
 }
 
@@ -272,7 +271,7 @@ main {
   width: 45px;
   height: 45px;
   border-radius: 8px;
-  background: #fffbe2;
+  background: var(--background);
   border: 1px dotted #7a7a7a;
   position: relative;
   cursor: pointer;
@@ -290,8 +289,8 @@ main {
 }
 
 .population-node.has-pop {
-  border: 1px solid #c65c1c !important;
-  background: #fffbe2 !important;
+  border: 1px solid var(--ink) !important;
+  background: var(--background) !important;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
@@ -311,14 +310,14 @@ main {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 2px solid var(--accent) !important;
+  border: 2px solid var(--ink) !important;
   background: transparent;
   position: static;
 }
 
 .worker-pip.filled {
-  background: #c65c1c;
-  border-color: #c65c1c;
+  background: solid var(--ink);
+  border-color: solid var(--ink);
 }
 
 .selected-building {
@@ -395,8 +394,8 @@ main {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #c65c1c;
-  border: 1px solid #7a7a7a;
+  background: var(--ink);
+  border: 1px solid var(--ink);
   transform: translate(-50%, -50%);
 }
 
@@ -511,7 +510,7 @@ main {
 }
 
 .pop-cell.has-housing {
-  border-color: var(--accent);
+  border-color: var(--ink);
 }
 
 .pip-grid {
@@ -712,17 +711,17 @@ select {
 }
 
 .token.building {
-  background: var(--accent);
+  background: var(--ink);
 }
 
 .token.population {
-  background: var(--accent-2);
+  background: var(--ink);
 }
 
 #scoreView {
   max-height: 200px;
   overflow-y: auto;
-  background: #f8f6f1;
+  background: var(--background);
   border-radius: 6px;
   padding: 8px;
   font-size: 13px;
