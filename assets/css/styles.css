@@ -54,6 +54,10 @@ header h1 {
   font-size: 12px;
   color: var(--muted);
   text-align: center;
+  position: fixed;
+  bottom: 0;
+  z-index: 10;
+  width: 100%;
 }
 
 .footer-inner {
