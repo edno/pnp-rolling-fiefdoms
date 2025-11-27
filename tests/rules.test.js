@@ -126,7 +126,7 @@ describe("computeScore", () => {
     expect(result.breakdown.cottages).toBe(0);
     pop[0][0] = 4;
     result = computeScore(board, pop);
-    expect(result.breakdown.cottages).toBe(3);
+    expect(result.breakdown.cottages).toBe(2);
   });
 
   it("applies vagrant penalty and Almshouse cancel", () => {
@@ -703,7 +703,7 @@ describe("activation scoring with worker allocations", () => {
     const pop = emptyPop();
     pop[0][0] = 4; // enough to occupy cottage
     const result = computeScore(board, pop);
-    expect(result.breakdown.cottages).toBe(3);
+    expect(result.breakdown.cottages).toBe(2);
   });
 
   it("prefers worker allocations over raw population when provided", () => {

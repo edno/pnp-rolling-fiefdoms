@@ -378,7 +378,7 @@ function scoreCottages(board, populationNodes) {
   const pop = populationNodes.flat().reduce((a, b) => a + b, 0);
   const cottages = board.flat().filter((c) => c.building === "C").length;
   const occupied = Math.min(cottages, Math.floor(pop / 4));
-  return occupied * 3;
+  return occupied * 2;
 }
 
 export function scoreBuildingAt(board, populationNodes, workerAllocations, r, c, activation = null) {
