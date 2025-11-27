@@ -11,7 +11,7 @@ import {
   cellSections,
   restrictBuildOptionsForBoard,
   allocatePopulationToNode,
-} from "../rules.js";
+} from "../app/rules.js";
 
 const buildings = {
   C: { name: "Cottage" },
