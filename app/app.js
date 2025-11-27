@@ -1288,14 +1288,31 @@ function addDieContent(el, die) {
     return;
   }
   if (die.face === "1/2" || die.face === "4/5") {
-    const txt = document.createElement("span");
-    txt.className = "die-no-pip";
-    txt.textContent = die.face;
-    el.appendChild(txt);
+    renderSplitFace(el, die.face);
     return;
   }
   const val = typeof die.resolved === "number" ? die.resolved : Number(die.face);
   el.insertAdjacentHTML("beforeend", pipGrid(val || 0));
+}
+
+function renderSplitFace(el, faceStr) {
+  const parts = faceStr.split("/").map((n) => Number(n));
+  const low = Math.min(...parts);
+  const high = Math.max(...parts);
+  const split = document.createElement("div");
+  split.className = "die-split";
+  const line = document.createElement("div");
+  line.className = "split-line";
+  const lowSpan = document.createElement("span");
+  lowSpan.className = "split-num split-low";
+  lowSpan.textContent = String(low);
+  const highSpan = document.createElement("span");
+  highSpan.className = "split-num split-high";
+  highSpan.textContent = String(high);
+  split.appendChild(line);
+  split.appendChild(lowSpan);
+  split.appendChild(highSpan);
+  el.appendChild(split);
 }
 
 function makeDieBadge(die, idx, { role = null, locked = false, clickable = true, showRoleStyle = true } = {}) {

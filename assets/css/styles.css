@@ -752,6 +752,40 @@ select {
   cursor: default;
 }
 
+.die-split {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.split-line {
+  position: absolute;
+  width: 120%;
+  height: 2px;
+  background: var(--die-pip-color);
+  top: 50%;
+  left: -10%;
+  transform: rotate(-45deg);
+}
+
+.split-num {
+  position: absolute;
+  font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
+  color: var(--die-pip-color);
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.split-low {
+  left: 14%;
+  bottom: 40%;
+}
+
+.split-high {
+  right: 14%;
+  top: 40%;
+}
+
 .dice-locked .die-badge {
   cursor: default;
   pointer-events: none;
@@ -786,7 +820,7 @@ select {
 }
 
 .die-number {
-  --die-pip-color: #2f4858;;
+  --die-pip-color: #2f6fbb;;
   border-color: #2f6fbb;
 }
 
