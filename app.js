@@ -86,6 +86,8 @@ const guildTypes = ["GF", "GQ", "GW", "GM"];
 const finishActivationBtn = document.getElementById("finishActivation");
 const actionBannerEl = document.getElementById("actionBanner");
 const loadingOverlay = document.getElementById("loadingOverlay");
+const sheetEl = document.getElementById("sheet");
+const SHEET_VERSION = "v1";
 const POP_CAPACITY = 5;
 const POP_LAYOUT = { cols: 9, rows: 2, pipsPerCell: 4 };
 const debugMode = new URLSearchParams(window.location.search).has("debug");
@@ -166,13 +168,20 @@ function preloadSheet() {
     const img = new Image();
     img.onload = () => resolve(true);
     img.onerror = () => resolve(false);
-    img.src = "rolling-fiefdoms-player-sheet.png";
+    img.src = sheetImageUrl();
   });
+}
+
+function sheetImageUrl() {
+  return `rolling-fiefdoms-player-sheet.png?v=${SHEET_VERSION}`;
 }
 
 preloadSheet().then(() => {
   document.body.classList.remove("loading");
   if (loadingOverlay) loadingOverlay.remove();
+  if (sheetEl) {
+    sheetEl.style.backgroundImage = `url("${sheetImageUrl()}")`;
+  }
   init();
 });
 
