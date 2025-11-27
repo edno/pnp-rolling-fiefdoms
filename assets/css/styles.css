@@ -800,3 +800,7 @@ select {
   font-size: 14px;
   font-family: "Shadows Into Light", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
+
+#rollBtn {
+  margin-bottom: 12px;
+}
