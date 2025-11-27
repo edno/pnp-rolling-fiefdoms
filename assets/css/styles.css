@@ -1,5 +1,5 @@
 :root {
-  --bg: #FFFBE2;
+  --bg: #fffbe2;
   --panel: #ffffff;
   --border: #d0c6b8;
   --accent: #e67e22;
@@ -7,6 +7,7 @@
   --muted: #7a7a7a;
   --danger: #c0392b;
   --grid: #cfd4d8;
+  --ink: #000794;
 }
 
 * {
@@ -15,7 +16,8 @@
 
 body {
   margin: 0;
-  font-family: "Shadows Into Light", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: "Shadows Into Light", "Segoe UI", system-ui, -apple-system,
+    sans-serif;
   font-size: 18px;
   background: var(--bg);
   color: var(--text);
@@ -32,6 +34,39 @@ header {
 
 header h1 {
   font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+.fiefdom-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: "Shadows Into Light", "Segoe UI", system-ui, -apple-system,
+    sans-serif;
+  font-size: 20px;
+}
+
+.fiefdom-name input {
+  font-family: "Shadows Into Light", "Segoe UI", system-ui, -apple-system,
+    sans-serif;
+  font-size: 20px;
+  padding: 4px 0;
+  border: none;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.fiefdom-name input:focus {
+  outline: none;
+  border-bottom-color: var(--border);
+}
+
+.fiefdom-name.filled input {
+  color: var(--ink);
+}
+
+.fiefdom-name label {
+  display: none;
 }
 
 .action-banner {
@@ -51,12 +86,24 @@ header h1 {
 }
 
 @keyframes banner-bump {
-  0% { opacity: 1; }
-  20% { opacity: 0.45; }
-  40% { opacity: 1; }
-  60% { opacity: 0.6; }
-  80% { opacity: 1; }
-  100% { opacity: 1; }
+  0% {
+    opacity: 1;
+  }
+  20% {
+    opacity: 0.45;
+  }
+  40% {
+    opacity: 1;
+  }
+  60% {
+    opacity: 0.6;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+  }
 }
 
 .site-footer {
@@ -161,7 +208,8 @@ main {
   position: relative;
   width: 100%;
   padding-top: 71%; /* image aspect ratio approx 1086/767 */
-  background: url("../../resources/rolling-fiefdoms-player-sheet.png?v=v1") center/contain no-repeat;
+  background: url("../../resources/rolling-fiefdoms-player-sheet.png?v=v1")
+    center/contain no-repeat;
   border-radius: 8px;
   overflow: hidden;
 }
@@ -209,22 +257,20 @@ main {
   color: #fff;
 }
 
-
 .cell.forfeit .label.building:after {
-    content: url('assets/forfeit.svg');
-    opacity: 0.8;
-    top: 24px;
-    left: 26px;
-    display: block;
-    position: absolute;
+  content: url("assets/forfeit.svg");
+  opacity: 0.8;
+  top: 24px;
+  left: 26px;
+  display: block;
+  position: absolute;
 }
-
 
 .population-node {
   width: 45px;
   height: 45px;
   border-radius: 8px;
-  background: #FFFBE2;
+  background: #fffbe2;
   border: 1px dotted #7a7a7a;
   position: relative;
   cursor: pointer;
@@ -244,7 +290,7 @@ main {
 
 .population-node.has-pop {
   border: 1px solid #c65c1c !important;
-  background: #FFFBE2 !important;
+  background: #fffbe2 !important;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
@@ -287,13 +333,13 @@ main {
 }
 
 .octagon-border {
-    --b: 4px;
-    width: 100%;
-    aspect-ratio: 1;
-    --o: calc(50% * tan(-22.5deg));
-    --x: calc(var(--b) * cos(22.5deg));
-    --y: calc(var(--b) * sin(22.5deg));
-    clip-path: polygon(
+  --b: 4px;
+  width: 100%;
+  aspect-ratio: 1;
+  --o: calc(50% * tan(-22.5deg));
+  --x: calc(var(--b) * cos(22.5deg));
+  --y: calc(var(--b) * sin(22.5deg));
+  clip-path: polygon(
     var(--o) 50%,
     50% var(--o),
     calc(100% - var(--o)) 50%,
@@ -309,11 +355,11 @@ main {
     calc(50% - var(--o) - var(--y)) var(--x),
     calc(50% + var(--o) + var(--y)) var(--x)
   );
-    background: rgba(60, 110, 113, 0.85);
-    border: var(--b) solid rgba(60, 110, 113, 0.85);
-    pointer-events: none;
-    position: absolute;
-    inset: 0;
+  background: rgba(60, 110, 113, 0.85);
+  border: var(--b) solid rgba(60, 110, 113, 0.85);
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
 }
 
 .pop-node-grid {
@@ -473,7 +519,6 @@ main {
   box-shadow: 0 0 0 2px rgba(60, 110, 113, 0.35);
 }
 
-
 .controls {
   display: grid;
   grid-template-rows: auto auto 1fr;
@@ -571,7 +616,7 @@ button:disabled {
 }
 
 .guild-hit.available:hover,
-.building-hit.available:hover{
+.building-hit.available:hover {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(60, 110, 113, 0.2);
 }
@@ -756,7 +801,7 @@ select {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--die-pip-color); 
+  background: var(--die-pip-color);
   margin: auto;
 }
 
@@ -837,7 +882,7 @@ select {
 }
 
 .die-number {
-  --die-pip-color: #2f6fbb;;
+  --die-pip-color: #2f6fbb;
   border-color: #2f6fbb;
 }
 

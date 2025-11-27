@@ -58,6 +58,7 @@ const state = {
   lastLocationDice: [],
   lastBuildDice: [],
   bannerOverride: null,
+  fiefdomName: "",
 };
 
 function lockDiceSnapshot() {
@@ -191,6 +192,20 @@ function setupControls() {
   if (rollBtn) {
     rollBtn.onclick = () => rollDice();
     rollBtn.style.display = debugMode ? "inline-block" : "none";
+  }
+  const fiefdomInput = document.getElementById("fiefdomInput");
+  if (fiefdomInput) {
+    fiefdomInput.value = state.fiefdomName || "";
+    const wrapper = fiefdomInput.closest(".fiefdom-name");
+    const syncFilled = () => {
+      if (wrapper) wrapper.classList.toggle("filled", Boolean(fiefdomInput.value.trim()));
+    };
+    syncFilled();
+    fiefdomInput.oninput = (e) => {
+      state.fiefdomName = e.target.value || "";
+      syncFilled();
+      updateActionBanner();
+    };
   }
   renderBuildingOverlay();
   renderGuildOverlay([]);
