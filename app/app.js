@@ -383,6 +383,15 @@ function triggerDiceAnimation() {
   }, 1200);
 }
 
+function dieMaxValue(die) {
+  if (!die) return 0;
+  if (Array.isArray(die.choices) && die.choices.length) {
+    return Math.max(...die.choices);
+  }
+  if (typeof die.resolved === "number") return die.resolved;
+  return 0;
+}
+
 function renderDice() {
   if (!diceView) return;
   refreshDiceVisibility();
@@ -853,9 +862,9 @@ function placeBuilding(r, c, code) {
   if (code === "C") state.tracks.housing += 4;
   const popGain =
     state.buildChoice?.source === "die1"
-      ? state.buildDice[1]?.resolved || 0
+      ? dieMaxValue(state.buildDice[1])
       : state.buildChoice?.source === "die2"
-        ? state.buildDice[0]?.resolved || 0
+        ? dieMaxValue(state.buildDice[0])
         : 0;
   const locSnapshot = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
   const buildSnapshot = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
