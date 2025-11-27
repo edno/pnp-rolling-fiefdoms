@@ -69,8 +69,18 @@ const state = {
 let controlsReady = false;
 
 function refreshDiceVisibility() {
-  if (!diceView) return;
-  diceView.style.display = state.activationMode || state.activationComplete ? "none" : "";
+  const hidden = state.activationMode || state.activationComplete;
+  if (diceView) diceView.style.display = hidden ? "none" : "";
+  const rollBtn = document.getElementById("rollBtn");
+  if (rollBtn && !debugMode) {
+    rollBtn.style.display = hidden ? "none" : "";
+  }
+  if (turnHintEl) {
+    turnHintEl.style.display = hidden ? "none" : "";
+    if (!hidden && !state.activationMode && !state.activationComplete) {
+      turnHintEl.style.display = "";
+    }
+  }
 }
 
 function lockDiceSnapshot() {
