@@ -60,7 +60,13 @@ const state = {
   lastBuildDice: [],
   bannerOverride: null,
   fiefdomName: "",
+  activeTurn: true,
+  turnIndex: 0,
+  invalidSelection: false,
+  finalScore: null,
 };
+
+let controlsReady = false;
 
 function lockDiceSnapshot() {
   if (state.diceLocked) return;
@@ -79,7 +85,7 @@ function lockDiceSnapshot() {
 
 const boardEl = document.getElementById("board");
 const diceView = document.getElementById("diceView");
-const pestilenceEl = document.getElementById("pestilence");
+const turnHintEl = document.getElementById("turnHint");
 const locDicePreview = document.getElementById("locDicePreview");
 const buildDicePreview = document.getElementById("buildDicePreview");
 const logEl = document.getElementById("log");
@@ -144,6 +150,19 @@ const scoringSpots = [
 ];
 
 function init() {
+  resetState();
+  renderBoard();
+  renderRegionOverlay();
+  updateTracks();
+  updateActionBanner();
+  if (!controlsReady) {
+    setupControls();
+    controlsReady = true;
+  }
+  rollDice();
+}
+
+function resetState() {
   state.board = terrainLayout.map((row) =>
     row.map((terrain) => ({ terrain, building: null, buildingLabel: null, forfeited: false, springBoost: 0 })),
   );
@@ -160,12 +179,14 @@ function init() {
   state.lockedLocationPairs = null;
   state.lastLocationDice = [];
   state.lastBuildDice = [];
+  state.turnIndex = 0;
+  state.activeTurn = true;
+  state.invalidSelection = false;
+  state.finalScore = null;
+  state.log = [];
+  if (logEl) logEl.innerHTML = "";
+  if (finishActivationBtn) finishActivationBtn.style.display = "none";
   log("Game started.");
-  renderBoard();
-  rollDice();
-  setupControls();
-  updateTracks();
-  renderRegionOverlay();
 }
 
 function preloadSheet() {
@@ -228,6 +249,13 @@ function setupControls() {
 }
 
 function rollDice() {
+  state.turnIndex += 1;
+  state.activeTurn = state.turnIndex % 2 === 1;
+  log(state.activeTurn ? "Active turn." : "Non-active turn.");
+  state.pendingSpringhouseTarget = null;
+  state.pendingPopulation = null;
+  state.buildChoice = null;
+  state.selectedGuildType = null;
   state.pendingPopulation = null;
   state.buildChoice = null;
   state.selectedGuildType = null;
@@ -241,6 +269,8 @@ function rollDice() {
   state.lockedLocationPairs = null;
   state.lastLocationDice = [];
   state.lastBuildDice = [];
+  state.bannerOverride = null;
+  state.invalidSelection = false;
   if (state.activationMode) return;
   triggerDiceAnimation();
   const n1 = rollNumberedDie("N1");
@@ -248,24 +278,24 @@ function rollDice() {
   const x1 = rollXDie("X1");
   const x2 = rollXDie("X2");
   state.dice = [n1, n2, x1, x2];
+  if (!state.activeTurn) {
+    // Non-active: auto-assign numbered dice
+    state.locationSelection = [0, 1];
+    const allPairs = filterAvailablePairs(uniqueLocationPairs(state.dice), state.board);
+    state.locationPairs = allPairs;
+    state.forceForfeit = allPairs.length === 0;
+    if (state.forceForfeit) log("No valid location pairs; forfeit a plot.");
+  } else {
+    state.forceForfeit = false;
+  }
   state.pestilence = [x1, x2].every((d) => d.face === "X");
   state.pestilenceInfo = state.pestilence ? computePestilenceInfo(state.dice, state.board) : null;
   if (state.pestilenceInfo && state.pestilenceInfo.section) {
     state.pestilenceInfo.sectionLabel = sectionLabels[state.pestilenceInfo.section] || state.pestilenceInfo.section;
   }
-  state.forceForfeit = false;
-  if (state.pestilence) {
-    // Auto-assign numbered dice to Location; X dice remain for Build
-    const numberedIdx = state.dice
-      .map((d, idx) => ({ d, idx }))
-      .filter(({ d }) => d.face !== "X")
-      .slice(0, 2)
-      .map(({ idx }) => idx);
-    state.locationSelection = numberedIdx;
-  }
   if (state.pestilence) {
     const target = state.pestilenceInfo?.sectionLabel || "any section";
-    pestilenceEl.textContent = `Pestilence! Forfeit a plot in ${target}.`;
+    if (turnHintEl) turnHintEl.textContent = `Pestilence! Forfeit a plot in ${target}.`;
     log(
       `Pestilence! Sum ${state.pestilenceInfo?.sum ?? "?"}${
         state.pestilenceInfo?.sectionLabel ? ` -> ${state.pestilenceInfo.sectionLabel}` : ""
@@ -274,11 +304,9 @@ function rollDice() {
     if (state.pestilenceInfo?.sectionLabel && state.pestilenceInfo.targetCells.length === 0) {
       log("Target section is full; forfeit any empty plot.");
     }
-  } else {
-    pestilenceEl.textContent = "";
-  }
-  if (state.pestilence) {
     lockDiceSnapshot();
+  } else if (turnHintEl) {
+    turnHintEl.textContent = state.activeTurn ? "" : "Non-active turn. Dice automatically assigned.";
   }
   updateDiceAssignments();
   renderDice();
@@ -327,6 +355,17 @@ function triggerDiceAnimation() {
 function renderDice() {
   if (!diceView) return;
   diceView.innerHTML = "";
+  if (turnHintEl) {
+    if (state.activeTurn && state.invalidSelection) {
+      turnHintEl.textContent = "No valid plots for that pair; choose a different location pair.";
+    } else if (state.forceForfeit) {
+      turnHintEl.textContent = "No valid location pairs; forfeit a plot.";
+    } else if (!state.activeTurn) {
+      turnHintEl.textContent = "Non-active turn. Dice automatically assigned.";
+    } else {
+      turnHintEl.textContent = "";
+    }
+  }
   const field = document.createElement("div");
   field.className = "field dice-field";
   const row = document.createElement("div");
@@ -827,7 +866,9 @@ function applySpringhouseBoost(target) {
   updateTracks();
   const scoreResult = computeScore(state.board, state.populationNodes, currentWorkerAllocationsForScore());
   updateScoreOverlay(scoreResult.breakdown, scoreResult.total);
+  state.pendingSpringhouseTarget = null;
   autoAdvance();
+  maybeRollAfterLock();
   updateActionBanner();
 }
 
@@ -925,13 +966,24 @@ function finishActivation() {
   autoForfeitUnfillable(true);
   state.activationMode = false;
   state.activationComplete = true;
+   state.finalScore = computeScore(state.board, state.populationNodes, currentWorkerAllocationsForScore()).total;
   state.activationSelection = { pop: null };
   if (finishActivationBtn) finishActivationBtn.style.display = "none";
   renderBoard();
   highlightLocations();
   updateTracks();
   log("Activation finished. Scoring updated.");
+  log(`Game end. Final score ${state.finalScore}.`);
   updateActionBanner();
+}
+
+function newGame() {
+  resetState();
+  renderBoard();
+  renderRegionOverlay();
+  updateTracks();
+  updateActionBanner();
+  rollDice();
 }
 
 function isBoardFull() {
@@ -970,7 +1022,6 @@ function handleBuildingChoice() {
     state.selectedGuildType = null;
     renderGuildOverlay([]);
   }
-  lockDiceSnapshot();
   updateActionBanner();
   renderSelectionDice();
 }
@@ -1030,6 +1081,7 @@ function beginPopulationPlacement(r, c, count) {
   if (availableNodes.length === 0) {
     log("No available population spots around this plot; population skipped.");
     autoAdvance();
+    maybeRollAfterLock();
     return;
   }
   state.pendingPopulation = { remaining: count, cell: [r, c] };
@@ -1097,6 +1149,12 @@ function renderTopTracks() {
 
 function actionMessage() {
   if (state.bannerOverride) return state.bannerOverride;
+  if (state.activationComplete) {
+    const score = typeof state.finalScore === "number"
+      ? state.finalScore
+      : computeScore(state.board, state.populationNodes, currentWorkerAllocationsForScore()).total;
+    return `Game over. Final score ${score}.`;
+  }
   if (state.activationMode) {
     const anyRemaining = state.board.some((row, r) =>
       row.some((cell, c) => {
@@ -1133,8 +1191,21 @@ function actionMessage() {
 function updateActionBanner() {
   if (!actionBannerEl) return;
   const newText = actionMessage();
-  const changed = actionBannerEl.textContent !== newText;
-  actionBannerEl.textContent = newText;
+  const prevText = actionBannerEl.dataset.msg || "";
+  const changed = prevText !== newText;
+  actionBannerEl.dataset.msg = newText;
+  actionBannerEl.innerHTML = "";
+  const span = document.createElement("span");
+  span.textContent = newText;
+  actionBannerEl.appendChild(span);
+  if (state.activationComplete) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "banner-button";
+    btn.textContent = "New game";
+    btn.onclick = () => newGame();
+    actionBannerEl.appendChild(btn);
+  }
   if (changed) {
     actionBannerEl.classList.remove("bump");
     void actionBannerEl.offsetWidth; // restart animation
@@ -1408,7 +1479,7 @@ function makeDieBadge(die, idx, { role = null, locked = false, clickable = true,
 }
 
 function onDieClick(idx) {
-  if (state.activationMode || state.diceLocked || state.pestilence || state.forceForfeit) return;
+  if (state.activationMode || state.diceLocked || state.pestilence || state.forceForfeit || !state.activeTurn) return;
   const die = state.dice[idx];
   if (die.face === "X") return;
   const sel = state.locationSelection.slice();
@@ -1427,41 +1498,77 @@ function onDieClick(idx) {
 
 function updateDiceAssignments() {
   const prevForce = state.forceForfeit;
-  const wasLocked = state.diceLocked;
   const locationDice = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
   const buildDice = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
   state.buildDice = buildDice;
   if (locationDice.length === 2) state.lastLocationDice = locationDice;
   if (buildDice.length) state.lastBuildDice = buildDice;
+
+  const allPairs = filterAvailablePairs(uniqueLocationPairs(state.dice), state.board);
+  let locationPairs = [];
+  let forceForfeit = state.diceLocked ? state.forceForfeit : allPairs.length === 0;
+  let invalidSelection = false;
+
+  if (state.diceLocked) {
+    if (state.lockedLocationPairs) locationPairs = state.lockedLocationPairs.map((p) => p.slice());
+  } else if (state.activeTurn) {
+    if (locationDice.length === 2) {
+      const selectedPairs = filterAvailablePairs(uniqueLocationPairs(locationDice), state.board);
+      if (selectedPairs.length) {
+        locationPairs = selectedPairs;
+      } else if (allPairs.length) {
+        // Invalid selection; other pairs exist
+        state.locationSelection = [];
+        locationPairs = [];
+        invalidSelection = true;
+        if (!prevForce) log("No valid plots for that pair; choose a different location pair.");
+      } else {
+        forceForfeit = true;
+        if (!prevForce) log("No valid location pairs; forfeit a plot.");
+      }
+    } else if (forceForfeit && !prevForce) {
+      log("No valid location pairs; forfeit a plot.");
+    }
+  } else {
+    // Non-active: use numbered dice only
+    if (locationDice.length === 2) {
+      const selectedPairs = filterAvailablePairs(uniqueLocationPairs(locationDice), state.board);
+      if (selectedPairs.length) {
+        locationPairs = selectedPairs;
+      } else {
+        forceForfeit = true;
+      }
+    }
+  }
+
+  state.locationPairs = locationPairs;
+  state.forceForfeit = forceForfeit;
+  state.invalidSelection = invalidSelection;
+  if (turnHintEl) {
+    if (state.activeTurn && invalidSelection) {
+      turnHintEl.textContent = "No valid plots for that pair; choose a different location pair.";
+    } else if (forceForfeit) {
+      turnHintEl.textContent = "No valid location pairs; forfeit a plot.";
+    } else if (!state.activeTurn) {
+      turnHintEl.textContent = "Non-active turn. Dice automatically assigned.";
+    } else {
+      turnHintEl.textContent = "";
+    }
+  }
+
   const previewLocation =
     state.diceLocked && state.lockedLocationDice?.length
       ? state.lockedLocationDice
       : locationDice.length
         ? locationDice
-        : state.lastLocationDice;
+        : [];
   const previewBuild =
     state.diceLocked && state.lockedBuildDice?.length
       ? state.lockedBuildDice
       : buildDice.length
         ? buildDice
         : state.lastBuildDice;
-  if (!wasLocked && !state.diceLocked) {
-    state.locationPairs = [];
-    state.forceForfeit = false;
-    if (locationDice.length === 2) {
-      const pairs = uniqueLocationPairs(locationDice);
-      const availablePairs = filterAvailablePairs(pairs, state.board);
-      state.locationPairs = availablePairs;
-      state.forceForfeit = availablePairs.length === 0;
-      if (state.forceForfeit && !prevForce) {
-        log("No valid location pairs; forfeit a plot.");
-      }
-    }
-  } else if (state.diceLocked) {
-    if (state.lockedLocationPairs) {
-      state.locationPairs = state.lockedLocationPairs.map((p) => p.slice());
-    }
-  }
+
   renderSelectionDice(previewLocation, previewBuild);
   fillBuildings(buildDice);
   highlightLocations();

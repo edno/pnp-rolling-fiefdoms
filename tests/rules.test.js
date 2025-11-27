@@ -11,6 +11,7 @@ import {
   cellSections,
   restrictBuildOptionsForBoard,
   allocatePopulationToNode,
+  availableLocationPairs,
 } from "../app/rules.js";
 
 const buildings = {
@@ -352,6 +353,38 @@ describe("build pairing with flexible dice", () => {
     const opts = buildingOptionsFromDice(buildDice, buildings);
     expect(opts.find((o) => o.code === "C")).toBeTruthy();
     expect(opts.find((o) => o.code === "F")).toBeTruthy(); // flexibility keeps both 1 and 2 options
+  });
+});
+
+describe("available location pairs helper", () => {
+  const emptyBoard = () =>
+    Array.from({ length: 5 }, () =>
+      Array.from({ length: 5 }, () => ({ building: null, forfeited: false, springBoost: 0 })),
+    );
+
+  it("returns pairs when open plots exist", () => {
+    const dice = [
+      { label: "N1", face: "1/2", resolved: 1, choices: [1, 2] },
+      { label: "N2", face: 3, resolved: 3, choices: [] },
+      { label: "X1", face: 4, resolved: 4, choices: [] },
+      { label: "X2", face: 2, resolved: 2, choices: [] },
+    ];
+    const pairs = availableLocationPairs(dice, emptyBoard());
+    expect(pairs.length).toBeGreaterThan(0);
+  });
+
+  it("returns empty when board is full", () => {
+    const fullBoard = Array.from({ length: 5 }, () =>
+      Array.from({ length: 5 }, () => ({ building: "X", forfeited: false, springBoost: 0 })),
+    );
+    const dice = [
+      { label: "N1", face: 1, resolved: 1, choices: [] },
+      { label: "N2", face: 2, resolved: 2, choices: [] },
+      { label: "X1", face: 3, resolved: 3, choices: [] },
+      { label: "X2", face: 4, resolved: 4, choices: [] },
+    ];
+    const pairs = availableLocationPairs(dice, fullBoard);
+    expect(pairs.length).toBe(0);
   });
 });
 

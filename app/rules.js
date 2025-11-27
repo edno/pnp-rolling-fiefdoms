@@ -606,3 +606,8 @@ export function computePestilenceInfo(dice, board) {
   }
   return { sum, section, targetCells };
 }
+
+// Convenience helper for UI logic: all valid location pairs for current dice/board.
+export function availableLocationPairs(dice, board) {
+  return filterAvailablePairs(uniqueLocationPairs(dice), board);
+}

@@ -250,8 +250,13 @@ main {
 }
 
 .cell .label.building {
-  background: rgba(60, 110, 113, 0.9);
+  background: var(--ink);
   color: #fff;
+  width: 44px;
+  height: 36px;
+  text-align: center;
+  font-family: "Lobster Two";
+  padding-top: 4px;
 }
 
 .cell.forfeit .label.building:after {
@@ -351,8 +356,8 @@ main {
     calc(50% - var(--o) - var(--y)) var(--x),
     calc(50% + var(--o) + var(--y)) var(--x)
   );
-  background: rgba(60, 110, 113, 0.85);
-  border: var(--b) solid rgba(60, 110, 113, 0.85);
+  background: var(--ink);
+  border: var(--b) solid var(--ink);
   pointer-events: none;
   position: absolute;
   inset: 0;
@@ -449,7 +454,8 @@ main {
 .region-tag {
   position: absolute;
   transform: translate(-50%, -50%);
-  font-family: "Shadows Into Light", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: "Shadows Into Light", "Segoe UI", system-ui, -apple-system,
+    sans-serif;
   font-size: 32px;
   color: var(--ink);
   background: transparent;
@@ -505,9 +511,7 @@ main {
 }
 
 .pop-cell.has-housing {
-  border-color: rgba(230, 126, 34, 0.85);
-  background: rgba(230, 126, 34, 0.08);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05);
+  border-color: var(--accent);
 }
 
 .pip-grid {
@@ -531,9 +535,8 @@ main {
 }
 
 .pop-pip.filled-pop {
-  background: #3c6e71;
-  border-color: #2d5154;
-  box-shadow: 0 0 0 2px rgba(60, 110, 113, 0.35);
+  background: var(--ink);
+  border-color: var(--ink);
 }
 
 .controls {
