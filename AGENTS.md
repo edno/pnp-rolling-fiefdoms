@@ -1,6 +1,6 @@
 # Agent Working Agreement
 
-1) **Read the artifacts first**: Before starting any task, read the rulebook (`Rolling_Fiefdoms_rulebook.pdf`) and the player sheet (`rolling-fiefdoms-player-sheet.png`) to establish the rules context. Then read the existing code (notably `app.js`, `rules.js`, and tests) to understand current logic and gaps.
+1) **Read the artifacts first**: Before starting any task, read the rulebook (`rolling-fiefdoms-rulebook.pdf`) and the player sheet (`rolling-fiefdoms-player-sheet.png`) to establish the rules context. Then read the existing code (notably `app.js`, `rules.js`, and tests) to understand current logic and gaps.
 
 2) **Rule changes require tests**: Any change that affects rules, scoring, or turn flow must include a new test or an update to existing tests. Do not leave rule logic untested.
 
