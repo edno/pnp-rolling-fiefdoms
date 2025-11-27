@@ -48,7 +48,7 @@ header h1 {
 .fiefdom-name input {
   font-family: "Shadows Into Light", "Segoe UI", system-ui, -apple-system,
     sans-serif;
-  font-size: 20px;
+  font-size: 24px;
   padding: 4px 0;
   border: none;
   border-bottom: 1px solid transparent;
@@ -448,7 +448,7 @@ main {
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  color: #000000;
+  color: var(--ink);
   font-weight: 900;
   font-size: 32px;
   font-family: "Shadows Into Light", cursive;
