@@ -439,6 +439,27 @@ main {
   pointer-events: none;
 }
 
+.region-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.region-tag {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-family: "Shadows Into Light", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 32px;
+  color: var(--ink);
+  background: transparent;
+  padding: 2px 6px;
+}
+
+.region-tag.centre {
+  background: rgba(255, 255, 255, 0.8);
+}
+
 .score-chip {
   position: absolute;
   width: 26px;

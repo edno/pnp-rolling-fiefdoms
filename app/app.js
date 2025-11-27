@@ -8,6 +8,7 @@ import {
   restrictBuildOptionsForBoard,
   allocatePopulationToNode,
   BUILDING_RULES,
+  pestilenceAssignments,
 } from "./rules.js";
 
 const terrainLayout = [
@@ -89,6 +90,7 @@ const finishActivationBtn = document.getElementById("finishActivation");
 const actionBannerEl = document.getElementById("actionBanner");
 const loadingOverlay = document.getElementById("loadingOverlay");
 const sheetEl = document.getElementById("sheet");
+const regionOverlayEl = document.getElementById("regionOverlay");
 const SHEET_VERSION = "v1";
 const POP_CAPACITY = 5;
 const POP_LAYOUT = { cols: 9, rows: 2, pipsPerCell: 4 };
@@ -163,6 +165,7 @@ function init() {
   rollDice();
   setupControls();
   updateTracks();
+  renderRegionOverlay();
 }
 
 function preloadSheet() {
@@ -1137,6 +1140,34 @@ function updateActionBanner() {
     void actionBannerEl.offsetWidth; // restart animation
     actionBannerEl.classList.add("bump");
   }
+}
+
+function renderRegionOverlay() {
+  if (!regionOverlayEl) return;
+  regionOverlayEl.innerHTML = "";
+  const positions = {
+    forest: { top: [100, 100], left: [258, 378] },
+    mountain: { top: [292, 422], left: [55, 55] },
+    sea: { top: [292, 410], left: [570, 570] },
+    marsh: { top: [600, 600], left: [252, 378] },
+  };
+  Object.entries(pestilenceAssignments).forEach(([region, nums]) => {
+    const pos = positions[region];
+    if (!pos) return;
+    const [low, high] = nums.length === 1 ? [nums[0], nums[0]] : nums;
+    const coords = [
+      { val: low, top: pos.top[0], left: pos.left[0] },
+      { val: high, top: pos.top[1], left: pos.left[1] },
+    ];
+    coords.forEach((entry) => {
+      const tag = document.createElement("div");
+      tag.className = `region-tag ${region}`;
+      tag.style.top = `${entry.top}px`;
+      tag.style.left = `${entry.left}px`;
+      tag.textContent = entry.val;
+      regionOverlayEl.appendChild(tag);
+    });
+  });
 }
 
 function maybeRollAfterLock() {
