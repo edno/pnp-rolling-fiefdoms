@@ -2,8 +2,7 @@
   --bg: #FFFBE2;
   --panel: #ffffff;
   --border: #d0c6b8;
-  --accent: #3c6e71;
-  --accent-2: #e67e22;
+  --accent: #e67e22;
   --text: #2c2c2c;
   --muted: #7a7a7a;
   --danger: #c0392b;
@@ -16,7 +15,8 @@
 
 body {
   margin: 0;
-  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: "Shadows Into Light", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 18px;
   background: var(--bg);
   color: var(--text);
 }
@@ -43,6 +43,7 @@ header h1 {
   color: var(--accent);
   min-height: 28px;
   text-align: center;
+  font-size: 20px;
 }
 
 .site-footer {
@@ -62,6 +63,8 @@ header h1 {
   align-items: center;
   justify-content: center;
   text-align: center;
+  font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 12px;
 }
 
 .footer-title {
@@ -213,8 +216,8 @@ main {
 }
 
 .population-node.highlight {
-  border: 1px solid #c65c1c;
-  border-color: var(--accent-2);
+  border: 1px solid var(--accent);
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(230, 126, 34, 0.25);
 }
 
@@ -245,7 +248,7 @@ main {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 2px solid #c65c1c !important;
+  border: 2px solid var(--accent) !important;
   background: transparent;
   position: static;
 }
@@ -481,6 +484,10 @@ main {
   font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
+.field label {
+  font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
 button {
   background: var(--accent);
   color: #fff;
@@ -592,7 +599,8 @@ button:disabled {
 }
 
 #log li {
-  font-size: 12px;
+  font-size: 14px;
+  font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
   color: var(--muted);
   padding: 2px 0;
 }
@@ -710,6 +718,7 @@ select {
   align-items: flex-end;
   gap: 8px;
   flex-wrap: wrap;
+  font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
 .die-pips {
@@ -764,6 +773,7 @@ select {
   font-weight: 800;
   font-size: 18px;
   color: var(--die-pip-color);
+  font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
 .die-face-label {
@@ -787,5 +797,6 @@ select {
 
 .muted {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 14px;
+  font-family: "Shadows Into Light", "Segoe UI", system-ui, -apple-system, sans-serif;
 }

@@ -1,0 +1,55 @@
+@font-face {
+  font-family: "Shadows Into Light";
+  src: url("../fonts/Shadows_Into_Light/ShadowsIntoLight-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Lobster Two";
+  src: url("../fonts/Lobster_Two/LobsterTwo-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Lobster Two";
+  src: url("../fonts/Lobster_Two/LobsterTwo-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Lobster Two";
+  src: url("../fonts/Lobster_Two/LobsterTwo-Italic.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Lobster Two";
+  src: url("../fonts/Lobster_Two/LobsterTwo-BoldItalic.woff2") format("woff2");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Roboto";
+  src: url("../fonts/Roboto/Roboto-VariableFont_wdth,wght.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Roboto";
+  src: url("../fonts/Roboto/Roboto-Italic-VariableFont_wdth,wght.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
