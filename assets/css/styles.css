@@ -30,10 +30,53 @@ header {
   display: flex;
   align-items: baseline;
   gap: 16px;
+  justify-content: space-between;
 }
 
 header h1 {
   font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+.top-menu {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.menu-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  text-decoration: none;
+  color: #000;
+  font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
+  gap: 6px;
+}
+
+.menu-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: #fffbe2;
+  border: 2px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+}
+
+.menu-icon img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.menu-text {
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
 }
 
 .fiefdom-overlay {
