@@ -233,9 +233,8 @@ main {
 }
 
 .population-node.highlight {
-  border: 1px solid var(--accent);
+  border: 2px solid var(--accent);
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(230, 126, 34, 0.25);
 }
 
 .population-node.disabled {
@@ -245,7 +244,7 @@ main {
 
 .population-node.has-pop {
   border: 1px solid #c65c1c !important;
-  background: #fff7ec !important;
+  background: #FFFBE2 !important;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
@@ -616,7 +615,7 @@ button:disabled {
 }
 
 #log li {
-  font-size: 14px;
+  font-size: 12px;
   font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
   color: var(--muted);
   padding: 2px 0;
@@ -667,6 +666,7 @@ select {
 .hint {
   color: var(--muted);
   font-size: 12px;
+  font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
 .controls-inline {
