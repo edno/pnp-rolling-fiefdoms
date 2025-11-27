@@ -423,7 +423,7 @@ function renderBoard() {
       if (data.forfeited) {
         cell.classList.add("forfeited");
         const forfeiture = document.createElement("img");
-        forfeiture.src = "assets/forfeit.svg";
+        forfeiture.src = "assets/img/forfeit.svg";
         forfeiture.alt = "Forfeit";
         forfeiture.className = "forfeit-icon";
         cell.appendChild(forfeiture);
@@ -1281,7 +1281,7 @@ function addDieContent(el, die) {
   el.appendChild(faceLabel);
   if (die.face === "X") {
     const img = document.createElement("img");
-    img.src = "assets/forfeit.svg";
+    img.src = "assets/img/forfeit.svg";
     img.alt = "Forfeit";
     img.className = "die-forfeit-icon";
     el.appendChild(img);
