@@ -279,8 +279,7 @@ main {
 }
 
 .population-node.highlight {
-  border: 2px solid var(--accent);
-  border-color: var(--accent);
+  border: 2px solid var(--accent) !important;
 }
 
 .population-node.disabled {
