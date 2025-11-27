@@ -849,7 +849,7 @@ select {
 .muted {
   color: var(--muted);
   font-size: 14px;
-  font-family: "Shadows Into Light", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
 #rollBtn {
