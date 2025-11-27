@@ -85,6 +85,7 @@ const popHousingOverlay = document.getElementById("popHousingOverlay");
 const guildTypes = ["GF", "GQ", "GW", "GM"];
 const finishActivationBtn = document.getElementById("finishActivation");
 const actionBannerEl = document.getElementById("actionBanner");
+const loadingOverlay = document.getElementById("loadingOverlay");
 const POP_CAPACITY = 5;
 const POP_LAYOUT = { cols: 9, rows: 2, pipsPerCell: 4 };
 const debugMode = new URLSearchParams(window.location.search).has("debug");
@@ -136,8 +137,6 @@ const scoringSpots = [
   { key: "reputation", x: 528, y: 20 },
 ];
 
-init();
-
 function init() {
   state.board = terrainLayout.map((row) =>
     row.map((terrain) => ({ terrain, building: null, buildingLabel: null, forfeited: false, springBoost: 0 })),
@@ -161,6 +160,21 @@ function init() {
   setupControls();
   updateTracks();
 }
+
+function preloadSheet() {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
+    img.src = "rolling-fiefdoms-player-sheet.png";
+  });
+}
+
+preloadSheet().then(() => {
+  document.body.classList.remove("loading");
+  if (loadingOverlay) loadingOverlay.remove();
+  init();
+});
 
 function setupControls() {
   const rollBtn = document.getElementById("rollBtn");
