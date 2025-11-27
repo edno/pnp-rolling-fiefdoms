@@ -316,7 +316,7 @@ main {
 }
 
 .worker-pip.filled {
-  background: solid var(--ink);
+  background: var(--ink);
   border-color: solid var(--ink);
 }
 
