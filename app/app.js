@@ -1092,7 +1092,14 @@ function actionMessage() {
 
 function updateActionBanner() {
   if (!actionBannerEl) return;
-  actionBannerEl.textContent = actionMessage();
+  const newText = actionMessage();
+  const changed = actionBannerEl.textContent !== newText;
+  actionBannerEl.textContent = newText;
+  if (changed) {
+    actionBannerEl.classList.remove("bump");
+    void actionBannerEl.offsetWidth; // restart animation
+    actionBannerEl.classList.add("bump");
+  }
 }
 
 function maybeRollAfterLock() {

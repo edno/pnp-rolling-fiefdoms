@@ -46,6 +46,19 @@ header h1 {
   font-size: 20px;
 }
 
+.action-banner.bump {
+  animation: banner-bump 1.2s ease 0.4s;
+}
+
+@keyframes banner-bump {
+  0% { opacity: 1; }
+  20% { opacity: 0.45; }
+  40% { opacity: 1; }
+  60% { opacity: 0.6; }
+  80% { opacity: 1; }
+  100% { opacity: 1; }
+}
+
 .site-footer {
   margin-top: 8px;
   padding: 10px 24px 20px 24px;
