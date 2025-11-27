@@ -9,6 +9,8 @@ import {
   allocatePopulationToNode,
   BUILDING_RULES,
   pestilenceAssignments,
+  computeActivationMap,
+  scoreBuildingAt,
 } from "./rules.js";
 
 const terrainLayout = [
@@ -520,6 +522,10 @@ function renderBuildingOverlay(options = [], disabled = false) {
 
 function renderBoard() {
   boardEl.innerHTML = "";
+  const activationMap =
+    state.activationMode || state.activationComplete
+      ? computeActivationMap(state.board, state.populationNodes, currentWorkerAllocationsForScore())
+      : null;
   terrainLayout.forEach((row, r) => {
     row.forEach((terrain, c) => {
       const cell = document.createElement("div");
@@ -567,6 +573,26 @@ function renderBoard() {
           const oct = document.createElement("div");
           oct.className = "octagon-border";
           cell.appendChild(oct);
+          if (
+            activationMap &&
+            !data.forfeited &&
+            !data.activationForfeit &&
+            data.building !== "C" &&
+            data.building !== "A"
+          ) {
+            const scoreVal = scoreBuildingAt(
+              state.board,
+              state.populationNodes,
+              currentWorkerAllocationsForScore(),
+              r,
+              c,
+              activationMap,
+            );
+            const scoreLabel = document.createElement("div");
+            scoreLabel.className = "cell-score";
+            scoreLabel.textContent = `${scoreVal >= 0 ? "+" : ""}${scoreVal}`;
+            cell.appendChild(scoreLabel);
+          }
         }
         if (req > 0) {
           const worker = document.createElement("div");

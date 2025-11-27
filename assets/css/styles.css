@@ -245,7 +245,6 @@ main {
   padding: 4px 6px;
   border-radius: 6px;
   background: #fff;
-  border: 1px solid var(--border);
 }
 
 .cell .label.building {
@@ -256,6 +255,20 @@ main {
   text-align: center;
   font-family: "Lobster Two";
   padding-top: 4px;
+}
+
+.cell .cell-score {
+    margin-top: 4px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    text-align: center;
+    position: absolute;
+    top: 46px;
+    background: var(--accent);
+    width: 40px;
+    font-family: 'Roboto';
+    border-radius: 10px;
 }
 
 .cell.forfeit .label.building:after {

@@ -189,6 +189,18 @@ describe("computeScore", () => {
     expect(result.breakdown.townhall).toBe(5); // base only, no row/col bonus
   });
 
+  it("townhall counts activated Cottage and Springhouse as unique basics", () => {
+    const board = emptyBoard();
+    board[2][2].building = "T";
+    board[2][1].building = "C"; // always active (req 0)
+    board[2][3].building = "S"; // always active (req 0)
+    const pop = emptyPop();
+    pop[2][2] = 4; // activate Townhall
+    const result = computeScore(board, pop);
+    // Unique basics in row: Cottage + Springhouse = 2 -> base 5 + 4 bonus
+    expect(result.breakdown.townhall).toBe(9);
+  });
+
   it("does not penalize forfeits globally but applies Springhouse adjacency penalties", () => {
     const board = emptyBoard();
     board[0][1].forfeited = true; // cardinal adjacent to [1][1]

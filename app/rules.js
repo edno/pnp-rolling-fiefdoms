@@ -226,23 +226,24 @@ export function allocatePopulationToNode(popGrid, row, col, amount, cap = 5) {
   return { placed, grid };
 }
 
-export function computeScore(board, populationNodes, workerAllocations = null) {
+export function computeActivationMap(board, populationNodes, workerAllocations = null) {
   const rows = board.length;
   const cols = board[0]?.length || 0;
-  const popTotal = populationNodes.flat().reduce((a, b) => a + b, 0);
-  const cottages = board.flat().filter((c) => c.building === "C").length;
-  const housing = cottages * 4;
-  const forfeitsCount = board.flat().filter((c) => c.forfeited || c.activationForfeit).length;
-
-  const activation = new Map(); // key `${r},${c}` -> bool
-
+  const activation = new Map();
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const cell = board[r][c];
-      if (!cell.building || cell.activationForfeit) continue;
+      if (!cell.building || cell.forfeited || cell.activationForfeit) {
+        activation.set(key(r, c), false);
+        continue;
+      }
       const rule = BUILDING_RULES[cell.building];
       const springBoost = Math.max(0, Number(cell.springBoost) || 0);
       const req = Math.max(0, rule.requirement - springBoost);
+      if (req <= 0) {
+        activation.set(key(r, c), true);
+        continue;
+      }
       if (workerAllocations) {
         const assigned = Math.max(0, workerAllocations?.[r]?.[c] || 0);
         activation.set(key(r, c), assigned >= req);
@@ -252,6 +253,18 @@ export function computeScore(board, populationNodes, workerAllocations = null) {
       }
     }
   }
+  return activation;
+}
+
+export function computeScore(board, populationNodes, workerAllocations = null) {
+  const rows = board.length;
+  const cols = board[0]?.length || 0;
+  const popTotal = populationNodes.flat().reduce((a, b) => a + b, 0);
+  const cottages = board.flat().filter((c) => c.building === "C").length;
+  const housing = cottages * 4;
+  const forfeitsCount = board.flat().filter((c) => c.forfeited || c.activationForfeit).length;
+
+  const activation = computeActivationMap(board, populationNodes, workerAllocations);
 
   let scores = {
     cottages: scoreCottages(board, populationNodes),
@@ -368,6 +381,59 @@ function scoreCottages(board, populationNodes) {
   return occupied * 3;
 }
 
+export function scoreBuildingAt(board, populationNodes, workerAllocations, r, c, activation = null) {
+  const cell = board[r]?.[c];
+  if (!cell || !cell.building || cell.forfeited || cell.activationForfeit) return 0;
+  const actMap = activation || computeActivationMap(board, populationNodes, workerAllocations);
+  const active = actMap.get(key(r, c));
+  if (!active) return 0;
+
+  switch (cell.building) {
+    case "F": {
+      const base = BUILDING_RULES.F.base;
+      const bonus = adjHasBuilding(board, r, c, "S") ? 2 : 0;
+      return base + bonus;
+    }
+    case "Q": {
+      const base = BUILDING_RULES.Q.base;
+      const bonus = rowColHas(board, r, c, "Q") ? 1 : 0;
+      return base + bonus;
+    }
+    case "W": {
+      const base = BUILDING_RULES.W.base;
+      const bonus = adjCountBuilding(board, r, c, "W");
+      return base + bonus;
+    }
+    case "M": {
+      return popAround(r, c, populationNodes);
+    }
+    case "S": {
+      const base = BUILDING_RULES.S.base;
+      const forfeitsAdj = adjCountForfeits(board, r, c);
+      return base - forfeitsAdj;
+    }
+    case "T": {
+      const base = BUILDING_RULES.T.base;
+      const uniqueBasics = uniqueBasicsRowCol(board, actMap, r, c);
+      return base + 2 * uniqueBasics.size;
+    }
+    case "U": {
+      const uniqueAdv = countAdvanced(board);
+      return uniPoints(uniqueAdv);
+    }
+    case "A": {
+      return 0; // affects vagrants only
+    }
+    case "G": {
+      const target = guildTargetFromLabel((cell.buildingLabel || "G").toUpperCase());
+      if (!target) return 0;
+      return meetsGuildCondition(board, actMap, target) ? 15 : 0;
+    }
+    default:
+      return 0;
+  }
+}
+
 function popAround(r, c, popGrid) {
   if (!popGrid?.length) return 0;
   const rows = popGrid.length;
@@ -407,15 +473,24 @@ function rowColHas(board, r, c, code) {
 
 function uniqueBasicsRowCol(board, activation, r, c) {
   const basics = new Set();
+  const eligibleTypes = new Set(["basic", "special"]); // include Cottage and Springhouse
   for (let cc = 0; cc < board[0].length; cc++) {
     const cell = board[r][cc];
-    if (cell.building && BUILDING_RULES[cell.building].category === "basic" && activation.get(key(r, cc))) {
+    if (
+      cell.building &&
+      eligibleTypes.has(BUILDING_RULES[cell.building].category) &&
+      activation.get(key(r, cc))
+    ) {
       basics.add(cell.building);
     }
   }
   for (let rr = 0; rr < board.length; rr++) {
     const cell = board[rr][c];
-    if (cell.building && BUILDING_RULES[cell.building].category === "basic" && activation.get(key(rr, c))) {
+    if (
+      cell.building &&
+      eligibleTypes.has(BUILDING_RULES[cell.building].category) &&
+      activation.get(key(rr, c))
+    ) {
       basics.add(cell.building);
     }
   }
