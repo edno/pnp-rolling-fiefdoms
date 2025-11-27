@@ -173,7 +173,7 @@ function preloadSheet() {
 }
 
 function sheetImageUrl() {
-  return `rolling-fiefdoms-player-sheet.png?v=${SHEET_VERSION}`;
+  return `resources/rolling-fiefdoms-player-sheet.png?v=${SHEET_VERSION}`;
 }
 
 preloadSheet().then(() => {

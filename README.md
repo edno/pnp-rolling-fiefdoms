@@ -30,4 +30,4 @@ See `AGENTS.md` Appendix for the current TODO/Known Gaps (pip fidelity, pestilen
 ## License
 
 - Code: MIT (see `LICENSE`)
-- Rulebook & player sheet: CC BY-NC-SA 4.0 (see `LICENSE-ASSETS`)
+- Rulebook & player sheet: CC BY-NC-SA 4.0 (see `LICENSE-ASSETS` in `resources/`)
