@@ -68,6 +68,11 @@ const state = {
 
 let controlsReady = false;
 
+function refreshDiceVisibility() {
+  if (!diceView) return;
+  diceView.style.display = state.activationMode || state.activationComplete ? "none" : "";
+}
+
 function lockDiceSnapshot() {
   if (state.diceLocked) return;
   const locSnapshot = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
@@ -156,6 +161,7 @@ function init() {
   renderRegionOverlay();
   updateTracks();
   updateActionBanner();
+  refreshDiceVisibility();
   if (!controlsReady) {
     setupControls();
     controlsReady = true;
@@ -188,6 +194,7 @@ function resetState() {
   if (logEl) logEl.innerHTML = "";
   if (finishActivationBtn) finishActivationBtn.style.display = "none";
   if (newGameBtn) newGameBtn.style.display = "none";
+  refreshDiceVisibility();
   log("Game started.");
 }
 
@@ -302,11 +309,6 @@ function rollDice() {
   if (state.pestilence) {
     const target = state.pestilenceInfo?.sectionLabel || "any section";
     if (turnHintEl) turnHintEl.textContent = `Pestilence! Forfeit a plot in ${target}.`;
-    log(
-      `Pestilence! Sum ${state.pestilenceInfo?.sum ?? "?"}${
-        state.pestilenceInfo?.sectionLabel ? ` -> ${state.pestilenceInfo.sectionLabel}` : ""
-      }`,
-    );
     if (state.pestilenceInfo?.sectionLabel && state.pestilenceInfo.targetCells.length === 0) {
       log("Target section is full; forfeit any empty plot.");
     }
@@ -317,6 +319,13 @@ function rollDice() {
   updateDiceAssignments();
   renderDice();
   log(`Rolled ${describeDice(state.dice)}`);
+  if (state.pestilence) {
+    log(
+      `Pestilence! Sum ${state.pestilenceInfo?.sum ?? "?"}${
+        state.pestilenceInfo?.sectionLabel ? ` -> ${state.pestilenceInfo.sectionLabel}` : ""
+      }`,
+    );
+  }
   updateActionBanner();
 }
 
@@ -360,9 +369,14 @@ function triggerDiceAnimation() {
 
 function renderDice() {
   if (!diceView) return;
+  refreshDiceVisibility();
+  if (state.activationMode || state.activationComplete) return;
   diceView.innerHTML = "";
   if (turnHintEl) {
-    if (state.activeTurn && state.invalidSelection) {
+    if (state.pestilence) {
+      const target = state.pestilenceInfo?.sectionLabel || "any section";
+      turnHintEl.textContent = `Pestilence! Forfeit a plot in ${target}.`;
+    } else if (state.activeTurn && state.invalidSelection) {
       turnHintEl.textContent = "No valid plots for that pair; choose a different location pair.";
     } else if (state.forceForfeit) {
       turnHintEl.textContent = "No valid location pairs; forfeit a plot.";
@@ -963,6 +977,7 @@ function enterActivationMode() {
   renderGuildOverlay([]);
   renderBoard();
   highlightLocations();
+  refreshDiceVisibility();
   log("Activation phase: select a population node, then click adjacent buildings to fill workers one at a time.");
   updateActionBanner();
 }
@@ -978,6 +993,7 @@ function finishActivation() {
   if (newGameBtn) newGameBtn.style.display = "inline-block";
   renderBoard();
   highlightLocations();
+  refreshDiceVisibility();
   updateTracks();
   log("Activation finished. Scoring updated.");
   log(`Game end. Final score ${state.finalScore}.`);
@@ -991,6 +1007,7 @@ function newGame() {
   updateTracks();
   updateActionBanner();
   if (newGameBtn) newGameBtn.style.display = "none";
+  refreshDiceVisibility();
   rollDice();
 }
 
