@@ -288,17 +288,15 @@ main {
 .cell .label {
   padding: 4px 6px;
   border-radius: 6px;
-  background: #fff;
 }
 
 .cell .label.building {
-  background: var(--ink);
-  color: #fff;
-  width: 44px;
-  height: 32px;
-  text-align: center;
-  font-family: "Lobster Two";
-  padding-top: 4px;
+    color: var(--ink);
+    width: auto;
+    height: auto;
+    text-align: center;
+    font-family: "Shadows Into Light", "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-size: 36px;
 }
 
 .cell .cell-score {
@@ -308,7 +306,7 @@ main {
   color: #fff;
   text-align: center;
   position: absolute;
-  top: 46px;
+  top: 50px;
   background: var(--accent);
   width: 40px;
   font-family: "Roboto";
@@ -318,7 +316,7 @@ main {
 .cell.forfeit .label.building:after {
   content: url("../img/forfeit.svg");
   opacity: 0.8;
-  top: 24px;
+  top: 18px;
   left: 26px;
   display: block;
   position: absolute;
@@ -346,7 +344,7 @@ main {
 }
 
 .population-node.has-pop {
-  border: 1px solid var(--ink) !important;
+  border: 1px solid var(--border) !important;
   background: var(--background) !important;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
@@ -378,11 +376,11 @@ main {
 }
 
 .selected-building {
-  box-shadow: 0 0 0 3px rgba(60, 110, 113, 0.3);
+  border: 2px solid var(--accent) !important;
 }
 
 .population-node.selected-pop {
-  box-shadow: 0 0 0 3px rgba(230, 126, 34, 0.3);
+  border: 2px solid var(--accent) !important;
 }
 
 .activated-building {
@@ -705,7 +703,7 @@ button:disabled {
 
 .guild-hit.available,
 .building-hit.available {
-  border-color: rgba(60, 110, 113, 0.4);
+  border-color: rgba(60, 110, 113, 0.6);
 }
 
 .guild-hit.disabled,
