@@ -398,6 +398,20 @@ describe("available location pairs helper", () => {
     const pairs = availableLocationPairs(dice, fullBoard);
     expect(pairs.length).toBe(0);
   });
+
+  it("is empty when the only rolled location pair is fully blocked", () => {
+    // Roll two 1s and force both possible plots blocked.
+    const board = emptyBoard();
+    board[0][0].building = "X";
+    const dice = [
+      { label: "N1", face: 1, resolved: 1, choices: [] },
+      { label: "N2", face: 1, resolved: 1, choices: [] },
+      { label: "X1", face: "X", resolved: null, choices: [] },
+      { label: "X2", face: "X", resolved: null, choices: [] },
+    ];
+    const pairs = availableLocationPairs(dice, board);
+    expect(pairs).toEqual([]);
+  });
 });
 
 describe("population allocation", () => {
@@ -446,6 +460,18 @@ describe("adjacency scoring (cardinal)", () => {
     pop[1][2] = 2; // activate both
     const result = computeScore(board, pop);
     expect(result.breakdown.windmill).toBe(8); // each 3 + 1 adjacency
+  });
+
+  it("windmill bonus is capped at +1 even with multiple adjacent windmills", () => {
+    const board = emptyBoard();
+    board[1][1].building = "W";
+    board[1][2].building = "W";
+    board[1][3].building = "W";
+    const pop = emptyPop();
+    pop[1][1] = pop[1][2] = pop[1][3] = 2; // activate all
+    const result = computeScore(board, pop);
+    // Each windmill: base 3 + bonus 1 (not per-adjacent) => 4 * 3 = 12 total
+    expect(result.breakdown.windmill).toBe(12);
   });
 
   it("does not award guilds without a built guild", () => {

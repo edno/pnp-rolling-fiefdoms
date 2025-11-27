@@ -301,7 +301,7 @@ export function computeScore(board, populationNodes, workerAllocations = null) {
         }
         case "W": {
           const base = BUILDING_RULES.W.base;
-          const bonus = adjCountBuilding(board, r, c, "W");
+          const bonus = adjCountBuilding(board, r, c, "W") > 0 ? 1 : 0;
           if (active) scores.windmill += base + bonus;
           break;
         }
@@ -401,7 +401,7 @@ export function scoreBuildingAt(board, populationNodes, workerAllocations, r, c,
     }
     case "W": {
       const base = BUILDING_RULES.W.base;
-      const bonus = adjCountBuilding(board, r, c, "W");
+      const bonus = adjCountBuilding(board, r, c, "W") > 0 ? 1 : 0;
       return base + bonus;
     }
     case "M": {

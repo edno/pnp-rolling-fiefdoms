@@ -1578,6 +1578,15 @@ function updateDiceAssignments() {
   let forceForfeit = state.diceLocked ? state.forceForfeit : allPairs.length === 0;
   let invalidSelection = false;
 
+  // If there are truly no available pairs at all, force forfeit and clear selections
+  if (!state.diceLocked && allPairs.length === 0) {
+    state.locationSelection = [];
+    forceForfeit = true;
+    invalidSelection = false;
+    locationPairs = [];
+    if (!prevForce) log("No valid location pairs; forfeit a plot.");
+  }
+
   if (state.diceLocked) {
     if (state.lockedLocationPairs) locationPairs = state.lockedLocationPairs.map((p) => p.slice());
   } else if (state.activeTurn) {
