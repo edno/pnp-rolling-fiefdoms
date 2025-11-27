@@ -511,6 +511,30 @@ describe("adjacency scoring (cardinal)", () => {
     const result = computeScore(board, pop);
     expect(result.breakdown.quarry).toBe(6); // two quarries, no bonus
   });
+
+  it("counts activation-forfeited quarries toward row/col bonus for active quarries", () => {
+    const board = emptyBoard();
+    board[0][0].building = "Q";
+    board[0][1].building = "Q";
+    board[0][1].activationForfeit = true; // forfeited for activation, still a quarry on the board
+    const pop = emptyPop();
+    const alloc = Array.from({ length: 5 }, () => Array(5).fill(0));
+    alloc[0][0] = 2; // activate only the first quarry
+    const result = computeScore(board, pop, alloc);
+    expect(result.breakdown.quarry).toBe(4); // base 3 + row bonus from neighboring forfeited quarry
+  });
+
+  it("counts forfeited windmills for adjacency bonus of an active windmill", () => {
+    const board = emptyBoard();
+    board[0][0].building = "W";
+    board[0][1].building = "W";
+    board[0][1].activationForfeit = true; // not active, but still a windmill on the board
+    const pop = emptyPop();
+    const alloc = Array.from({ length: 5 }, () => Array(5).fill(0));
+    alloc[0][0] = 2; // activate only the first windmill
+    const result = computeScore(board, pop, alloc);
+    expect(result.breakdown.windmill).toBe(4); // base 3 + 1 adjacency from forfeited windmill
+  });
 });
 
 describe("pestilence section mapping", () => {
