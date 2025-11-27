@@ -205,7 +205,8 @@ main {
   position: relative;
   width: 100%;
   padding-top: 71%; /* image aspect ratio approx 1086/767 */
-  background: url("../../resources/rolling-fiefdoms-player-sheet.png?v=v1") center/contain no-repeat;
+  background: url("../../resources/rolling-fiefdoms-player-sheet.png?v=v1")
+    center/contain no-repeat;
   border-radius: 8px;
   overflow: hidden;
 }
@@ -258,17 +259,17 @@ main {
 }
 
 .cell .cell-score {
-    margin-top: 4px;
-    font-size: 14px;
-    font-weight: 700;
-    color: #fff;
-    text-align: center;
-    position: absolute;
-    top: 46px;
-    background: var(--accent);
-    width: 40px;
-    font-family: 'Roboto';
-    border-radius: 10px;
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  text-align: center;
+  position: absolute;
+  top: 46px;
+  background: var(--accent);
+  width: 40px;
+  font-family: "Roboto";
+  border-radius: 10px;
 }
 
 .cell.forfeit .label.building:after {
@@ -498,9 +499,9 @@ main {
 
 .pop-housing-overlay {
   position: absolute;
-  left: 655px;
-  top: 40px;
-  width: 385px;
+  left: 657px;
+  top: 39px;
+  width: 382px;
   height: 80px;
   pointer-events: none;
 }
