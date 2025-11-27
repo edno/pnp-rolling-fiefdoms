@@ -72,8 +72,12 @@ function refreshDiceVisibility() {
   const hidden = state.activationMode || state.activationComplete;
   if (diceView) diceView.style.display = hidden ? "none" : "";
   const rollBtn = document.getElementById("rollBtn");
-  if (rollBtn && !debugMode) {
-    rollBtn.style.display = hidden ? "none" : "";
+  if (rollBtn) {
+    if (!debugMode) {
+      rollBtn.style.display = "none";
+    } else {
+      rollBtn.style.display = hidden ? "none" : "inline-block";
+    }
   }
   if (turnHintEl) {
     turnHintEl.style.display = hidden ? "none" : "";
