@@ -57,6 +57,7 @@ const state = {
   lockedLocationPairs: null,
   lastLocationDice: [],
   lastBuildDice: [],
+  bannerOverride: null,
 };
 
 function lockDiceSnapshot() {
@@ -277,10 +278,14 @@ function triggerDiceAnimation() {
   if (!diceView) return;
   state.diceRolling = true;
   diceView.classList.add("dice-rolling");
+  state.bannerOverride = "Rolling dice...";
+  updateActionBanner();
   setTimeout(() => {
     state.diceRolling = false;
     diceView.classList.remove("dice-rolling");
-  }, 650);
+    state.bannerOverride = null;
+    updateActionBanner();
+  }, 1200);
 }
 
 function renderDice() {
@@ -1051,6 +1056,7 @@ function renderTopTracks() {
 }
 
 function actionMessage() {
+  if (state.bannerOverride) return state.bannerOverride;
   if (state.activationMode) {
     const anyRemaining = state.board.some((row, r) =>
       row.some((cell, c) => {

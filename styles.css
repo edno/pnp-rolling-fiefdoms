@@ -669,7 +669,7 @@ select {
 
 .dice-rolling .die-badge,
 #diceView.dice-rolling .die-badge {
-  animation: dice-bounce 0.6s ease;
+  animation: dice-bounce 1.1s ease;
 }
 
 .dice-rolling .die-badge:nth-child(2),
