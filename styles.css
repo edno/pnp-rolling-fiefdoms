@@ -141,7 +141,7 @@ main {
   position: relative;
   width: 100%;
   padding-top: 71%; /* image aspect ratio approx 1086/767 */
-  background: url("rolling-fiefdoms-player-sheet.png") center/contain no-repeat;
+  background: url("resources/rolling-fiefdoms-player-sheet.png?v=v1") center/contain no-repeat;
   border-radius: 8px;
   overflow: hidden;
 }
