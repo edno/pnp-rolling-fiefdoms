@@ -553,6 +553,21 @@ describe("pestilence section mapping", () => {
     expect(info.section).toBe("mountain"); // 3+4=7 -> mountain
     expect(includesCorner).toBe(true);
   });
+
+  it("returns empty targetCells when the section is already full", () => {
+    const fullBoard = Array.from({ length: 5 }, () =>
+      Array.from({ length: 5 }, () => ({ building: "X", forfeited: false, springBoost: 0 })),
+    );
+    const dice = [
+      { label: "N1", resolved: 3 },
+      { label: "N2", resolved: 3 },
+      { label: "X1", face: "X", resolved: "X" },
+      { label: "X2", face: "X", resolved: "X" },
+    ];
+    const info = computePestilenceInfo(dice, fullBoard);
+    expect(info.section).toBe("centre");
+    expect(info.targetCells.length).toBe(0);
+  });
 });
 
 describe("build option restrictions", () => {
