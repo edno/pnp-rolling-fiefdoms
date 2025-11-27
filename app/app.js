@@ -536,7 +536,14 @@ function renderBoard() {
         cell.classList.remove("terrain");
         const label = document.createElement("div");
         label.className = "label building";
-        label.textContent = data.buildingLabel || data.building;
+        label.textContent =
+          data.building === "G"
+            ? (() => {
+                const map = { GF: "FG", GQ: "QG", GW: "WG", GM: "MG" };
+                const raw = (data.buildingLabel || "G").toUpperCase();
+                return map[raw] || raw;
+              })()
+            : data.buildingLabel || data.building;
         cell.appendChild(label);
         if (data.activationForfeit) {
           cell.classList.add("forfeit");
@@ -834,7 +841,15 @@ function placeBuilding(r, c, code) {
   lockDiceSnapshot();
   renderBoard();
   updateTracks();
-  log(`Placed ${code} at row ${r + 1}, col ${c + 1}`);
+  const displayLabel =
+    code === "G"
+      ? (() => {
+          const map = { GF: "FG", GQ: "QG", GW: "WG", GM: "MG" };
+          const raw = (buildingLabel || "G").toUpperCase();
+          return map[raw] || raw;
+        })()
+      : code;
+  log(`Placed ${displayLabel} at row ${r + 1}, col ${c + 1}`);
   state.diceLocked = true;
   updateDiceAssignments();
   // Reset guild selection after placement
