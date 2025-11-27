@@ -93,6 +93,7 @@ const scoreOverlayEl = document.getElementById("scoreOverlay");
 const popHousingOverlay = document.getElementById("popHousingOverlay");
 const guildTypes = ["GF", "GQ", "GW", "GM"];
 const finishActivationBtn = document.getElementById("finishActivation");
+const newGameBtn = document.getElementById("newGameBtn");
 const actionBannerEl = document.getElementById("actionBanner");
 const loadingOverlay = document.getElementById("loadingOverlay");
 const sheetEl = document.getElementById("sheet");
@@ -186,6 +187,7 @@ function resetState() {
   state.log = [];
   if (logEl) logEl.innerHTML = "";
   if (finishActivationBtn) finishActivationBtn.style.display = "none";
+  if (newGameBtn) newGameBtn.style.display = "none";
   log("Game started.");
 }
 
@@ -216,6 +218,10 @@ function setupControls() {
   if (rollBtn) {
     rollBtn.onclick = () => rollDice();
     rollBtn.style.display = debugMode ? "inline-block" : "none";
+  }
+  if (newGameBtn) {
+    newGameBtn.onclick = () => newGame();
+    newGameBtn.style.display = "none";
   }
   const fiefdomInput = document.getElementById("fiefdomInput");
   if (fiefdomInput) {
@@ -966,9 +972,10 @@ function finishActivation() {
   autoForfeitUnfillable(true);
   state.activationMode = false;
   state.activationComplete = true;
-   state.finalScore = computeScore(state.board, state.populationNodes, currentWorkerAllocationsForScore()).total;
+  state.finalScore = computeScore(state.board, state.populationNodes, currentWorkerAllocationsForScore()).total;
   state.activationSelection = { pop: null };
   if (finishActivationBtn) finishActivationBtn.style.display = "none";
+  if (newGameBtn) newGameBtn.style.display = "inline-block";
   renderBoard();
   highlightLocations();
   updateTracks();
@@ -983,6 +990,7 @@ function newGame() {
   renderRegionOverlay();
   updateTracks();
   updateActionBanner();
+  if (newGameBtn) newGameBtn.style.display = "none";
   rollDice();
 }
 
@@ -1194,18 +1202,7 @@ function updateActionBanner() {
   const prevText = actionBannerEl.dataset.msg || "";
   const changed = prevText !== newText;
   actionBannerEl.dataset.msg = newText;
-  actionBannerEl.innerHTML = "";
-  const span = document.createElement("span");
-  span.textContent = newText;
-  actionBannerEl.appendChild(span);
-  if (state.activationComplete) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "banner-button";
-    btn.textContent = "New game";
-    btn.onclick = () => newGame();
-    actionBannerEl.appendChild(btn);
-  }
+  actionBannerEl.textContent = newText;
   if (changed) {
     actionBannerEl.classList.remove("bump");
     void actionBannerEl.offsetWidth; // restart animation

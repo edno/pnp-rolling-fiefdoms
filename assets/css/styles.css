@@ -260,7 +260,7 @@ main {
 }
 
 .cell.forfeit .label.building:after {
-  content: url("assets/forfeit.svg");
+  content: url("../img/forfeit.svg");
   opacity: 0.8;
   top: 24px;
   left: 26px;
