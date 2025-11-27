@@ -773,7 +773,7 @@ select {
   font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
   color: var(--die-pip-color);
   font-weight: 700;
-  font-size: 18px;
+  font-size: 20px;
 }
 
 .split-low {
