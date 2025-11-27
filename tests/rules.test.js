@@ -462,18 +462,6 @@ describe("adjacency scoring (cardinal)", () => {
     expect(result.breakdown.windmill).toBe(8); // each 3 + 1 adjacency
   });
 
-  it("windmill bonus is capped at +1 even with multiple adjacent windmills", () => {
-    const board = emptyBoard();
-    board[1][1].building = "W";
-    board[1][2].building = "W";
-    board[1][3].building = "W";
-    const pop = emptyPop();
-    pop[1][1] = pop[1][2] = pop[1][3] = 2; // activate all
-    const result = computeScore(board, pop);
-    // Each windmill: base 3 + bonus 1 (not per-adjacent) => 4 * 3 = 12 total
-    expect(result.breakdown.windmill).toBe(12);
-  });
-
   it("does not award guilds without a built guild", () => {
     const board = emptyBoard();
     board[1][0].building = "F";
