@@ -89,6 +89,17 @@ function refreshDiceVisibility() {
   }
 }
 
+function toggleFullscreen() {
+  const elem = document.documentElement;
+  if (!document.fullscreenElement) {
+    if (elem.requestFullscreen) {
+      elem.requestFullscreen();
+    }
+  } else if (document.exitFullscreen) {
+    document.exitFullscreen();
+  }
+}
+
 function lockDiceSnapshot() {
   if (state.diceLocked) return;
   const locSnapshot = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
@@ -115,6 +126,7 @@ const popHousingOverlay = document.getElementById("popHousingOverlay");
 const guildTypes = ["GF", "GQ", "GW", "GM"];
 const finishActivationBtn = document.getElementById("finishActivation");
 const newGameBtn = document.getElementById("newGameBtn");
+const fullscreenBtn = document.getElementById("fullscreenToggle");
 const actionBannerEl = document.getElementById("actionBanner");
 const loadingOverlay = document.getElementById("loadingOverlay");
 const sheetEl = document.getElementById("sheet");
@@ -245,6 +257,9 @@ function setupControls() {
   if (newGameBtn) {
     newGameBtn.onclick = () => newGame();
     newGameBtn.style.display = "none";
+  }
+  if (fullscreenBtn) {
+    fullscreenBtn.onclick = () => toggleFullscreen();
   }
   const fiefdomInput = document.getElementById("fiefdomInput");
   if (fiefdomInput) {

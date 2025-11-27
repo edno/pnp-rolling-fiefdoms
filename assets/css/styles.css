@@ -974,3 +974,8 @@ select {
 #rollBtn {
   margin-bottom: 12px;
 }
+
+#fullscreenToggle {
+  padding: 0px;
+  background-color: transparent;
+}
