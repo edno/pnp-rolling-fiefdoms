@@ -68,7 +68,7 @@ header h1 {
 .action-banner {
   margin: 0;
   padding: 10px 24px;
-  background: var(--background);
+  background: rgba(255, 255, 255, 0.5);
   border-bottom: 1px solid var(--border);
   font-weight: 700;
   color: var(--accent);
