@@ -287,7 +287,7 @@ function preloadSheet() {
 }
 
 function sheetImageUrl() {
-  return `/resources/rolling-fiefdoms-player-sheet.png?v=${SHEET_VERSION}`;
+  return new URL(`resources/rolling-fiefdoms-player-sheet.png?v=${SHEET_VERSION}`, window.location.href).toString();
 }
 
 setupThemeToggle();
