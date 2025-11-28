@@ -66,6 +66,7 @@ const state = {
   turnIndex: 0,
   invalidSelection: false,
   finalScore: null,
+  theme: "light",
 };
 
 let controlsReady = false;
@@ -127,6 +128,9 @@ const guildTypes = ["GF", "GQ", "GW", "GM"];
 const finishActivationBtn = document.getElementById("finishActivation");
 const newGameBtn = document.getElementById("newGameBtn");
 const fullscreenBtn = document.getElementById("fullscreenToggle");
+const themeToggleBtn = document.getElementById("themeToggle");
+const themeToggleIcon = document.getElementById("themeToggleIcon");
+const themeToggleText = document.getElementById("themeToggleText");
 const actionBannerEl = document.getElementById("actionBanner");
 const loadingOverlay = document.getElementById("loadingOverlay");
 const sheetEl = document.getElementById("sheet");
@@ -135,6 +139,7 @@ const SHEET_VERSION = "v1";
 const POP_CAPACITY = 5;
 const POP_LAYOUT = { cols: 9, rows: 2, pipsPerCell: 4 };
 const debugMode = new URLSearchParams(window.location.search).has("debug");
+const THEME_STORAGE_KEY = "rolling-fiefdoms-theme";
 // Hitboxes relative to printed sheet regions (percent of Buildings/Guilds box)
 const buildingHitboxes = [
   { code: "C", col: 1, row: 1 },
@@ -182,6 +187,52 @@ const scoringSpots = [
   { key: "vagrants", x: 428, y: 20 },
   { key: "reputation", x: 528, y: 20 },
 ];
+
+function readStoredTheme() {
+  try {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored === "dark" || stored === "light") return stored;
+  } catch (err) {
+    console.warn("Could not read theme preference", err);
+  }
+  if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+    return "dark";
+  }
+  return "light";
+}
+
+function updateThemeToggle() {
+  if (!themeToggleBtn) return;
+  const isDark = state.theme === "dark";
+  if (themeToggleIcon) {
+    themeToggleIcon.src = isDark ? "assets/img/moon.svg" : "assets/img/sun.svg";
+  }
+  if (themeToggleText) {
+    themeToggleText.textContent = isDark ? "Dark" : "Light";
+  }
+  themeToggleBtn.setAttribute("aria-pressed", String(isDark));
+  themeToggleBtn.title = isDark ? "Switch to light mode" : "Switch to dark mode";
+}
+
+function applyTheme(theme, persist = false) {
+  const normalized = theme === "dark" ? "dark" : "light";
+  state.theme = normalized;
+  document.body.classList.toggle("theme-dark", normalized === "dark");
+  if (persist) {
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, normalized);
+    } catch (err) {
+      console.warn("Could not store theme preference", err);
+    }
+  }
+  updateThemeToggle();
+}
+
+function setupThemeToggle() {
+  applyTheme(readStoredTheme());
+  if (!themeToggleBtn) return;
+  themeToggleBtn.onclick = () => applyTheme(state.theme === "dark" ? "light" : "dark", true);
+}
 
 function init() {
   resetState();
@@ -236,14 +287,16 @@ function preloadSheet() {
 }
 
 function sheetImageUrl() {
-  return `resources/rolling-fiefdoms-player-sheet.png?v=${SHEET_VERSION}`;
+  return `/resources/rolling-fiefdoms-player-sheet.png?v=${SHEET_VERSION}`;
 }
+
+setupThemeToggle();
 
 preloadSheet().then(() => {
   document.body.classList.remove("loading");
   if (loadingOverlay) loadingOverlay.remove();
   if (sheetEl) {
-    sheetEl.style.backgroundImage = `url("${sheetImageUrl()}")`;
+    sheetEl.style.setProperty("--sheet-image", `url("${sheetImageUrl()}")`);
   }
   init();
 });

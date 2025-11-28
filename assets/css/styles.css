@@ -1,4 +1,5 @@
 :root {
+  --sheet-image: url("/resources/rolling-fiefdoms-player-sheet.png?v=v1");
   --bg: #fffbe2;
   --panel: #ffffff;
   --border: #d0c6b8;
@@ -8,6 +9,18 @@
   --danger: #c0392b;
   --grid: #cfd4d8;
   --ink: #000794;
+}
+
+body.theme-dark {
+  --bg: #0f1218;
+  --panel: #161b22;
+  --border: #2c3443;
+  --accent: #f3a847;
+  --text: #e6ecf5;
+  --muted: #9ca6b8;
+  --danger: #e06c75;
+  --grid: #3a4354;
+  --ink: #d6e2ff;
 }
 
 * {
@@ -53,7 +66,7 @@ header h1 {
   justify-content: center;
   width: 48px;
   text-decoration: none;
-  color: #000;
+  color: var(--text);
   font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
   gap: 6px;
 }
@@ -62,7 +75,7 @@ header h1 {
   width: 48px;
   height: 48px;
   border-radius: 16px;
-  background: #fffbe2;
+  background: var(--bg);
   border: 2px solid var(--border);
   display: inline-flex;
   align-items: center;
@@ -80,6 +93,23 @@ header h1 {
   font-size: 12px;
   font-weight: 700;
   text-align: center;
+}
+
+body.theme-dark header,
+body.theme-dark .site-footer {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+}
+
+body.theme-dark .menu-icon {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+body.theme-dark .menu-icon img {
+  filter: invert(1) brightness(1.2) contrast(0.95);
+}
+
+body.theme-dark #themeToggleIcon {
+  filter: none;
 }
 
 .fiefdom-overlay {
@@ -128,6 +158,11 @@ header h1 {
 
 .action-banner.bump {
   animation: banner-bump 1.2s ease 0.4s;
+}
+
+body.theme-dark .action-banner {
+  background: rgba(21, 26, 34, 0.85);
+  border-color: var(--border);
 }
 
 @keyframes banner-bump {
@@ -209,6 +244,10 @@ header h1 {
   z-index: 999;
 }
 
+body.theme-dark .loading-overlay {
+  background: rgba(15, 18, 24, 0.88);
+}
+
 .spinner {
   width: 48px;
   height: 48px;
@@ -254,10 +293,24 @@ main {
   position: relative;
   width: 100%;
   padding-top: 71%; /* image aspect ratio approx 1086/767 */
-  background: url("../../resources/rolling-fiefdoms-player-sheet.png?v=v1")
-    center/contain no-repeat;
+  background: var(--sheet-image) center/contain no-repeat;
   border-radius: 8px;
   overflow: hidden;
+}
+
+body.theme-dark .sheet::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--sheet-image) center/contain no-repeat;
+  filter: invert(0.92) hue-rotate(180deg) brightness(0.82) contrast(1.08);
+  opacity: 0.95;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.sheet > * {
+  z-index: 1;
 }
 
 .board {
@@ -809,12 +862,18 @@ select {
   height: 42px;
   margin-right: 8px;
   border-radius: 8px;
-  background: #fff;
+  background: var(--panel);
   border: 2px solid #2f4858;
   position: relative;
   vertical-align: middle;
   transition: transform 120ms ease, box-shadow 120ms ease;
   cursor: pointer;
+}
+
+body.theme-dark .die-badge {
+  background: #1c2431;
+  border-color: var(--border);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
 
 .dice-rolling .die-badge,
@@ -971,6 +1030,16 @@ select {
   border-color: #c0392b;
 }
 
+body.theme-dark .die-number {
+  --die-pip-color: #8cc0ff;
+  border-color: #8cc0ff;
+}
+
+body.theme-dark .die-special {
+  --die-pip-color: #f2a766;
+  border-color: #f2a766;
+}
+
 .muted {
   color: var(--muted);
   font-size: 14px;
@@ -981,7 +1050,7 @@ select {
   margin-bottom: 12px;
 }
 
-#fullscreenToggle {
+#fullscreenToggle, #themeToggle {
   padding: 0px;
   background-color: transparent;
 }

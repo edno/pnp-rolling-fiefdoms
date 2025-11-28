@@ -28,10 +28,6 @@
   <header>
     <h1>Rolling Fiefdoms</h1>
     <nav class="top-menu" aria-label="Quick links">
-      <button class="menu-item" id="fullscreenToggle" type="button">
-        <span class="menu-icon"><img src="assets/img/fullscreen.png" alt="" /></span>
-        <span class="menu-text">Fullscreen</span>
-      </button>
       <a class="menu-item" href="resources/rolling-fiefdoms-rulebook.pdf" target="_blank" rel="noopener">
         <span class="menu-icon"><img src="assets/img/rules.png" alt="" /></span>
         <span class="menu-text">Rules</span>
@@ -53,6 +49,14 @@
         <span class="menu-icon"><img src="assets/img/github.png" alt="" /></span>
         <span class="menu-text">Github</span>
       </a>
+      <button class="menu-item" id="fullscreenToggle" type="button">
+        <span class="menu-icon"><img src="assets/img/fullscreen.png" alt="" /></span>
+        <span class="menu-text">Fullscreen</span>
+      </button>
+      <button class="menu-item" id="themeToggle" type="button" aria-pressed="false">
+        <span class="menu-icon"><img id="themeToggleIcon" src="assets/img/sun.svg" alt="" /></span>
+        <span class="menu-text" id="themeToggleText">Light</span>
+      </button>
     </nav>
   </header>
   <div id="loadingOverlay" class="loading-overlay">
