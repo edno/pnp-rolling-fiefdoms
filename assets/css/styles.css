@@ -9,6 +9,7 @@
   --danger: #c0392b;
   --grid: #cfd4d8;
   --ink: #000794;
+  --footer-height: 76px;
 }
 
 body.theme-dark {
@@ -34,6 +35,7 @@ body {
   font-size: 18px;
   background: var(--bg);
   color: var(--text);
+  padding-bottom: var(--footer-height);
 }
 
 header {
@@ -193,8 +195,10 @@ body.theme-dark .action-banner {
   border-top: 1px solid var(--border);
   font-size: 12px;
   color: var(--muted);
-  position: absolute;
+  position: fixed;
   bottom: 0;
+  left: 0;
+  right: 0;
   z-index: 10;
   width: 100%;
   min-width: calc(1100px + 180px + 16px + 32px);
