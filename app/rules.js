@@ -355,7 +355,7 @@ export function computeScore(board, populationNodes, workerAllocations = null) {
   );
   if (almshouseActive) {
     if (scores.vagrants < 0) {
-      scores.vagrants = Math.min(0, scores.vagrants + 8);
+      scores.vagrants = Math.min(0, scores.vagrants + 12);
     }
   }
 
