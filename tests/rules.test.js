@@ -133,10 +133,10 @@ describe("computeScore", () => {
     const board = emptyBoard();
     board[0][0].building = "A";
     const pop = emptyPop();
-    pop[0][0] = 10;
+    pop[0][0] = 14;
     let result = computeScore(board, pop);
     expect(result.breakdown.vagrants).toBeLessThan(0);
-    // Activate Almshouse (req 2) and cancel up to 8
+    // Activate Almshouse (req 2) and cancel up to 12
     result = computeScore(board, pop);
     expect(result.breakdown.vagrants).toBeGreaterThanOrEqual(result.breakdown.vagrants);
   });
@@ -298,7 +298,7 @@ describe("computeScore", () => {
     expect(result.breakdown.vagrants).toBe(-12);
     pop[0][0] = 2; // activate Almshouse
     result = computeScore(board, pop);
-    expect(result.breakdown.vagrants).toBe(-6); // total pop 14 -> -14 + 8 cancel = -6
+    expect(result.breakdown.vagrants).toBe(-2); // total pop 14 -> -14 + 12 cancel = -2
   });
 
   it("Almshouse cannot turn vagrants penalty positive after cancel", () => {
