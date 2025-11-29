@@ -373,14 +373,14 @@ body.theme-dark .sheet::before {
   border-radius: 10px;
 }
 
-.cell.forfeit .label.building:after {
+/* .cell.forfeit .label.building:after {
   content: url("../img/forfeit.svg");
   opacity: 0.8;
   top: 14px;
   left: 26px;
   display: block;
   position: absolute;
-}
+} */
 
 .population-node {
   width: 45px;
