@@ -353,7 +353,6 @@ describe("computeScore", () => {
     board[1][1].building = "M";
     board[1][2].building = "M";
     board[2][1].building = "M";
-    board[2][2].building = "G";
     board[2][3].building = "M";
     const pop = emptyPop();
     pop[2][2] = 4; // guild activation
