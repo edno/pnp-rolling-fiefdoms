@@ -289,7 +289,7 @@ describe("computeScore", () => {
     expect(result.breakdown.market).toBe(13);
   });
 
-  it("Almshouse cancels up to 8 vagrant penalty only when active", () => {
+  it("Almshouse cancels up to 12 vagrant penalty only when active", () => {
     const board = emptyBoard();
     board[0][0].building = "A";
     const pop = emptyPop();
@@ -306,7 +306,7 @@ describe("computeScore", () => {
     board[0][0].building = "A";
     const pop = emptyPop();
     pop[0][0] = 2; // activates Almshouse (req 2)
-    const result = computeScore(board, pop); // pop 2, housing 0 -> vagrants -2, cancel up to 8 -> should clamp at 0
+    const result = computeScore(board, pop); // pop 2, housing 0 -> vagrants -2, cancel up to 12 -> should clamp at 0
     expect(result.breakdown.vagrants).toBe(0);
   });
 });
