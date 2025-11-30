@@ -185,7 +185,7 @@ const scoringSpots = [
   { key: "guilds", x: 336, y: 20 },
   { key: "springhouse", x: 384, y: 20 },
   { key: "vagrants", x: 428, y: 20 },
-  { key: "reputation", x: 528, y: 20 },
+  { key: "reputation", x: 530, y: 20 },
 ];
 
 function readStoredTheme() {
