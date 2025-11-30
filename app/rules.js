@@ -349,7 +349,7 @@ export function computeScore(board, populationNodes, workerAllocations = null) {
 
   scores.guilds = guildBonuses(board, activation);
 
-  // Almshouse cancels up to 8 vagrant penalty if active
+  // Almshouse cancels up to 12 vagrant penalty if active
   const almshouseActive = board.some((row, r) =>
     row.some((cell, c) => cell.building === "A" && activation.get(key(r, c))),
   );
