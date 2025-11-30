@@ -103,6 +103,30 @@ describe("lockDiceSnapshot", () => {
     lockDiceSnapshot(state, { markPendingNextRoll: true, uniqueLocationPairs });
     expect(state.pendingNextRoll).toBe(true);
   });
+
+  it("unblocks the next roll after a pestilence forfeit flow", () => {
+    const state = createState();
+    state.dice = [
+      { face: 3, resolved: 3, label: "N1" },
+      { face: 4, resolved: 4, label: "N2" },
+      { face: "X", resolved: null, label: "X1" },
+      { face: "X", resolved: null, label: "X2" },
+    ];
+    state.locationSelection = [0, 1];
+    state.pestilence = true;
+    lockDiceSnapshot(state, { uniqueLocationPairs });
+    expect(state.diceLocked).toBe(true);
+    expect(state.pendingNextRoll).toBe(false);
+
+    // Forfeit during pestilence marks pending next roll while dice are already locked
+    lockDiceSnapshot(state, { markPendingNextRoll: true, uniqueLocationPairs });
+    state.pestilence = false;
+    state.forceForfeit = false;
+    const action = maybeRollAfterLockState(state);
+    expect(action).toBe("roll");
+    expect(state.diceLocked).toBe(false);
+    expect(state.pendingNextRoll).toBe(false);
+  });
 });
 
 describe("die selection and location evaluation", () => {
