@@ -13,7 +13,7 @@ import {
   recalcTracks,
   maybeRollAfterLockState,
 } from "../app/game-state.js";
-import { createState } from "../app/state-controller.js";
+import { createState, lockDiceSnapshot } from "../app/state-controller.js";
 import {
   uniqueLocationPairs,
   filterAvailablePairs,
@@ -84,6 +84,24 @@ describe("beginTurn", () => {
     expect(state.pestilence).toBe(true);
     expect(state.pestilenceInfo.sectionLabel).toBeDefined();
     expect(state.pestilenceInfo.sum).toBe(6);
+  });
+});
+
+describe("lockDiceSnapshot", () => {
+  it("can mark a pending next roll even if dice are already locked", () => {
+    const state = createState();
+    state.dice = [
+      { face: 3, resolved: 3, label: "N1" },
+      { face: 4, resolved: 4, label: "N2" },
+      { face: "X", resolved: null, label: "X1" },
+      { face: "X", resolved: null, label: "X2" },
+    ];
+    state.locationSelection = [0, 1];
+    lockDiceSnapshot(state, { uniqueLocationPairs });
+    expect(state.diceLocked).toBe(true);
+    expect(state.pendingNextRoll).toBe(false);
+    lockDiceSnapshot(state, { markPendingNextRoll: true, uniqueLocationPairs });
+    expect(state.pendingNextRoll).toBe(true);
   });
 });
 

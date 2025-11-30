@@ -65,7 +65,10 @@ export function resetTurnState(state) {
 }
 
 export function lockDiceSnapshot(state, { markPendingNextRoll = false, uniqueLocationPairs } = {}) {
-  if (state.diceLocked) return;
+  if (state.diceLocked) {
+    if (markPendingNextRoll) state.pendingNextRoll = true;
+    return;
+  }
   if (!state.dice?.length) return;
   const locSnapshot = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
   const buildSnapshot = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
