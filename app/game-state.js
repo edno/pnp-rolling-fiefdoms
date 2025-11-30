@@ -1,0 +1,282 @@
+import { resetTurnState } from "./state-controller.js";
+
+export function beginTurn(
+  state,
+  dice,
+  board,
+  { uniqueLocationPairs, filterAvailablePairs, computePestilenceInfo, sectionLabels },
+) {
+  const messages = [];
+  resetTurnState(state);
+  state.turnIndex += 1;
+  state.activeTurn = state.turnIndex % 2 === 1;
+  messages.push(state.activeTurn ? "Active turn." : "Non-active turn. Dice automatically assigned.");
+  state.dice = dice;
+
+  if (!state.activeTurn) {
+    state.locationSelection = [0, 1];
+    const allPairs = filterAvailablePairs(uniqueLocationPairs(state.dice), board);
+    state.locationPairs = allPairs;
+    state.forceForfeit = allPairs.length === 0;
+    if (state.forceForfeit) messages.push("No valid location pairs; forfeit a plot.");
+  } else {
+    state.forceForfeit = false;
+  }
+
+  state.pestilence = dice.filter((d) => d.face === "X").length === 2;
+  state.pestilenceInfo = state.pestilence ? computePestilenceInfo(state.dice, board) : null;
+  if (state.pestilenceInfo && state.pestilenceInfo.section) {
+    state.pestilenceInfo.sectionLabel = sectionLabels[state.pestilenceInfo.section] || state.pestilenceInfo.section;
+    messages.push(
+      `Pestilence! Sum ${state.pestilenceInfo.sum}${state.pestilenceInfo.sectionLabel ? ` -> ${state.pestilenceInfo.sectionLabel}` : ""}`,
+    );
+  }
+  return { messages };
+}
+
+export function selectLocationDie(state, dieIndex, { uniqueLocationPairs, filterAvailablePairs, board }) {
+  if (state.diceLocked || state.pestilence || state.forceForfeit || state.activationMode) return { invalidSelection: false };
+  const die = state.dice[dieIndex];
+  if (!die || die.face === "X") return { invalidSelection: false };
+
+  const sel = state.locationSelection.slice();
+  const existingIdx = sel.indexOf(dieIndex);
+  if (existingIdx >= 0) {
+    sel.splice(existingIdx, 1);
+  } else if (sel.length < 2) {
+    sel.push(dieIndex);
+  } else {
+    return { invalidSelection: false, message: "Unassign a location die before choosing another." };
+  }
+  state.locationSelection = sel;
+  return evaluateLocationSelection(state, { uniqueLocationPairs, filterAvailablePairs, board });
+}
+
+export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAvailablePairs, board }) {
+  const prevForce = state.forceForfeit;
+  const locationDice = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
+  const buildDice = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
+  state.buildDice = buildDice;
+
+  const allPairs = filterAvailablePairs(uniqueLocationPairs(state.dice), board);
+  let locationPairs = [];
+  let forceForfeit = state.diceLocked ? state.forceForfeit : allPairs.length === 0;
+  let invalidSelection = false;
+  let message = null;
+
+  if (!state.diceLocked && allPairs.length === 0) {
+    state.locationSelection = [];
+    forceForfeit = true;
+    invalidSelection = false;
+    locationPairs = [];
+    if (!prevForce) message = "No valid location pairs; forfeit a plot.";
+  }
+
+  if (state.diceLocked) {
+    if (state.lockedLocationPairs) locationPairs = state.lockedLocationPairs.map((p) => p.slice());
+  } else if (state.activeTurn) {
+    if (locationDice.length === 2) {
+      const selectedPairs = filterAvailablePairs(uniqueLocationPairs(locationDice), board);
+      if (selectedPairs.length) {
+        locationPairs = selectedPairs;
+      } else if (allPairs.length) {
+        state.locationSelection = [];
+        locationPairs = [];
+        invalidSelection = true;
+        if (!prevForce) message = "No valid plots for that pair; choose a different location pair.";
+      } else {
+        forceForfeit = true;
+        if (!prevForce) message = "No valid location pairs; forfeit a plot.";
+      }
+    } else if (forceForfeit && !prevForce) {
+      message = "No valid location pairs; forfeit a plot.";
+    }
+  } else {
+    if (locationDice.length === 2) {
+      const selectedPairs = filterAvailablePairs(uniqueLocationPairs(locationDice), board);
+      if (selectedPairs.length) {
+        locationPairs = selectedPairs;
+      } else {
+        forceForfeit = true;
+      }
+    }
+  }
+
+  state.locationPairs = locationPairs;
+  state.forceForfeit = forceForfeit;
+  state.invalidSelection = invalidSelection;
+  return { invalidSelection, forceForfeit, message };
+}
+
+export function startActivation(state) {
+  if (state.activationMode) return;
+  state.activationMode = true;
+  state.activationComplete = false;
+  state.activationSelection = { pop: null };
+  state.populationAvailable = state.populationNodes.map((row) => row.slice());
+  state.workerAllocations = Array.from({ length: state.board.length }, () =>
+    Array.from({ length: state.board[0].length }, () => 0),
+  );
+  state.board.forEach((row) => row.forEach((cell) => delete cell.activationForfeit));
+}
+
+export function finishActivation(state) {
+  state.activationMode = false;
+  state.activationComplete = true;
+}
+
+export function evaluateAutoAdvance(state, board) {
+  if (state.pendingPopulation?.remaining > 0) return "wait";
+  if (boardFull(board)) return "activate";
+  if (state.diceLocked) return "wait";
+  return "roll";
+}
+
+export function autoAdvanceState(state, board) {
+  const action = evaluateAutoAdvance(state, board);
+  if (action === "activate") return { action, message: "Board full." };
+  return { action, message: null };
+}
+
+export function recalcTracks(state, { computeScore, calcVagrants }) {
+  const pop = state.populationNodes ? state.populationNodes.flat().reduce((a, b) => a + b, 0) : 0;
+  const cottages = boardCottages(state.board);
+  const housing = cottages * 4;
+  state.tracks.population = pop;
+  state.tracks.housing = housing;
+  const vagrants = calcVagrants(pop, housing);
+  const scoreResult = computeScore(state.board, state.populationNodes, state.workerAllocations);
+  return { vagrants, scoreResult };
+}
+
+export function boardFull(board) {
+  return board.every((row) => row.every((c) => c.building || c.forfeited));
+}
+
+export function maybeRollAfterLockState(state) {
+  if (!state.diceLocked || !state.pendingNextRoll) return "wait";
+  if (state.pendingPopulation?.remaining > 0 || state.pestilence || state.forceForfeit || state.activationMode) {
+    return "wait";
+  }
+  state.diceLocked = false;
+  state.pendingNextRoll = false;
+  state.lockedLocationDice = null;
+  state.lockedBuildDice = null;
+  state.lockedLocationPairs = null;
+  return "roll";
+}
+
+export function startPopulationPlacement(state, cellCoord, count, { nodesForCell }) {
+  const nodes = nodesForCell(cellCoord[0], cellCoord[1]);
+  const availableNodes = nodes.filter(([nr, nc]) => (state.populationNodes?.[nr]?.[nc] || 0) === 0);
+  if (!availableNodes.length) {
+    state.pendingPopulation = null;
+    return { started: false, message: "No available population spots around this plot; population skipped." };
+  }
+  state.pendingPopulation = { remaining: count, cell: cellCoord };
+  return { started: true, message: `Place ${count} population on one intersection around row ${cellCoord[0] + 1}, col ${cellCoord[1] + 1}.` };
+}
+
+export function placePopulationNode(state, nr, nc, { nodesForCell, allocatePopulationToNode, popCapacity }) {
+  if (!state.pendingPopulation || state.pendingPopulation.remaining <= 0) {
+    return { placed: 0, message: null };
+  }
+  const eligible = nodesForCell(state.pendingPopulation.cell[0], state.pendingPopulation.cell[1]).some(
+    ([r, c]) => r === nr && c === nc,
+  );
+  if (!eligible)
+    return { placed: 0, message: "Population must be placed on an intersection touching the built plot." };
+  if ((state.populationNodes[nr]?.[nc] || 0) > 0)
+    return { placed: 0, message: "That population spot is already used." };
+
+  const { placed, grid } = allocatePopulationToNode(
+    state.populationNodes,
+    nr,
+    nc,
+    state.pendingPopulation.remaining,
+    popCapacity,
+  );
+  if (placed <= 0) return { placed: 0, message: "That population spot is full." };
+  state.populationNodes = grid;
+  const unplaced = state.pendingPopulation.remaining - placed;
+  state.pendingPopulation = null;
+  return {
+    placed,
+    unplaced,
+    message:
+      unplaced > 0
+        ? `Placed ${placed} population; ${unplaced} could not be placed (spot full).`
+        : `Placed ${placed} population on row ${nr + 1}, col ${nc + 1}.`,
+  };
+}
+
+export function allocateWorker(state, popSel, buildingSel, { nodesForCell, buildingRules }) {
+  const [pr, pc] = popSel;
+  const [br, bc] = buildingSel;
+  const cell = state.board[br]?.[bc];
+  if (!cell || !cell.building || cell.forfeited || cell.activationForfeit) {
+    return { updated: false, message: "Select a valid building." };
+  }
+  const available = state.populationAvailable?.[pr]?.[pc] || 0;
+  if (available <= 0) return { updated: false, message: "No available population on that node." };
+  const adj = nodesForCell(br, bc).some(([nr, nc]) => nr === pr && nc === pc);
+  if (!adj) return { updated: false, message: "Population must be adjacent to the building." };
+  const req = Math.max(0, (buildingRules[cell.building]?.requirement || 0) - Math.max(0, Number(cell.springBoost) || 0));
+  const filled = Math.max(0, state.workerAllocations?.[br]?.[bc] || 0);
+  const remaining = Math.max(0, req - filled);
+  if (remaining <= 0) return { updated: false, message: "Building already filled." };
+
+  state.populationAvailable[pr][pc] = Math.max(0, available - 1);
+  state.workerAllocations[br][bc] = filled + 1;
+  const activated = state.workerAllocations[br][bc] >= req;
+  state.activationSelection.pop = state.populationAvailable[pr][pc] > 0 ? [pr, pc] : null;
+  return {
+    updated: true,
+    activated,
+    message: activated ? `Activated ${cell.building} at row ${br + 1}, col ${bc + 1}.` : null,
+  };
+}
+
+export function autoForfeitUnfillableState(state, { nodesForCell, buildingRules, finalize = false }) {
+  const messages = [];
+  if (!state.populationAvailable || !state.workerAllocations) return messages;
+  const rows = state.board.length;
+  const cols = state.board[0]?.length || 0;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cell = state.board[r][c];
+      if (!cell.building || cell.forfeited) continue;
+      const rule = buildingRules[cell.building];
+      const req = Math.max(0, rule?.requirement || 0) - Math.max(0, Number(cell.springBoost) || 0);
+      if (req <= 0) {
+        delete cell.activationForfeit;
+        continue;
+      }
+      const filled = Math.max(0, state.workerAllocations?.[r]?.[c] || 0);
+      const remaining = Math.max(0, req - filled);
+      if (remaining <= 0) {
+        delete cell.activationForfeit;
+        continue;
+      }
+      const availableAdj = nodesForCell(r, c)
+        .map(([nr, nc]) => state.populationAvailable?.[nr]?.[nc] || 0)
+        .reduce((a, b) => a + b, 0);
+      const shouldForfeit = finalize ? remaining > 0 : availableAdj < remaining;
+      if (shouldForfeit) {
+        if (!cell.activationForfeit) {
+          messages.push(
+            `Could not activate ${cell.building} at row ${r + 1}, col ${c + 1}; marked forfeited for scoring.`,
+          );
+        }
+        cell.activationForfeit = true;
+      } else if (!finalize) {
+        delete cell.activationForfeit;
+      }
+    }
+  }
+  return messages;
+}
+
+function boardCottages(board) {
+  return board.flat().filter((c) => c.building === "C").length;
+}

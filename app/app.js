@@ -12,6 +12,22 @@ import {
   computeActivationMap,
   scoreBuildingAt,
 } from "./rules.js";
+import { createState, resetTurnState, lockDiceSnapshot } from "./state-controller.js";
+import {
+  beginTurn,
+  selectLocationDie,
+  evaluateLocationSelection,
+  startActivation as startActivationState,
+  finishActivation as finishActivationState,
+  startPopulationPlacement,
+  placePopulationNode,
+  allocateWorker,
+  autoForfeitUnfillableState,
+  autoAdvanceState,
+  recalcTracks,
+  maybeRollAfterLockState,
+} from "./game-state.js";
+import { rollNumberedDie, rollXDie } from "./dice.js";
 
 const terrainLayout = [
   ["Mt", "Fo", "Fo", "Fo", "Se"],
@@ -21,53 +37,7 @@ const terrainLayout = [
   ["Mt", "Ma", "Ma", "Ma", "Se"],
 ];
 
-const buildings = {
-  C: { name: "Cottage", sum: null },
-  F: { name: "Farm", sum: 2 },
-  Q: { name: "Quarry", sum: 3 },
-  W: { name: "Windmill", sum: 4 },
-  M: { name: "Market", sum: 5 },
-  S: { name: "Springhouse", sum: 6 },
-  T: { name: "Townhall", sum: 7 },
-  U: { name: "University", sum: 8 },
-  A: { name: "Almshouse", sum: 9 },
-  G: { name: "Guild", sum: 10 },
-};
-
-const state = {
-  board: [],
-  populationNodes: [],
-  populationAvailable: null,
-  tracks: { population: 0, housing: 0 },
-  dice: [],
-  pestilence: false,
-  pestilenceInfo: null,
-  forceForfeit: false,
-  log: [],
-  pendingSpringhouseTarget: null,
-  selectedGuildType: null,
-  activationMode: false,
-  workerAllocations: null,
-  activationSelection: { pop: null },
-  diceRolling: false,
-  locationSelection: [],
-  locationPairs: [],
-  diceLocked: false,
-  lockedLocationDice: null,
-  lockedBuildDice: null,
-  activationComplete: false,
-  pendingNextRoll: false,
-  lockedLocationPairs: null,
-  lastLocationDice: [],
-  lastBuildDice: [],
-  bannerOverride: null,
-  fiefdomName: "",
-  activeTurn: true,
-  turnIndex: 0,
-  invalidSelection: false,
-  finalScore: null,
-  theme: "light",
-};
+const state = createState();
 
 let controlsReady = false;
 
@@ -101,21 +71,6 @@ function toggleFullscreen() {
   }
 }
 
-function lockDiceSnapshot() {
-  if (state.diceLocked) return;
-  const locSnapshot = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
-  const buildSnapshot = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
-  state.lockedLocationDice = locSnapshot;
-  state.lockedBuildDice = buildSnapshot;
-  state.lockedLocationPairs =
-    state.locationPairs?.length > 0
-      ? state.locationPairs.map((p) => p.slice())
-      : locSnapshot.length === 2
-        ? uniqueLocationPairs(locSnapshot)
-        : null;
-  state.diceLocked = true;
-}
-
 const boardEl = document.getElementById("board");
 const diceView = document.getElementById("diceView");
 const turnHintEl = document.getElementById("turnHint");
@@ -125,6 +80,13 @@ const logEl = document.getElementById("log");
 const scoreOverlayEl = document.getElementById("scoreOverlay");
 const popHousingOverlay = document.getElementById("popHousingOverlay");
 const guildTypes = ["GF", "GQ", "GW", "GM"];
+const sectionLabels = {
+  forest: "Forest",
+  sea: "Sea",
+  mountain: "Mountain",
+  marsh: "Marsh",
+  centre: "Centre",
+};
 const finishActivationBtn = document.getElementById("finishActivation");
 const newGameBtn = document.getElementById("newGameBtn");
 const fullscreenBtn = document.getElementById("fullscreenToggle");
@@ -255,21 +217,11 @@ function resetState() {
   state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
   state.populationAvailable = null;
   state.workerAllocations = null;
-  state.locationSelection = [];
-  state.locationPairs = [];
-  state.diceLocked = false;
-  state.lockedLocationDice = null;
-  state.lockedBuildDice = null;
-  state.activationComplete = false;
-  state.pendingNextRoll = false;
-  state.lockedLocationPairs = null;
-  state.lastLocationDice = [];
-  state.lastBuildDice = [];
   state.turnIndex = 0;
   state.activeTurn = true;
-  state.invalidSelection = false;
   state.finalScore = null;
   state.log = [];
+  resetTurnState(state);
   if (logEl) logEl.innerHTML = "";
   if (finishActivationBtn) finishActivationBtn.style.display = "none";
   if (newGameBtn) newGameBtn.style.display = "none";
@@ -346,100 +298,33 @@ function setupControls() {
 }
 
 function rollDice() {
-  state.turnIndex += 1;
-  state.activeTurn = state.turnIndex % 2 === 1;
-  log(state.activeTurn ? "Active turn." : "Non-active turn.");
-  state.pendingSpringhouseTarget = null;
-  state.pendingPopulation = null;
-  state.buildChoice = null;
-  state.selectedGuildType = null;
-  state.pendingPopulation = null;
-  state.buildChoice = null;
-  state.selectedGuildType = null;
-  state.locationSelection = [];
-  state.locationPairs = [];
-  state.diceLocked = false;
-  state.lockedLocationDice = null;
-  state.lockedBuildDice = null;
-  state.activationComplete = false;
-  state.pendingNextRoll = false;
-  state.lockedLocationPairs = null;
-  state.lastLocationDice = [];
-  state.lastBuildDice = [];
-  state.bannerOverride = null;
-  state.invalidSelection = false;
   if (state.activationMode) return;
   triggerDiceAnimation();
   const n1 = rollNumberedDie("N1");
   const n2 = rollNumberedDie("N2");
   const x1 = rollXDie("X1");
   const x2 = rollXDie("X2");
-  state.dice = [n1, n2, x1, x2];
-  if (!state.activeTurn) {
-    // Non-active: auto-assign numbered dice
-    state.locationSelection = [0, 1];
-    const allPairs = filterAvailablePairs(uniqueLocationPairs(state.dice), state.board);
-    state.locationPairs = allPairs;
-    state.forceForfeit = allPairs.length === 0;
-    if (state.forceForfeit) log("No valid location pairs; forfeit a plot.");
-  } else {
-    state.forceForfeit = false;
-  }
-  state.pestilence = [x1, x2].every((d) => d.face === "X");
-  state.pestilenceInfo = state.pestilence ? computePestilenceInfo(state.dice, state.board) : null;
-  if (state.pestilenceInfo && state.pestilenceInfo.section) {
-    state.pestilenceInfo.sectionLabel = sectionLabels[state.pestilenceInfo.section] || state.pestilenceInfo.section;
-  }
+  const { messages } = beginTurn(state, [n1, n2, x1, x2], state.board, {
+    uniqueLocationPairs,
+    computePestilenceInfo,
+    filterAvailablePairs,
+    sectionLabels,
+  });
+  messages.forEach((m) => log(m));
   if (state.pestilence) {
     const target = state.pestilenceInfo?.sectionLabel || "any section";
     if (turnHintEl) turnHintEl.textContent = `Pestilence! Forfeit a plot in ${target}.`;
     if (state.pestilenceInfo?.sectionLabel && state.pestilenceInfo.targetCells.length === 0) {
       log("Target section is full; forfeit any empty plot.");
     }
-    lockDiceSnapshot();
+    lockDiceSnapshot(state, { uniqueLocationPairs });
   } else if (turnHintEl) {
     turnHintEl.textContent = state.activeTurn ? "" : "Non-active turn. Dice automatically assigned.";
   }
   updateDiceAssignments();
   renderDice();
   log(`Rolled ${describeDice(state.dice)}`);
-  if (state.pestilence) {
-    log(
-      `Pestilence! Sum ${state.pestilenceInfo?.sum ?? "?"}${
-        state.pestilenceInfo?.sectionLabel ? ` -> ${state.pestilenceInfo.sectionLabel}` : ""
-      }`,
-    );
-  }
   updateActionBanner();
-}
-
-/** Source: https://www.thescottkrause.com/emerging_tech/gameification-threejs-webcrypto-accelerator-blender-gltf/ */
-function getCryptoRange(min, max) {
-    const range = max - min + 1
-    const mBits = Math.ceil(Math.log2(range))
-    const mBytes = Math.ceil(mBits / 8)
-    const nAllowed = Math.floor((256 ** mBytes) / range) * range
-    const arBytes = new Uint8Array(mBytes)
-    let value
-    do {
-        crypto.getRandomValues(arBytes)
-        value = arBytes.reduce((acc, x, n) => acc + x * 256 ** n, 0)
-    } while (value >= nAllowed)
-    return min + value % range
-}
-
-function rollNumberedDie(label) {
-  const faces = [1, 2, 3, 4, 5, label === "N1" ? "1/2" : "4/5"];
-  const face = faces[getCryptoRange(0, faces.length - 1)];
-  const choices = face === "1/2" ? [1, 2] : face === "4/5" ? [4, 5] : [];
-  const resolved = choices.length ? choices[0] : face;
-  return { label, face, choices, resolved };
-}
-
-function rollXDie(label) {
-  const faces = [1, 2, 3, 4, 5, "X"];
-  const face = faces[getCryptoRange(0, faces.length - 1)];
-  return { label, face, choices: [], resolved: typeof face === "number" ? face : null };
 }
 
 function describeDice(dice) {
@@ -528,7 +413,7 @@ function fillBuildings(buildDice) {
     renderBuildingOverlay([], true);
     return;
   }
-  const allowed = restrictBuildOptionsForBoard(buildingOptionsFromDice(buildDice, buildings), state.board);
+  const allowed = restrictBuildOptionsForBoard(buildingOptionsFromDice(buildDice), state.board);
   const availableGuildTypes = guildTypes.filter((t) => !builtGuildTypes(state.board).has(t));
   const options = allowed.filter((opt) => {
     if (opt.code !== "G") return true;
@@ -573,7 +458,7 @@ function renderBuildingOverlay(options = [], disabled = false) {
     state.forceForfeit ||
     state.pestilence;
   if ((!options || !options.length) && state.buildDice?.length && !forceDisabled) {
-    const fallback = restrictBuildOptionsForBoard(buildingOptionsFromDice(state.buildDice, buildings), state.board);
+    const fallback = restrictBuildOptionsForBoard(buildingOptionsFromDice(state.buildDice), state.board);
     options = fallback;
   }
   overlay.innerHTML = "";
@@ -949,18 +834,7 @@ function placeBuilding(r, c, code) {
       : state.buildChoice?.source === "die2"
         ? dieMaxValue(state.buildDice[0])
         : 0;
-  const locSnapshot = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
-  const buildSnapshot = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
-  state.lockedLocationDice = locSnapshot;
-  state.lockedBuildDice = buildSnapshot;
-  state.lockedLocationPairs =
-    state.locationPairs?.length > 0
-      ? state.locationPairs.map((p) => p.slice())
-      : locSnapshot.length === 2
-        ? uniqueLocationPairs(locSnapshot)
-        : null;
-  state.pendingNextRoll = true;
-  lockDiceSnapshot();
+  lockDiceSnapshot(state, { markPendingNextRoll: true, uniqueLocationPairs });
   renderBoard();
   updateTracks();
   const displayLabel =
@@ -972,7 +846,6 @@ function placeBuilding(r, c, code) {
         })()
       : code;
   log(`Placed ${displayLabel} at row ${r + 1}, col ${c + 1}`);
-  state.diceLocked = true;
   updateDiceAssignments();
   // Reset guild selection after placement
   if (code !== "G") {
@@ -1051,18 +924,7 @@ function forfeitCell(r, c) {
     return;
   }
   cell.forfeited = true;
-  const locSnapshot = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
-  const buildSnapshot = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
-  state.lockedLocationDice = locSnapshot;
-  state.lockedBuildDice = buildSnapshot;
-  state.lockedLocationPairs =
-    state.locationPairs?.length > 0
-      ? state.locationPairs.map((p) => p.slice())
-      : locSnapshot.length === 2
-        ? uniqueLocationPairs(locSnapshot)
-        : null;
-  state.pendingNextRoll = true;
-  lockDiceSnapshot();
+  lockDiceSnapshot(state, { markPendingNextRoll: true, uniqueLocationPairs });
   updateDiceAssignments();
   renderBoard();
   const section = state.pestilenceInfo?.sectionLabel || null;
@@ -1080,13 +942,10 @@ function forfeitCell(r, c) {
 }
 
 function updateTracks() {
-  // Recalculate population from nodes and housing from cottages
-  const pop = state.populationNodes ? state.populationNodes.flat().reduce((a, b) => a + b, 0) : 0;
-  const cottages = state.board ? state.board.flat().filter((c) => c.building === "C").length : 0;
-  state.tracks.population = pop;
-  state.tracks.housing = cottages * 4;
-  const vagrants = calcVagrants(state.tracks.population, state.tracks.housing);
-  const scoreResult = computeScore(state.board, state.populationNodes, currentWorkerAllocationsForScore());
+  const { vagrants, scoreResult } = recalcTracks(state, {
+    computeScore,
+    calcVagrants,
+  });
   updateScoreOverlay(scoreResult.breakdown, scoreResult.total);
   renderPopHousingTrack(state.tracks.population, state.tracks.housing, vagrants);
 }
@@ -1097,27 +956,20 @@ function log(msg) {
 }
 
 function autoAdvance() {
-  if (state.pendingPopulation?.remaining > 0) return;
-  if (isBoardFull()) {
-    log("Board full.");
+  const { action, message } = autoAdvanceState(state, state.board);
+  if (action === "activate") {
+    if (message) log(message);
     enterActivationMode();
     return;
   }
-  if (state.diceLocked) return;
-  rollDice();
+  if (action === "roll") {
+    rollDice();
+  }
 }
 
 function enterActivationMode() {
   if (state.activationMode) return;
-  state.activationMode = true;
-  state.activationComplete = false;
-  state.activationSelection = { pop: null };
-  state.populationAvailable = state.populationNodes.map((row) => row.slice());
-  state.workerAllocations = Array.from({ length: state.board.length }, () =>
-    Array.from({ length: state.board[0].length }, () => 0),
-  );
-  // Reset activation forfeits
-  state.board.forEach((row) => row.forEach((cell) => delete cell.activationForfeit));
+  startActivationState(state);
   autoForfeitUnfillable(false);
   if (finishActivationBtn) finishActivationBtn.style.display = "block";
   renderBuildingOverlay([], true);
@@ -1132,8 +984,7 @@ function enterActivationMode() {
 function finishActivation() {
   if (!state.activationMode) return;
   autoForfeitUnfillable(true);
-  state.activationMode = false;
-  state.activationComplete = true;
+  finishActivationState(state);
   state.finalScore = computeScore(state.board, state.populationNodes, currentWorkerAllocationsForScore()).total;
   state.activationSelection = { pop: null };
   if (finishActivationBtn) finishActivationBtn.style.display = "none";
@@ -1156,10 +1007,6 @@ function newGame() {
   if (newGameBtn) newGameBtn.style.display = "none";
   refreshDiceVisibility();
   rollDice();
-}
-
-function isBoardFull() {
-  return state.board.every((row) => row.every((c) => c.building || c.forfeited));
 }
 
 function handleBuildingChoice() {
@@ -1248,17 +1095,15 @@ function nodesForCell(r, c) {
 }
 
 function beginPopulationPlacement(r, c, count) {
-  const nodes = nodesForCell(r, c);
-  const availableNodes = nodes.filter(([nr, nc]) => (state.populationNodes[nr][nc] || 0) === 0);
-  if (availableNodes.length === 0) {
-    log("No available population spots around this plot; population skipped.");
+  const result = startPopulationPlacement(state, [r, c], count, { nodesForCell });
+  if (!result.started) {
+    if (result.message) log(result.message);
     autoAdvance();
     maybeRollAfterLock();
     return;
   }
-  state.pendingPopulation = { remaining: count, cell: [r, c] };
   renderBoard();
-  log(`Place ${count} population on one intersection around row ${r + 1}, col ${c + 1}.`);
+  if (result.message) log(result.message);
   updateActionBanner();
 }
 
@@ -1276,39 +1121,16 @@ function onPopulationNodeClick(nr, nc) {
     return;
   }
   if (!state.pendingPopulation || state.pendingPopulation.remaining <= 0) return;
-  const eligible = nodesForCell(state.pendingPopulation.cell[0], state.pendingPopulation.cell[1]).some(
-    ([r, c]) => r === nr && c === nc,
-  );
-  if (!eligible) {
-    log("Population must be placed on an intersection touching the built plot.");
-    return;
-  }
-  if ((state.populationNodes[nr][nc] || 0) > 0) {
-    log("That population spot is already used.");
-    return;
-  }
-  const { placed, grid } = allocatePopulationToNode(
-    state.populationNodes,
-    nr,
-    nc,
-    state.pendingPopulation.remaining,
-    POP_CAPACITY,
-  );
-  if (placed <= 0) {
-    log("That population spot is full.");
-    return;
-  }
-  state.populationNodes = grid;
-  const unplaced = state.pendingPopulation.remaining - placed;
-  state.pendingPopulation = null;
+  const result = placePopulationNode(state, nr, nc, {
+    nodesForCell,
+    allocatePopulationToNode,
+    popCapacity: POP_CAPACITY,
+  });
+  if (result.message) log(result.message);
+  if (!result.placed) return;
   updateTracks();
   const scoreResult = computeScore(state.board, state.populationNodes, currentWorkerAllocationsForScore());
   updateScoreOverlay(scoreResult.breakdown, scoreResult.total);
-  if (unplaced > 0) {
-    log(`Placed ${placed} population; ${unplaced} could not be placed (spot full).`);
-  } else {
-    log(`Placed ${placed} population on row ${nr + 1}, col ${nc + 1}.`);
-  }
   renderBoard();
   autoAdvance();
   maybeRollAfterLock();
@@ -1403,15 +1225,8 @@ function renderRegionOverlay() {
 }
 
 function maybeRollAfterLock() {
-  if (!state.diceLocked || !state.pendingNextRoll) return;
-  if (state.pendingPopulation?.remaining > 0 || state.pestilence || state.forceForfeit || state.activationMode) return;
-  // Unlock and roll next turn
-  state.diceLocked = false;
-  state.pendingNextRoll = false;
-  state.lockedLocationDice = null;
-  state.lockedBuildDice = null;
-  state.lockedLocationPairs = null;
-  rollDice();
+  const action = maybeRollAfterLockState(state);
+  if (action === "roll") rollDice();
 }
 
 function renderPopulationNodes() {
@@ -1640,84 +1455,33 @@ function makeDieBadge(die, idx, { role = null, locked = false, clickable = true,
 }
 
 function onDieClick(idx) {
-  if (state.activationMode || state.diceLocked || state.pestilence || state.forceForfeit || !state.activeTurn) return;
-  const die = state.dice[idx];
-  if (die.face === "X") return;
-  const sel = state.locationSelection.slice();
-  const existingIdx = sel.indexOf(idx);
-  if (existingIdx >= 0) {
-    sel.splice(existingIdx, 1);
-  } else if (sel.length < 2) {
-    sel.push(idx);
-  } else {
-    log("Unassign a location die before choosing another.");
-    return;
-  }
-  state.locationSelection = sel;
+  if (!state.activeTurn) return;
+  const { message } = selectLocationDie(state, idx, {
+    uniqueLocationPairs,
+    filterAvailablePairs,
+    board: state.board,
+  });
+  if (message) log(message);
   updateDiceAssignments();
 }
 
 function updateDiceAssignments() {
-  const prevForce = state.forceForfeit;
   const locationDice = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
   const buildDice = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
-  state.buildDice = buildDice;
   if (locationDice.length === 2) state.lastLocationDice = locationDice;
   if (buildDice.length) state.lastBuildDice = buildDice;
 
-  const allPairs = filterAvailablePairs(uniqueLocationPairs(state.dice), state.board);
-  let locationPairs = [];
-  let forceForfeit = state.diceLocked ? state.forceForfeit : allPairs.length === 0;
-  let invalidSelection = false;
+  const { message } = evaluateLocationSelection(state, {
+    uniqueLocationPairs,
+    filterAvailablePairs,
+    board: state.board,
+  });
+  if (message) log(message);
 
-  // If there are truly no available pairs at all, force forfeit and clear selections
-  if (!state.diceLocked && allPairs.length === 0) {
-    state.locationSelection = [];
-    forceForfeit = true;
-    invalidSelection = false;
-    locationPairs = [];
-    if (!prevForce) log("No valid location pairs; forfeit a plot.");
-  }
-
-  if (state.diceLocked) {
-    if (state.lockedLocationPairs) locationPairs = state.lockedLocationPairs.map((p) => p.slice());
-  } else if (state.activeTurn) {
-    if (locationDice.length === 2) {
-      const selectedPairs = filterAvailablePairs(uniqueLocationPairs(locationDice), state.board);
-      if (selectedPairs.length) {
-        locationPairs = selectedPairs;
-      } else if (allPairs.length) {
-        // Invalid selection; other pairs exist
-        state.locationSelection = [];
-        locationPairs = [];
-        invalidSelection = true;
-        if (!prevForce) log("No valid plots for that pair; choose a different location pair.");
-      } else {
-        forceForfeit = true;
-        if (!prevForce) log("No valid location pairs; forfeit a plot.");
-      }
-    } else if (forceForfeit && !prevForce) {
-      log("No valid location pairs; forfeit a plot.");
-    }
-  } else {
-    // Non-active: use numbered dice only
-    if (locationDice.length === 2) {
-      const selectedPairs = filterAvailablePairs(uniqueLocationPairs(locationDice), state.board);
-      if (selectedPairs.length) {
-        locationPairs = selectedPairs;
-      } else {
-        forceForfeit = true;
-      }
-    }
-  }
-
-  state.locationPairs = locationPairs;
-  state.forceForfeit = forceForfeit;
-  state.invalidSelection = invalidSelection;
   if (turnHintEl) {
-    if (state.activeTurn && invalidSelection) {
+    if (state.activeTurn && state.invalidSelection) {
       turnHintEl.textContent = "No valid plots for that pair; choose a different location pair.";
-    } else if (forceForfeit) {
+    } else if (state.forceForfeit) {
       turnHintEl.textContent = "No valid location pairs; forfeit a plot.";
     } else if (!state.activeTurn) {
       turnHintEl.textContent = "Non-active turn. Dice automatically assigned.";
@@ -1777,14 +1541,6 @@ function updateScoreOverlay(breakdown, total = 0) {
 }
 
 
-const sectionLabels = {
-  forest: "Forest",
-  sea: "Sea",
-  mountain: "Mountain",
-  marsh: "Marsh",
-  centre: "Centre",
-};
-
 function renderPopHousingTrack(pop = 0, housing = 0, vagrants = 0) {
   if (!popHousingOverlay) return;
   popHousingOverlay.innerHTML = "";
@@ -1826,77 +1582,22 @@ function adjacentCells(r, c) {
   ].filter(([rr, cc]) => rr >= 0 && cc >= 0 && rr < state.board.length && cc < state.board[0].length);
 }
 function allocateWorkersFromPop(popSel, buildingSel) {
-  const [pr, pc] = popSel;
-  const [br, bc] = buildingSel;
-  const cell = state.board[br]?.[bc];
-  if (!cell || !cell.building || cell.forfeited || cell.activationForfeit) {
-    log("Select a valid building.");
-    return;
-  }
-  const available = state.populationAvailable?.[pr]?.[pc] || 0;
-  if (available <= 0) {
-    log("No available population on that node.");
-    return;
-  }
-  const adj = nodesForCell(br, bc).some(([nr, nc]) => nr === pr && nc === pc);
-  if (!adj) {
-    log("Population must be adjacent to the building.");
-    return;
-  }
-  const req = Math.max(
-    0,
-    (BUILDING_RULES[cell.building]?.requirement || 0) - (Number(cell.springBoost) || 0),
-  );
-  const filled = Math.max(0, state.workerAllocations?.[br]?.[bc] || 0);
-  const remaining = Math.max(0, req - filled);
-  if (remaining <= 0) {
-    log("Building already filled.");
-    return;
-  }
-  const assign = 1;
-  state.populationAvailable[pr][pc] = Math.max(0, available - assign);
-  state.workerAllocations[br][bc] = filled + assign;
-  if (state.workerAllocations[br][bc] >= req) {
-    log(`Activated ${cell.building} at row ${br + 1}, col ${bc + 1}.`);
-  }
-  state.activationSelection.pop = state.populationAvailable[pr][pc] > 0 ? [pr, pc] : null;
+  const result = allocateWorker(state, popSel, buildingSel, {
+    nodesForCell,
+    buildingRules: BUILDING_RULES,
+  });
+  if (result.message) log(result.message);
+  if (!result.updated) return;
   renderBoard();
   highlightLocations();
   updateTracks();
 }
 
 function autoForfeitUnfillable(finalize = false) {
-  if (!state.populationAvailable || !state.workerAllocations) return;
-  const rows = state.board.length;
-  const cols = state.board[0]?.length || 0;
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const cell = state.board[r][c];
-      if (!cell.building || cell.forfeited) continue;
-      const rule = BUILDING_RULES[cell.building];
-      const req = Math.max(0, rule?.requirement || 0) - Math.max(0, Number(cell.springBoost) || 0);
-      if (req <= 0) {
-        delete cell.activationForfeit;
-        continue;
-      }
-      const filled = Math.max(0, state.workerAllocations?.[r]?.[c] || 0);
-      const remaining = Math.max(0, req - filled);
-      if (remaining <= 0) {
-        delete cell.activationForfeit;
-        continue;
-      }
-      const availableAdj = nodesForCell(r, c)
-        .map(([nr, nc]) => state.populationAvailable?.[nr]?.[nc] || 0)
-        .reduce((a, b) => a + b, 0);
-      const shouldForfeit = finalize ? remaining > 0 : availableAdj < remaining;
-      if (shouldForfeit) {
-        if (!cell.activationForfeit) {
-          log(`Could not activate ${cell.building} at row ${r + 1}, col ${c + 1}; marked forfeited for scoring.`);
-        }
-        cell.activationForfeit = true;
-      } else if (!finalize) {
-        delete cell.activationForfeit;
-      }
-    }
-  }
+  const msgs = autoForfeitUnfillableState(state, {
+    nodesForCell,
+    buildingRules: BUILDING_RULES,
+    finalize,
+  });
+  msgs.forEach((m) => log(m));
 }

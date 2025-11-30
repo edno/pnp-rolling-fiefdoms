@@ -285,62 +285,35 @@ export function computeScore(board, populationNodes, workerAllocations = null) {
     for (let c = 0; c < cols; c++) {
       const cell = board[r][c];
       if (!cell.building) continue;
-      const active = activation.get(key(r, c));
+      const points = scoreBuildingCell(board, populationNodes, activation, r, c);
       switch (cell.building) {
-        case "F": {
-          const base = BUILDING_RULES.F.base;
-          const bonus = adjHasBuilding(board, r, c, "S") ? 2 : 0;
-          if (active) scores.farm += base + bonus;
+        case "F":
+          scores.farm += points;
           break;
-        }
-        case "Q": {
-          const base = BUILDING_RULES.Q.base;
-          const bonus = rowColHas(board, r, c, "Q") ? 1 : 0;
-          if (active) scores.quarry += base + bonus;
+        case "Q":
+          scores.quarry += points;
           break;
-        }
-        case "W": {
-          const base = BUILDING_RULES.W.base;
-          const bonus = adjCountBuilding(board, r, c, "W");
-          if (active) scores.windmill += base + bonus;
+        case "W":
+          scores.windmill += points;
           break;
-        }
-        case "M": {
-          const popAdj = popAround(r, c, populationNodes);
-          if (activation.get(key(r, c))) scores.market += popAdj;
+        case "M":
+          scores.market += points;
           break;
-    }
-    case "S": {
-      if (activation.get(key(r, c))) {
-        const base = BUILDING_RULES.S.base;
-        const forfeitsAdj = adjCountForfeits(board, r, c);
-        scores.springhouse += base - forfeitsAdj;
-      }
-      break;
-    }
-        case "T": {
-          if (activation.get(key(r, c))) {
-            const base = BUILDING_RULES.T.base;
-            const uniqueBasics = uniqueBasicsRowCol(board, activation, r, c);
-            scores.townhall += base + 2 * uniqueBasics.size;
-          }
+        case "S":
+          scores.springhouse += points;
           break;
-        }
-        case "U": {
-          if (activation.get(key(r, c))) {
-            const uniqueAdv = countAdvanced(board);
-            scores.university += uniPoints(uniqueAdv);
-          }
+        case "T":
+          scores.townhall += points;
           break;
-        }
-        case "A": {
+        case "U":
+          scores.university += points;
+          break;
+        case "A":
           // Only used to cancel vagrants later
           break;
-        }
-        case "G": {
+        case "G":
           // No base points; handled in guilds
           break;
-        }
         default:
           break;
       }
@@ -382,56 +355,8 @@ function scoreCottages(board, populationNodes) {
 }
 
 export function scoreBuildingAt(board, populationNodes, workerAllocations, r, c, activation = null) {
-  const cell = board[r]?.[c];
-  if (!cell || !cell.building || cell.forfeited || cell.activationForfeit) return 0;
   const actMap = activation || computeActivationMap(board, populationNodes, workerAllocations);
-  const active = actMap.get(key(r, c));
-  if (!active) return 0;
-
-  switch (cell.building) {
-    case "F": {
-      const base = BUILDING_RULES.F.base;
-      const bonus = adjHasBuilding(board, r, c, "S") ? 2 : 0;
-      return base + bonus;
-    }
-    case "Q": {
-      const base = BUILDING_RULES.Q.base;
-      const bonus = rowColHas(board, r, c, "Q") ? 1 : 0;
-      return base + bonus;
-    }
-    case "W": {
-      const base = BUILDING_RULES.W.base;
-      const bonus = adjCountBuilding(board, r, c, "W");
-      return base + bonus;
-    }
-    case "M": {
-      return popAround(r, c, populationNodes);
-    }
-    case "S": {
-      const base = BUILDING_RULES.S.base;
-      const forfeitsAdj = adjCountForfeits(board, r, c);
-      return base - forfeitsAdj;
-    }
-    case "T": {
-      const base = BUILDING_RULES.T.base;
-      const uniqueBasics = uniqueBasicsRowCol(board, actMap, r, c);
-      return base + 2 * uniqueBasics.size;
-    }
-    case "U": {
-      const uniqueAdv = countAdvanced(board);
-      return uniPoints(uniqueAdv);
-    }
-    case "A": {
-      return 0; // affects vagrants only
-    }
-    case "G": {
-      const target = guildTargetFromLabel((cell.buildingLabel || "G").toUpperCase());
-      if (!target) return 0;
-      return meetsGuildCondition(board, actMap, target) ? 15 : 0;
-    }
-    default:
-      return 0;
-  }
+  return scoreBuildingCell(board, populationNodes, actMap, r, c);
 }
 
 function popAround(r, c, popGrid) {
@@ -621,6 +546,57 @@ function meetsGuildCondition(board, activation, targetCode) {
 
 function adjCountForfeits(board, r, c) {
   return orthNeighbors(r, c, board.length, board[0].length).filter(([nr, nc]) => board[nr][nc].forfeited).length;
+}
+
+function scoreBuildingCell(board, populationNodes, activation, r, c) {
+  const cell = board[r]?.[c];
+  if (!cell || !cell.building || cell.forfeited || cell.activationForfeit) return 0;
+  const active = activation.get(key(r, c));
+  if (!active) return 0;
+
+  switch (cell.building) {
+    case "F": {
+      const base = BUILDING_RULES.F.base;
+      const bonus = adjHasBuilding(board, r, c, "S") ? 2 : 0;
+      return base + bonus;
+    }
+    case "Q": {
+      const base = BUILDING_RULES.Q.base;
+      const bonus = rowColHas(board, r, c, "Q") ? 1 : 0;
+      return base + bonus;
+    }
+    case "W": {
+      const base = BUILDING_RULES.W.base;
+      const bonus = adjCountBuilding(board, r, c, "W");
+      return base + bonus;
+    }
+    case "M": {
+      return popAround(r, c, populationNodes);
+    }
+    case "S": {
+      const base = BUILDING_RULES.S.base;
+      const forfeitsAdj = adjCountForfeits(board, r, c);
+      return base - forfeitsAdj;
+    }
+    case "T": {
+      const base = BUILDING_RULES.T.base;
+      const uniqueBasics = uniqueBasicsRowCol(board, activation, r, c);
+      return base + 2 * uniqueBasics.size;
+    }
+    case "U": {
+      const uniqueAdv = countAdvanced(board);
+      return uniPoints(uniqueAdv);
+    }
+    case "A":
+      return 0; // affects vagrants only
+    case "G": {
+      const target = guildTargetFromLabel((cell.buildingLabel || "G").toUpperCase());
+      if (!target) return 0;
+      return meetsGuildCondition(board, activation, target) ? 15 : 0;
+    }
+    default:
+      return 0;
+  }
 }
 
 function key(r, c) {

@@ -309,6 +309,61 @@ describe("computeScore", () => {
     const result = computeScore(board, pop); // pop 2, housing 0 -> vagrants -2, cancel up to 12 -> should clamp at 0
     expect(result.breakdown.vagrants).toBe(0);
   });
+
+  it("Guild of Farms scores only with 4+ contiguous active Farms", () => {
+    const board = emptyBoard();
+    board[0][0].building = "G";
+    board[0][0].buildingLabel = "GF";
+    board[0][1].building = "F";
+    board[0][2].building = "F";
+    board[1][1].building = "F";
+    board[1][2].building = "F";
+    const pop = emptyPop();
+    pop[0][0] = 4; // activate guild (req 4)
+    pop[0][1] = 2;
+    pop[0][2] = 2;
+    pop[1][1] = 2;
+    pop[1][2] = 2;
+    const result = computeScore(board, pop);
+    expect(result.breakdown.guilds).toBe(15);
+  });
+
+  it("Guild of Windmills needs four edge windmills", () => {
+    const board = emptyBoard();
+    board[0][0].building = "G";
+    board[0][0].buildingLabel = "GW";
+    board[0][1].building = "W";
+    board[0][2].building = "W";
+    board[0][3].building = "W";
+    board[0][4].building = "W";
+    const pop = emptyPop();
+    pop[0][0] = 4; // activate guild
+    pop[0][1] = 2;
+    pop[0][2] = 2;
+    pop[0][3] = 2;
+    pop[0][4] = 2;
+    const result = computeScore(board, pop);
+    expect(result.breakdown.guilds).toBe(15);
+  });
+
+  it("Guild of Markets needs four activated markets in the centre", () => {
+    const board = emptyBoard();
+    board[2][2].building = "G";
+    board[2][2].buildingLabel = "GM";
+    board[1][1].building = "M";
+    board[1][2].building = "M";
+    board[2][1].building = "M";
+    board[2][2].building = "G";
+    board[2][3].building = "M";
+    const pop = emptyPop();
+    pop[2][2] = 4; // guild activation
+    pop[1][1] = 3;
+    pop[1][2] = 3;
+    pop[2][1] = 3;
+    pop[2][3] = 3;
+    const result = computeScore(board, pop);
+    expect(result.breakdown.guilds).toBe(15);
+  });
 });
 
 describe("filterAvailablePairs", () => {
