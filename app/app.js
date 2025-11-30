@@ -413,9 +413,24 @@ function rollDice() {
   updateActionBanner();
 }
 
+/** Source: https://www.thescottkrause.com/emerging_tech/gameification-threejs-webcrypto-accelerator-blender-gltf/ */
+function getCryptoRange(min, max) {
+    const range = max - min + 1
+    const mBits = Math.ceil(Math.log2(range))
+    const mBytes = Math.ceil(mBits / 8)
+    const nAllowed = Math.floor((256 ** mBytes) / range) * range
+    const arBytes = new Uint8Array(mBytes)
+    let value
+    do {
+        crypto.getRandomValues(arBytes)
+        value = arBytes.reduce((acc, x, n) => acc + x * 256 ** n, 0)
+    } while (value >= nAllowed)
+    return min + value % range
+}
+
 function rollNumberedDie(label) {
   const faces = [1, 2, 3, 4, 5, label === "N1" ? "1/2" : "4/5"];
-  const face = faces[Math.floor(Math.random() * faces.length)];
+  const face = faces[getCryptoRange(0, faces.length - 1)];
   const choices = face === "1/2" ? [1, 2] : face === "4/5" ? [4, 5] : [];
   const resolved = choices.length ? choices[0] : face;
   return { label, face, choices, resolved };
@@ -423,7 +438,7 @@ function rollNumberedDie(label) {
 
 function rollXDie(label) {
   const faces = [1, 2, 3, 4, 5, "X"];
-  const face = faces[Math.floor(Math.random() * faces.length)];
+  const face = faces[getCryptoRange(0, faces.length - 1)];
   return { label, face, choices: [], resolved: typeof face === "number" ? face : null };
 }
 
