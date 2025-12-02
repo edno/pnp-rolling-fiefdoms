@@ -54,6 +54,7 @@ function prepareNextRoll() {
   state.lockedBuildDice = null;
   state.lockedLocationPairs = null;
   state.pendingNextRoll = false;
+  state.deferStatusAppend = false;
   if (diceView) diceView.innerHTML = "";
   updateRollButton();
   updateActionBanner();
@@ -381,7 +382,11 @@ function rollDice() {
     const extras = messages.slice(1); // windrose/pestilence/etc
     const appendStatus = Boolean(state.deferStatusAppend);
     state.deferStatusAppend = false;
-    log(status, { append: appendStatus }); // oldest of the trio (append pushes to end)
+    if (appendStatus) {
+      appendOldestLog(status);
+    } else {
+      log(status);
+    }
     log(rollMsg); // mid-layer
     extras.forEach((m) => log(m)); // newest
   } else {
@@ -1030,12 +1035,13 @@ function updateTracks() {
   renderPopHousingTrack(state.tracks.population, state.tracks.housing, vagrants);
 }
 
-function log(msg, { append = false } = {}) {
-  if (append) {
-    state.log.push(msg);
-  } else {
-    state.log.unshift(msg);
-  }
+function log(msg) {
+  state.log.unshift(msg);
+  logEl.innerHTML = state.log.map((m) => `<li>${m}</li>`).join("");
+}
+
+function appendOldestLog(msg) {
+  state.log.push(msg);
   logEl.innerHTML = state.log.map((m) => `<li>${m}</li>`).join("");
 }
 
