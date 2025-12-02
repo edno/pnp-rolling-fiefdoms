@@ -94,6 +94,12 @@ function selectBuilding(code, source) {
   hit.click();
 }
 
+function clickRoll() {
+  const btn = document.getElementById("rollBtn");
+  if (!btn) throw new Error("Roll button not found");
+  btn.click();
+}
+
 function clickBoardCell(r, c) {
   const cell = document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
   if (!cell) throw new Error(`Board cell ${r},${c} not found`);
@@ -122,6 +128,7 @@ describe("pestilence UI flow (jsdom)", () => {
       numbered: [3, 4, 1, 2, 1, 1], // pestilence (sum=7) then a normal roll, plus padding
       x: ["X", "X", 2, 5, 1, 1],
     });
+    clickRoll();
     const turnHint = document.getElementById("turnHint");
     expect(turnHint.textContent).toContain("Pestilence");
     const targetCell = document.querySelector('.cell[data-row="0"][data-col="0"]');
@@ -129,9 +136,12 @@ describe("pestilence UI flow (jsdom)", () => {
     targetCell.click();
     await flushMicrotasks();
 
+    clickRoll(); // next turn roll
+    await flushMicrotasks();
+
     const logs = latestLogs();
     expect(logs.some((m) => m.includes("Forfeited row 1, col 1"))).toBe(true);
-    expect(logs[0]).toMatch(/Rolled N1:1, N2:2/i);
+    expect(logs.some((m) => /Rolled N1:1, N2:2/i.test(m))).toBe(true);
     expect(document.getElementById("turnHint").textContent).not.toContain("Pestilence");
   });
 });
@@ -142,6 +152,7 @@ describe("windrose handling (jsdom)", () => {
       numbered: [{ face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] }, 4, 2, 2],
       x: [3, 3, 1, 1],
     });
+    clickRoll();
 
     const windroseBadge = document.querySelector('.die-badge[data-idx="0"]');
     expect(windroseBadge.classList.contains("dice-locked")).toBe(true);
@@ -170,10 +181,32 @@ describe("pestilence windrose reroll (jsdom)", () => {
       ],
       x: ["X", "X", "X", "X"], // first triggers pestilence, reroll also pestilence but valid
     });
-    const logs = latestLogs();
+    clickRoll(); // first roll: double windrose -> prompt reroll
+    let logs = latestLogs();
+    expect(logs.some((m) => m.toLowerCase().includes("double windrose rolled"))).toBe(true);
+    clickRoll(); // reroll manually
+    logs = latestLogs();
     expect(logs.some((m) => m.toLowerCase().includes("windrose") && m.toLowerCase().includes("reroll"))).toBe(true);
     expect(document.getElementById("turnHint").textContent).toContain("Pestilence");
     expect(logs.some((m) => m.includes("Rolled N1:2") && m.includes("N2:3"))).toBe(true);
+  });
+
+  it("rerolls double windrose even without pestilence", async () => {
+    await setupApp({
+      numbered: [
+        { face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] },
+        { face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] },
+        4,
+        5,
+      ],
+      x: [2, 3, 1, 1],
+    });
+    clickRoll(); // first roll shows double windrose -> no turn started
+    let logs = latestLogs();
+    expect(logs.some((m) => m.toLowerCase().includes("double windrose rolled"))).toBe(true);
+    clickRoll(); // second roll should proceed
+    logs = latestLogs();
+    expect(logs.some((m) => m.includes("Rolled N1:4") && m.includes("N2:5"))).toBe(true);
   });
 });
 
@@ -183,6 +216,7 @@ describe("guild selection (jsdom)", () => {
       numbered: [2, 3, 1, 1], // guild roll then padding
       x: [5, 5, 1, 1], // build dice 5/5 -> Guild via sum 10
     });
+    clickRoll();
 
     clickDie(0);
     clickDie(1);
@@ -203,9 +237,10 @@ describe("guild selection (jsdom)", () => {
 describe("springhouse targeting (jsdom)", () => {
   it("allows selecting an adjacent building for the Springhouse effect", async () => {
     await setupApp({
-      numbered: [1, 3, 2, 2, 1, 2], // roll 1: Townhall, roll 2: filler, roll 3: Springhouse (sum 6)
-      x: [4, 3, 1, 1, 5, 1], // roll 1 build dice 4/3 -> Townhall (sum 7), roll 3 build dice 5/1 -> Springhouse
+      numbered: [1, 3, 1, 2], // roll 1: Townhall, roll 2: Springhouse (sum 6)
+      x: [4, 3, 5, 1], // roll 1 build dice 4/3 -> Townhall (sum 7), roll 2 build dice 5/1 -> Springhouse
     });
+    clickRoll(); // first roll
 
     // First roll: place a Windmill at row 1, col 3 (pair 1/3)
     clickDie(0); // select N1
@@ -213,13 +248,13 @@ describe("springhouse targeting (jsdom)", () => {
     await flushMicrotasks();
     selectBuilding("T");
     clickBoardCell(0, 2);
-    await flushMicrotasks(); // auto-roll to next turn
+    await flushMicrotasks(); // end of turn 1
     const logsAfterWindmill = latestLogs();
     expect(logsAfterWindmill.some((m) => m.includes("Placed T at row 1, col 3"))).toBe(true);
 
-    // Advance to an active turn for Springhouse (skip filler roll)
+    // Roll for Springhouse
     const rollBtn = document.getElementById("rollBtn");
-    rollBtn.click();
+    rollBtn.click(); // roll 2 (Springhouse)
     await flushMicrotasks();
 
     // Third roll: place Springhouse adjacent (row 1, col 2) and target the Windmill
@@ -249,6 +284,7 @@ describe("split population placement (jsdom)", () => {
       numbered: [2, 3, 1, 1], // location pair 2/3, padding roll 2
       x: [5, 3, 1, 1], // build dice 5/3 -> choose Market via die1, pop gain 3
     });
+    clickRoll();
 
     clickDie(0);
     clickDie(1);

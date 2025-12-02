@@ -35,6 +35,7 @@ const baseState = {
   finalScore: null,
   theme: "light",
   forcedLocationDice: [],
+  rollAvailable: true,
 };
 
 export function createState() {
@@ -64,6 +65,7 @@ export function resetTurnState(state) {
   state.pestilenceInfo = null;
   state.dice = [];
   state.forcedLocationDice = [];
+  // rollAvailable intentionally not reset here to preserve per-turn lock until explicitly re-enabled
 }
 
 export function lockDiceSnapshot(state, { markPendingNextRoll = false, uniqueLocationPairs } = {}) {

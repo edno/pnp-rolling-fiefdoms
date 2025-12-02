@@ -162,6 +162,13 @@ body.theme-dark #themeToggleIcon {
   animation: banner-bump 1.2s ease 0.4s;
 }
 
+.action-banner .inline-icon {
+  height: 18px;
+  width: 18px;
+  vertical-align: middle;
+  margin: 0 0px;
+}
+
 body.theme-dark .action-banner {
   background: rgba(21, 26, 34, 0.85);
   border-color: var(--border);
@@ -925,6 +932,7 @@ body.theme-dark .die-badge {
   gap: 8px;
   flex-wrap: wrap;
   font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
+  height: 42px;
 }
 
 .die-pips {

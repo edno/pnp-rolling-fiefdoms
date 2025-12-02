@@ -41,29 +41,55 @@ const state = createState();
 
 let controlsReady = false;
 
+function prepareNextRoll() {
+  state.rollAvailable = true;
+  state.dice = [];
+  state.locationSelection = [];
+  state.locationPairs = [];
+  state.buildDice = [];
+  state.lastLocationDice = [];
+  state.lastBuildDice = [];
+  state.diceLocked = false;
+  state.lockedLocationDice = null;
+  state.lockedBuildDice = null;
+  state.lockedLocationPairs = null;
+  state.pendingNextRoll = false;
+  if (diceView) diceView.innerHTML = "";
+  updateRollButton();
+  updateActionBanner();
+  refreshDiceVisibility();
+  highlightLocations();
+}
+
+function updateRollButton() {
+  const rollBtn = document.getElementById("rollBtn");
+  if (!rollBtn) return;
+  const hidden = state.activationMode || state.activationComplete;
+  const awaitingRoll = !debugMode && state.rollAvailable;
+  const showButton = !hidden && (awaitingRoll || debugMode);
+  rollBtn.style.display = showButton ? "inline-block" : "none";
+  const enabled = debugMode || state.rollAvailable;
+  rollBtn.disabled = !enabled;
+  rollBtn.classList.toggle("dice-locked", !enabled && !debugMode);
+  rollBtn.title = enabled ? "Roll dice" : "Roll used; complete the turn to roll again.";
+}
+
 function refreshDiceVisibility() {
   const hidden = state.activationMode || state.activationComplete;
-  if (diceView) diceView.style.display = hidden ? "none" : "";
-  const rollBtn = document.getElementById("rollBtn");
-  if (rollBtn) {
-    if (!debugMode) {
-      rollBtn.style.display = "none";
-    } else {
-      rollBtn.style.display = hidden ? "none" : "inline-block";
-    }
-  }
+  const awaitingRoll = !debugMode && state.rollAvailable;
+  if (diceView) diceView.style.display = hidden || awaitingRoll ? "none" : "";
+  updateRollButton();
   if (turnHintEl) {
     turnHintEl.style.display = hidden ? "none" : "";
-    if (!hidden && !state.activationMode && !state.activationComplete) {
+    if (!hidden && !state.activationMode && !state.activationComplete && !awaitingRoll) {
       turnHintEl.style.display = "";
     }
+    if (awaitingRoll) turnHintEl.textContent = "";
   }
 }
 
-function shouldRerollWindrosePestilence(dice) {
+function shouldRerollDoubleWindrose(dice) {
   if (!Array.isArray(dice) || dice.length < 4) return false;
-  const pestilence = dice.filter((d) => d.face === "X").length === 2;
-  if (!pestilence) return false;
   const numbered = dice.filter((d) => d?.label?.startsWith("N"));
   if (numbered.length !== 2) return false;
   return numbered.every((d) => d.face === "windrose");
@@ -216,7 +242,6 @@ function init() {
     setupControls();
     controlsReady = true;
   }
-  rollDice();
 }
 
 function resetState() {
@@ -230,6 +255,7 @@ function resetState() {
   state.activeTurn = true;
   state.finalScore = null;
   state.log = [];
+  state.rollAvailable = true;
   resetTurnState(state);
   if (logEl) logEl.innerHTML = "";
   if (finishActivationBtn) finishActivationBtn.style.display = "none";
@@ -266,7 +292,8 @@ function setupControls() {
   const rollBtn = document.getElementById("rollBtn");
   if (rollBtn) {
     rollBtn.onclick = () => rollDice();
-    rollBtn.style.display = debugMode ? "inline-block" : "none";
+    rollBtn.style.display = "inline-block";
+    updateRollButton();
   }
   if (newGameBtn) {
     newGameBtn.onclick = () => newGame();
@@ -308,20 +335,28 @@ function setupControls() {
 
 function rollDice() {
   if (state.activationMode) return;
+  if (!debugMode && !state.rollAvailable) {
+    log("Roll already used this turn. Finish the turn to roll again.");
+    return;
+  }
+  state.bannerOverride = null;
   triggerDiceAnimation();
-  let dice = [];
-  let rerollNeeded = false;
-  do {
-    const n1 = rollNumberedDie("N1");
-    const n2 = rollNumberedDie("N2");
-    const x1 = rollXDie("X1");
-    const x2 = rollXDie("X2");
-    dice = [n1, n2, x1, x2];
-    rerollNeeded = shouldRerollWindrosePestilence(dice);
-    if (rerollNeeded) {
-      log("Pestilence roll showed two windroses (0); rerolling dice.");
-    }
-  } while (rerollNeeded);
+  const n1 = rollNumberedDie("N1");
+  const n2 = rollNumberedDie("N2");
+  const x1 = rollXDie("X1");
+  const x2 = rollXDie("X2");
+  const dice = [n1, n2, x1, x2];
+  if (shouldRerollDoubleWindrose(dice)) {
+    const msg = "Double windrose rolled; press Roll Dice to reroll.";
+    log(msg);
+    state.bannerOverride =
+      'Double <img src="assets/img/windrose.svg" alt="windrose" class="inline-icon"> rolled; press Roll Dice to reroll.';
+    updateActionBanner();
+    prepareNextRoll();
+    return;
+  }
+  state.rollAvailable = debugMode ? true : false;
+  updateRollButton();
   const { messages } = beginTurn(state, dice, state.board, {
     uniqueLocationPairs,
     computePestilenceInfo,
@@ -385,7 +420,8 @@ function dieMaxValue(die) {
 function renderDice() {
   if (!diceView) return;
   refreshDiceVisibility();
-  if (state.activationMode || state.activationComplete) return;
+  const awaitingRoll = state.rollAvailable && (!state.dice || state.dice.length === 0);
+  if (state.activationMode || state.activationComplete || awaitingRoll) return;
   diceView.innerHTML = "";
   if (turnHintEl) {
     if (state.pestilence) {
@@ -984,7 +1020,9 @@ function autoAdvance() {
     return;
   }
   if (action === "roll") {
-    rollDice();
+    prepareNextRoll();
+    state.bannerOverride = state.pestilence ? "Press Roll Dice to continue after pestilence." : null;
+    updateActionBanner();
   }
 }
 
@@ -1027,7 +1065,6 @@ function newGame() {
   updateActionBanner();
   if (newGameBtn) newGameBtn.style.display = "none";
   refreshDiceVisibility();
-  rollDice();
 }
 
 function handleBuildingChoice() {
@@ -1193,6 +1230,8 @@ function actionMessage() {
   if (state.pendingPopulation?.remaining > 0) {
     return `Place ${state.pendingPopulation.remaining} population on an adjacent intersection.`;
   }
+  const awaitingRoll = !debugMode && state.rollAvailable;
+  if (awaitingRoll) return "Press Roll Dice to start your turn.";
   if (state.locationSelection.length < 2 && !(state.diceLocked && state.lockedLocationDice?.length === 2)) {
     return "Select two location dice in the Turn panel.";
   }
@@ -1249,7 +1288,9 @@ function renderRegionOverlay() {
 
 function maybeRollAfterLock() {
   const action = maybeRollAfterLockState(state);
-  if (action === "roll") rollDice();
+  if (action === "roll") {
+    prepareNextRoll();
+  }
 }
 
 function renderPopulationNodes() {
@@ -1358,15 +1399,16 @@ function renderSelectionDice(locationDice = [], buildDice = []) {
     (locationDice && locationDice.length && locationDice) ||
     (currentLocFromState.length && currentLocFromState) ||
     (state.lockedLocationDice && state.lockedLocationDice.length && state.lockedLocationDice) ||
-    (state.lastLocationDice && state.lastLocationDice.length && state.lastLocationDice) ||
     [];
   const currentBuildFromState = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
   const effectiveBuild =
-    (buildDice && buildDice.length && buildDice) ||
-    (currentBuildFromState.length && currentBuildFromState) ||
-    (state.lockedBuildDice && state.lockedBuildDice.length && state.lockedBuildDice) ||
-    (state.lastBuildDice && state.lastBuildDice.length && state.lastBuildDice) ||
-    [];
+    state.locationSelection.length === 2
+      ? (buildDice && buildDice.length && buildDice) ||
+        (currentBuildFromState.length && currentBuildFromState) ||
+        (state.lockedBuildDice && state.lockedBuildDice.length && state.lockedBuildDice) ||
+        (state.lastBuildDice && state.lastBuildDice.length && state.lastBuildDice) ||
+        []
+      : [];
   if (locDicePreview) {
     renderDicePreview(locDicePreview, effectiveLoc, "location", "Select 2 dice for location");
   }
@@ -1449,7 +1491,7 @@ function renderDicePreview(container, dice, role, emptyText) {
   container.classList.add("split-preview");
   container.innerHTML = "";
   if (!dice?.length) {
-    container.innerHTML = `<span class="muted">${emptyText}</span>`;
+    container.innerHTML = `<span class="hint">${emptyText}</span>`;
     return;
   }
   dice.forEach((die, idx) => {
