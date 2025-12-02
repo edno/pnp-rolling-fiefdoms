@@ -356,6 +356,7 @@ function rollDice() {
     state.pendingTurnIndex = state.turnIndex + 1;
     state.pendingActiveTurn = ((state.turnIndex + 1) % 2 === 1);
     prepareNextRoll();
+    renderSelectionDice([], []);
     return;
   }
   state.bannerOverride = null;
@@ -375,8 +376,8 @@ function rollDice() {
   const rollMsg = `Rolled ${describeDice(dice)}`;
   if (Array.isArray(messages) && messages.length) {
     const status = messages[0];
-    const extras = messages.slice(1); // windrose/pestilence/etc in chronological order (oldest first)
-    log(status); // older than roll
+    const extras = messages.slice(1); // windrose/pestilence/etc
+    log(status); // oldest of the trio
     log(rollMsg); // newer than status
     extras.forEach((m) => log(m)); // newest
   } else {

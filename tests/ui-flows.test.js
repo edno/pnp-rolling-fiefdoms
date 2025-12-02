@@ -184,6 +184,8 @@ describe("pestilence windrose reroll (jsdom)", () => {
     clickRoll(); // first roll: double windrose -> prompt reroll
     let logs = latestLogs();
     expect(logs.some((m) => m.toLowerCase().includes("double windrose rolled"))).toBe(true);
+    expect(document.querySelectorAll("#locDicePreview .die-badge").length).toBe(0);
+    expect(document.querySelectorAll("#buildDicePreview .die-badge").length).toBe(0);
     clickRoll(); // reroll manually
     logs = latestLogs();
     expect(logs.some((m) => m.toLowerCase().includes("windrose") && m.toLowerCase().includes("reroll"))).toBe(true);
@@ -232,9 +234,9 @@ describe("logging integrity (jsdom)", () => {
     const gameIdx = logs.findIndex((m) => m.includes("Game started."));
     const statusIdx = logs.findIndex((m) => /Active turn\.|Non-active turn\./.test(m));
     const rollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:5, N2:2"));
-    expect(rollIdx).toBe(0);
-    expect(statusIdx).toBeGreaterThan(rollIdx);
-    expect(gameIdx).toBeGreaterThan(statusIdx);
+    expect(rollIdx).toBe(0); // newest first
+    expect(statusIdx).toBe(1);
+    expect(gameIdx).toBe(2);
   });
 
   it("orders logs as status -> roll -> windrose for windrose rolls", async () => {
