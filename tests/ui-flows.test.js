@@ -210,6 +210,37 @@ describe("pestilence windrose reroll (jsdom)", () => {
   });
 });
 
+describe("logging integrity (jsdom)", () => {
+  it("logs a single roll entry per normal roll", async () => {
+    await setupApp({
+      numbered: [1, 2],
+      x: [1, 2],
+    });
+    clickRoll();
+    const logs = latestLogs();
+    const rolledLogs = logs.filter((m) => m.startsWith("Rolled N1:1, N2:2"));
+    expect(rolledLogs).toHaveLength(1);
+  });
+
+  it("logs a single roll entry for each double-windrose reroll attempt", async () => {
+    await setupApp({
+      numbered: [
+        { face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] },
+        { face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] },
+        4,
+        5,
+      ],
+      x: [2, 3, 1, 1],
+    });
+    clickRoll(); // double windrose -> reroll prompt
+    let logs = latestLogs();
+    expect(logs.filter((m) => m.startsWith("Rolled N1:windrose, N2:windrose"))).toHaveLength(1);
+    clickRoll(); // valid roll
+    logs = latestLogs();
+    expect(logs.filter((m) => m.startsWith("Rolled N1:4, N2:5"))).toHaveLength(1);
+  });
+});
+
 describe("guild selection (jsdom)", () => {
   it("requires choosing a guild type before placement", async () => {
     await setupApp({

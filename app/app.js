@@ -344,10 +344,10 @@ function rollDice() {
   const x1 = rollXDie("X1");
   const x2 = rollXDie("X2");
   const dice = [n1, n2, x1, x2];
-  log(`Rolled ${describeDice(dice)}`);
   if (shouldRerollDoubleWindrose(dice)) {
     const msg = "Double windrose rolled; press Roll Dice to reroll.";
     log(msg);
+    log(`Rolled ${describeDice(dice)}`);
     state.bannerOverride =
       'Double <img src="assets/img/windrose.svg" alt="windrose" class="inline-icon"> rolled; press Roll Dice to reroll.';
     updateActionBanner();
@@ -358,13 +358,13 @@ function rollDice() {
   triggerDiceAnimation();
   state.rollAvailable = debugMode ? true : false;
   updateRollButton();
-  log(`Rolled ${describeDice(dice)}`);
   const { messages } = beginTurn(state, dice, state.board, {
     uniqueLocationPairs,
     computePestilenceInfo,
     filterAvailablePairs,
     sectionLabels,
   });
+  log(`Rolled ${describeDice(dice)}`);
   messages.forEach((m) => log(m));
   if (state.pestilence) {
     const target = state.pestilenceInfo?.sectionLabel || "any section";
