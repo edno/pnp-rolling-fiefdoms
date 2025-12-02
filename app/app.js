@@ -927,8 +927,7 @@ function applySpringhouseBoost(target) {
   log(`Springhouse reduced worker requirement for row ${tr + 1}, col ${tc + 1} by 1.`);
   renderBoard();
   updateTracks();
-  const scoreResult = currentScore();
-  updateScoreOverlay(scoreResult.breakdown, scoreResult.total);
+  refreshScoreOverlay();
   state.pendingSpringhouseTarget = null;
   autoAdvance();
   maybeRollAfterLock();
@@ -958,8 +957,7 @@ function forfeitCell(r, c) {
   state.pestilence = false;
   state.pestilenceInfo = null;
   state.forceForfeit = false;
-  const scoreResult = currentScore();
-  updateScoreOverlay(scoreResult.breakdown, scoreResult.total);
+  refreshScoreOverlay();
   autoAdvance();
   maybeRollAfterLock();
 }
@@ -1152,8 +1150,7 @@ function onPopulationNodeClick(nr, nc) {
   if (result.message) log(result.message);
   if (!result.placed) return;
   updateTracks();
-  const scoreResult = currentScore();
-  updateScoreOverlay(scoreResult.breakdown, scoreResult.total);
+  refreshScoreOverlay();
   renderBoard();
   autoAdvance();
   maybeRollAfterLock();
@@ -1371,40 +1368,10 @@ function renderSelectionDice(locationDice = [], buildDice = []) {
     (state.lastBuildDice && state.lastBuildDice.length && state.lastBuildDice) ||
     [];
   if (locDicePreview) {
-    locDicePreview.classList.add("split-preview");
-    locDicePreview.innerHTML = "";
-    if (!effectiveLoc.length) {
-      locDicePreview.innerHTML = '<span class="muted">Select 2 dice for location</span>';
-    } else {
-      effectiveLoc.forEach((die, idx) => {
-        const badge = makeDieBadge(die, idx, {
-          role: "location",
-          locked: false,
-          clickable: false,
-          showRoleStyle: false,
-          forcedLocation: false,
-        });
-        locDicePreview.appendChild(badge);
-      });
-    }
+    renderDicePreview(locDicePreview, effectiveLoc, "location", "Select 2 dice for location");
   }
   if (buildDicePreview) {
-    buildDicePreview.classList.add("split-preview");
-    buildDicePreview.innerHTML = "";
-    if (!effectiveBuild.length) {
-      buildDicePreview.innerHTML = '<span class="muted">Remaining dice used for build</span>';
-    } else {
-      effectiveBuild.forEach((die, idx) => {
-        const badge = makeDieBadge(die, idx, {
-          role: "build",
-          locked: false,
-          clickable: false,
-          showRoleStyle: false,
-          forcedLocation: false,
-        });
-        buildDicePreview.appendChild(badge);
-      });
-    }
+    renderDicePreview(buildDicePreview, effectiveBuild, "build", "Remaining dice used for build");
   }
 }
 
@@ -1458,11 +1425,11 @@ function makeDieBadge(
   badge.className = "die-badge";
   const baseClass = die.label[0] === "X" ? "die-special" : "die-number";
   badge.classList.add(baseClass);
-  const forcedLocked = forcedLocation && baseClass === "die-number";
-  if (forcedLocked || (locked && die.face === "windrose" && baseClass === "die-number")) {
+  const shouldLock = locked || (forcedLocation && baseClass === "die-number");
+  if (shouldLock || (locked && die.face === "windrose" && baseClass === "die-number")) {
     badge.classList.add("dice-locked");
   }
-  const allowRoles = showRoleStyle && !(forcedLocked || (locked && die.face === "windrose"));
+  const allowRoles = showRoleStyle && !(shouldLock || (locked && die.face === "windrose"));
   if (allowRoles) {
     if (role === "location") badge.classList.add("location-selected");
     if (role === "build") badge.classList.add("build-assigned");
@@ -1475,6 +1442,26 @@ function makeDieBadge(
     badge.addEventListener("click", () => onDieClick(idx));
   }
   return badge;
+}
+
+function renderDicePreview(container, dice, role, emptyText) {
+  if (!container) return;
+  container.classList.add("split-preview");
+  container.innerHTML = "";
+  if (!dice?.length) {
+    container.innerHTML = `<span class="muted">${emptyText}</span>`;
+    return;
+  }
+  dice.forEach((die, idx) => {
+    const badge = makeDieBadge(die, idx, {
+      role,
+      locked: false,
+      clickable: false,
+      showRoleStyle: false,
+      forcedLocation: false,
+    });
+    container.appendChild(badge);
+  });
 }
 
 function onDieClick(idx) {
@@ -1548,6 +1535,12 @@ function currentScore({ allowPopulationActivation } = {}) {
   return computeScore(state.board, state.populationNodes, currentWorkerAllocationsForScore(), {
     allowPopulationActivation: usePopActivation,
   });
+}
+
+function refreshScoreOverlay(scoreResult = null) {
+  const result = scoreResult || currentScore();
+  updateScoreOverlay(result.breakdown, result.total);
+  return result;
 }
 
 function updateScoreOverlay(breakdown, total = 0) {
