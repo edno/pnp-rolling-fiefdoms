@@ -1506,7 +1506,7 @@ function renderDicePreview(container, dice, role, emptyText) {
   container.classList.add("split-preview");
   container.innerHTML = "";
   if (!dice?.length) {
-    container.innerHTML = `<span class="muted">${emptyText}</span>`;
+    container.innerHTML = `<span class="hint">${emptyText}</span>`;
     return;
   }
   dice.forEach((die, idx) => {

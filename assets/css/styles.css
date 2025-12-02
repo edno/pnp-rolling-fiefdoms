@@ -1049,12 +1049,6 @@ body.theme-dark .die-special {
   border-color: #f2a766;
 }
 
-.muted {
-  color: var(--muted);
-  font-size: 14px;
-  font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
-}
-
 #rollBtn {
   margin-bottom: 12px;
 }
