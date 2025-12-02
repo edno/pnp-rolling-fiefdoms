@@ -351,6 +351,7 @@ function rollDice() {
     const msg = "Double windrose rolled; press Roll Dice to reroll.";
     log(`Rolled ${describeDice(dice)}`);
     log(msg);
+    state.deferStatusAppend = true;
     state.bannerOverride =
       'Double <img src="assets/img/windrose.svg" alt="windrose" class="inline-icon"> rolled; press Roll Dice to reroll.';
     updateActionBanner();
@@ -378,8 +379,10 @@ function rollDice() {
   if (Array.isArray(messages) && messages.length) {
     const status = messages[0];
     const extras = messages.slice(1); // windrose/pestilence/etc
-    log(status); // oldest of the trio
-    log(rollMsg); // newer than status
+    const appendStatus = Boolean(state.deferStatusAppend);
+    state.deferStatusAppend = false;
+    log(status, { append: appendStatus }); // oldest of the trio (append pushes to end)
+    log(rollMsg); // mid-layer
     extras.forEach((m) => log(m)); // newest
   } else {
     log(rollMsg);
@@ -1027,8 +1030,12 @@ function updateTracks() {
   renderPopHousingTrack(state.tracks.population, state.tracks.housing, vagrants);
 }
 
-function log(msg) {
-  state.log.unshift(msg);
+function log(msg, { append = false } = {}) {
+  if (append) {
+    state.log.push(msg);
+  } else {
+    state.log.unshift(msg);
+  }
   logEl.innerHTML = state.log.map((m) => `<li>${m}</li>`).join("");
 }
 
@@ -1086,6 +1093,7 @@ function newGame() {
   updateTracks();
   state.pendingTurnIndex = null;
   state.pendingActiveTurn = null;
+  state.deferStatusAppend = false;
   state.bannerOverride = null;
   if (turnHintEl) turnHintEl.textContent = "";
   updateActionBanner();

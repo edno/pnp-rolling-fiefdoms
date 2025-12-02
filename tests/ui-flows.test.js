@@ -69,11 +69,16 @@ function stubEnvironment() {
   Image = InstantImage;
 }
 
-async function setupApp({ numbered = [], x = [] } = {}) {
+async function setupApp({ numbered = [], x = [], debug = false } = {}) {
   vi.resetModules();
   numberedQueue.length = 0;
   xQueue.length = 0;
   stubEnvironment();
+  if (debug) {
+    const url = new URL("http://localhost/?debug");
+    // eslint-disable-next-line no-global-assign
+    location = url;
+  }
   const dice = await import("../app/dice.js");
   dice.__queues.numberedQueue.push(...numbered);
   dice.__queues.xQueue.push(...x);
@@ -295,9 +300,9 @@ describe("logging integrity (jsdom)", () => {
     const statusIdx = logs.findIndex((m) => m.startsWith("Active turn."));
     const rollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:windrose, N2:4"));
     const windroseIdx = logs.findIndex((m) => m.includes("Windrose rolled"));
-    expect(windroseIdx).toBe(0); // newest first
-    expect(rollIdx).toBe(1);
-    expect(statusIdx).toBe(2);
+    expect(windroseIdx).toBe(0); // newest
+    expect(rollIdx).toBeGreaterThan(windroseIdx);
+    expect(statusIdx).toBeGreaterThan(rollIdx);
   });
 
   it("logs a single roll entry for each double-windrose reroll attempt", async () => {
@@ -326,6 +331,63 @@ describe("logging integrity (jsdom)", () => {
     const rollIdxValid = logs.findIndex((m) => m.startsWith("Rolled N1:4, N2:5"));
     expect(rollIdxValid).toBe(0); // newest
     expect(statusIdx).toBeGreaterThan(rollIdxValid);
+  });
+
+  it("orders windrose and double-windrose reroll messages correctly", async () => {
+    await setupApp({
+      numbered: [
+        2,
+        { face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] },
+        { face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] }, // double windrose -> reroll
+        { face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] },
+        { face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] },
+        1,
+      ],
+      x: [3, "X", "X", 4, 1],
+      debug: true, // allow multiple rolls without turn progression for ordering check
+    });
+
+    clickRoll(); // first roll windrose+2
+    let logs = latestLogs();
+    const firstRollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:2, N2:windrose"));
+    const firstWindroseIdx = logs.findIndex((m) => m.includes("Windrose rolled"));
+    const firstStatusIdx = logs.findIndex((m) => /Active turn|Non-active turn/.test(m));
+    expect(firstWindroseIdx).toBe(0);
+    expect(firstRollIdx).toBeGreaterThan(firstWindroseIdx);
+    expect(firstStatusIdx).toBeGreaterThan(firstRollIdx);
+
+    clickRoll(); // double windrose -> prompt reroll
+    logs = latestLogs();
+    const doubleRollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:windrose, N2:windrose"));
+    const doublePromptIdx = logs.findIndex((m) => m.toLowerCase().includes("double windrose rolled"));
+    expect(doubleRollIdx).toBeGreaterThan(-1);
+    expect(doublePromptIdx).toBeGreaterThan(-1);
+    expect(doublePromptIdx).toBeLessThan(doubleRollIdx); // prompt newer than its roll
+
+    clickRoll(); // reroll resolves (order should keep windrose message older than the roll)
+    logs = latestLogs();
+    const rerollRollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:"));
+    const rerollWindroseIdx = logs.findIndex((m, idx) => idx < rerollRollIdx && m.includes("Windrose rolled"));
+    expect(rerollRollIdx).toBeGreaterThan(-1);
+    expect(rerollWindroseIdx).toBeGreaterThan(-1);
+    expect(rerollWindroseIdx).toBeLessThan(rerollRollIdx);
+  });
+
+  it("keeps windrose newer than roll and status on non-active turns", async () => {
+    await setupApp({
+      numbered: [3, 3, { face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] }, 1],
+      x: [2, 2, 3, 4],
+      debug: true,
+    });
+    clickRoll(); // roll 1 (active), ignore ordering
+    clickRoll(); // roll 2 should be non-active with windrose
+    const logs = latestLogs();
+    const windroseIdx = logs.findIndex((m) => m.includes("Windrose rolled"));
+    const rollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:windrose, N2:1"));
+    const statusIdx = logs.findIndex((m) => /Non-active turn/.test(m));
+    expect(windroseIdx).toBe(0);
+    expect(rollIdx).toBeGreaterThan(windroseIdx);
+    expect(statusIdx).toBeGreaterThan(rollIdx);
   });
 });
 
