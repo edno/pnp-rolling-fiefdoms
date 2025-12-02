@@ -71,8 +71,6 @@ export function filterAvailablePairs(pairs, board) {
 function possibleValues(die) {
   if (!die) return [];
   if (die.face === "windrose") return [1, 2, 3, 4, 5];
-  if (die.face === "1/2") return [1, 2];
-  if (die.face === "4/5") return [4, 5];
   if (Array.isArray(die.choices) && die.choices.length) return die.choices;
   if (typeof die?.resolved === "number") return [die.resolved];
   return [];
