@@ -136,6 +136,47 @@ describe("pestilence UI flow (jsdom)", () => {
   });
 });
 
+describe("windrose handling (jsdom)", () => {
+  it("locks windrose into the location pair and keeps it out of build dice", async () => {
+    await setupApp({
+      numbered: [{ face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] }, 4, 2, 2],
+      x: [3, 3, 1, 1],
+    });
+
+    const windroseBadge = document.querySelector('.die-badge[data-idx="0"]');
+    expect(windroseBadge.classList.contains("dice-locked")).toBe(true);
+    clickDie(0); // attempt to deselect windrose
+    await flushMicrotasks();
+    const logsAfterClick = latestLogs();
+    expect(logsAfterClick.some((m) => m.includes("Windrose dice must stay in the location pair"))).toBe(true);
+
+    clickDie(1); // complete location selection with another die
+    await flushMicrotasks();
+    const locBadges = document.querySelectorAll("#locDicePreview .die-badge");
+    expect(locBadges.length).toBe(2);
+    const buildForced = document.querySelector("#buildDicePreview .dice-locked");
+    expect(buildForced).toBeFalsy();
+  });
+});
+
+describe("pestilence windrose reroll (jsdom)", () => {
+  it("rerolls when pestilence shows two windroses and uses the next roll", async () => {
+    await setupApp({
+      numbered: [
+        { face: "windrose", resolved: 0, choices: [1, 2, 3, 4, 5] },
+        { face: "windrose", resolved: 0, choices: [1, 2, 3, 4, 5] },
+        2,
+        3,
+      ],
+      x: ["X", "X", "X", "X"], // first triggers pestilence, reroll also pestilence but valid
+    });
+    const logs = latestLogs();
+    expect(logs.some((m) => m.toLowerCase().includes("windrose") && m.toLowerCase().includes("reroll"))).toBe(true);
+    expect(document.getElementById("turnHint").textContent).toContain("Pestilence");
+    expect(logs.some((m) => m.includes("Rolled N1:2") && m.includes("N2:3"))).toBe(true);
+  });
+});
+
 describe("guild selection (jsdom)", () => {
   it("requires choosing a guild type before placement", async () => {
     await setupApp({
@@ -162,7 +203,7 @@ describe("guild selection (jsdom)", () => {
 describe("springhouse targeting (jsdom)", () => {
   it("allows selecting an adjacent building for the Springhouse effect", async () => {
     await setupApp({
-      numbered: [1, 3, 2, 2, 1, 2], // roll 1: Townhall, roll 2: filler, roll 3: Springhouse (1/2)
+      numbered: [1, 3, 2, 2, 1, 2], // roll 1: Townhall, roll 2: filler, roll 3: Springhouse (sum 6)
       x: [4, 3, 1, 1, 5, 1], // roll 1 build dice 4/3 -> Townhall (sum 7), roll 3 build dice 5/1 -> Springhouse
     });
 

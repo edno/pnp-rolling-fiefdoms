@@ -34,6 +34,7 @@ const baseState = {
   invalidSelection: false,
   finalScore: null,
   theme: "light",
+  forcedLocationDice: [],
 };
 
 export function createState() {
@@ -62,6 +63,7 @@ export function resetTurnState(state) {
   state.pestilence = false;
   state.pestilenceInfo = null;
   state.dice = [];
+  state.forcedLocationDice = [];
 }
 
 export function lockDiceSnapshot(state, { markPendingNextRoll = false, uniqueLocationPairs } = {}) {

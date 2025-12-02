@@ -22,14 +22,14 @@
 
 ## Appendix: Current clarifications
 
-- Paired faces (1/2, 4/5) are already handled without prompts; do not reintroduce prompts unless requirements change.
+- Windrose faces replace previous paired faces; they are wild for location (1–5), must stay in the location pair, and count as 0 during pestilence.
 - Dice locking: after selecting a building or resolving pestilence/forfeit, dice are locked and should remain visible/grey until the next roll; location/build previews must persist during the lock.
 - Mid-game scoring: zero-requirement buildings (Cottage, Springhouse) and vagrants can score during play; worker-requiring buildings only score after activation at game end.
 - Adjacency is cardinal-only, matching the printed square grid.
 
 ## Appendix: TODO / Known Gaps
 
-- Pestilence section assignments are fixed to the default (Forest 2–3, Sea 4–5, Mountain 7–8, Marsh 9–10, Centre 6); no per-game configuration UI.
+- Pestilence section assignments are fixed to the default (Centre 1–6, Forest 2–7, Mountain 3–8, Sea 5–10, Marsh 4–9); no per-game configuration UI.
 - Turn flow: handling of no-action/blocked builds and pestilence forfeits should be aligned to the rulebook; auto-advance assumptions may be too loose.
 - Worker activation UI/logic needs refinement: worker requirements should be filled one pip at a time, with no double-counting of population across buildings; activation happens only at game end.
 - Dice split/lock UI is unstable: location pair and previews can disappear or allow building selection before a valid pair is set; lock state/visibility needs a stable implementation.

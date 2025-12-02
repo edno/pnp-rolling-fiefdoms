@@ -1,6 +1,6 @@
 // Rule helper utilities
 
-// Return unique location pairs (unordered) expanding paired faces (1/2, 4/5) and excluding X
+// Return unique location pairs (unordered) expanding flexible faces (windrose, paired faces) and excluding X
 export function uniqueLocationPairs(dice) {
   const values = dice.map(possibleValues);
   const set = new Set();
@@ -69,8 +69,11 @@ export function filterAvailablePairs(pairs, board) {
 }
 
 function possibleValues(die) {
+  if (!die) return [];
+  if (die.face === "windrose") return [1, 2, 3, 4, 5];
   if (die.face === "1/2") return [1, 2];
   if (die.face === "4/5") return [4, 5];
+  if (Array.isArray(die.choices) && die.choices.length) return die.choices;
   if (typeof die?.resolved === "number") return [die.resolved];
   return [];
 }
@@ -94,7 +97,7 @@ export function buildingOptions(buildVals, buildings = BUILDING_RULES) {
   return buildingOptionsFromDice(buildDice, buildings);
 }
 
-// Derive building options from dice objects, allowing paired faces (1/2, 4/5) to stay flexible.
+// Derive building options from dice objects, allowing flexible faces (windrose or legacy paired faces) to stay flexible.
 export function buildingOptionsFromDice(buildDice, buildings = BUILDING_RULES) {
   const map = {
     1: "C",
@@ -226,7 +229,12 @@ export function allocatePopulationToNode(popGrid, row, col, amount, cap = 5) {
   return { placed, grid };
 }
 
-export function computeActivationMap(board, populationNodes, workerAllocations = null) {
+export function computeActivationMap(
+  board,
+  populationNodes,
+  workerAllocations = null,
+  { allowPopulationActivation = true } = {},
+) {
   const rows = board.length;
   const cols = board[0]?.length || 0;
   const activation = new Map();
@@ -247,16 +255,20 @@ export function computeActivationMap(board, populationNodes, workerAllocations =
       if (workerAllocations) {
         const assigned = Math.max(0, workerAllocations?.[r]?.[c] || 0);
         activation.set(key(r, c), assigned >= req);
-      } else {
-        const popAroundCell = popAround(r, c, populationNodes);
-        activation.set(key(r, c), popAroundCell >= req);
+        continue;
       }
+      if (!allowPopulationActivation) {
+        activation.set(key(r, c), false);
+        continue;
+      }
+      const popAroundCell = popAround(r, c, populationNodes);
+      activation.set(key(r, c), popAroundCell >= req);
     }
   }
   return activation;
 }
 
-export function computeScore(board, populationNodes, workerAllocations = null) {
+export function computeScore(board, populationNodes, workerAllocations = null, options = {}) {
   const rows = board.length;
   const cols = board[0]?.length || 0;
   const popTotal = populationNodes.flat().reduce((a, b) => a + b, 0);
@@ -264,7 +276,7 @@ export function computeScore(board, populationNodes, workerAllocations = null) {
   const housing = cottages * 4;
   const forfeitsCount = board.flat().filter((c) => c.forfeited || c.activationForfeit).length;
 
-  const activation = computeActivationMap(board, populationNodes, workerAllocations);
+  const activation = computeActivationMap(board, populationNodes, workerAllocations, options);
 
   let scores = {
     cottages: scoreCottages(board, populationNodes),
@@ -613,13 +625,17 @@ function orthNeighbors(r, c, rows, cols) {
 }
 
 // Pestilence helpers (regions overlap per sheet: forest rows 1-2, marsh rows 4-5, mountain cols 1-2, sea cols 4-5, centre is middle 3x3).
+const range = (low, high) => Array.from({ length: high - low + 1 }, (_, i) => low + i);
+
 export const pestilenceAssignments = {
-  forest: [2, 3],
-  sea: [4, 5],
-  mountain: [7, 8],
-  marsh: [9, 10],
-  centre: [6],
+  forest: range(2, 7),
+  sea: range(5, 10),
+  mountain: range(3, 8),
+  marsh: range(4, 9),
+  centre: range(1, 6),
 };
+
+export const pestilencePriority = ["centre", "forest", "mountain", "marsh", "sea"];
 
 export function cellSections(r, c, rows = 5, cols = 5) {
   const sections = new Set();
@@ -631,17 +647,25 @@ export function cellSections(r, c, rows = 5, cols = 5) {
   return sections;
 }
 
-export function pestilenceSectionForSum(sum) {
-  if (sum === 6) return "centre";
-  return Object.entries(pestilenceAssignments).find(([, vals]) => vals.includes(sum))?.[0] || null;
+export function pestilenceSectionForSum(sum, assignments = pestilenceAssignments, priority = pestilencePriority) {
+  const matching = Object.entries(assignments)
+    .filter(([, vals]) => vals.includes(sum))
+    .map(([region]) => region);
+  if (!matching.length) return null;
+  for (const region of priority) {
+    if (matching.includes(region)) return region;
+  }
+  return matching[0] || null;
 }
 
 export function computePestilenceInfo(dice, board) {
   const numbered = dice.filter((d) => d.label && d.label.startsWith("N"));
-  const sum = numbered.reduce(
-    (acc, d) => acc + (typeof d.resolved === "number" ? d.resolved : 0),
-    0,
-  );
+  const sum = numbered.reduce((acc, d) => {
+    if (!d) return acc;
+    if (d.face === "windrose") return acc; // windrose counts as 0 during pestilence
+    const val = typeof d.resolved === "number" ? d.resolved : 0;
+    return acc + val;
+  }, 0);
   const section = pestilenceSectionForSum(sum);
   const targetCells = [];
   if (section) {

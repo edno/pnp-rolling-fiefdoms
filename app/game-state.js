@@ -1,5 +1,34 @@
 import { resetTurnState } from "./state-controller.js";
 
+const WINDROSE_FACE = "windrose";
+
+function forcedLocationDiceIndices(dice) {
+  if (!Array.isArray(dice)) return [];
+  return dice.reduce((acc, die, idx) => {
+    if (die?.face === WINDROSE_FACE) acc.push(idx);
+    return acc;
+  }, []);
+}
+
+function autoAssignLocationDice(dice, forced = []) {
+  const forcedSet = new Set(forced);
+  const selection = [...forcedSet];
+  const candidates = dice
+    .map((die, idx) => ({ die, idx }))
+    .filter(({ die }) => die && die.face !== "X");
+  for (const { idx } of candidates) {
+    if (selection.length >= 2) break;
+    if (!selection.includes(idx)) selection.push(idx);
+  }
+  return selection.slice(0, 2);
+}
+
+function mergeForcedLocationDice(state) {
+  const forced = state.forcedLocationDice || [];
+  const merged = [...new Set([...(forced || []), ...(state.locationSelection || [])])];
+  state.locationSelection = merged.slice(0, 2);
+}
+
 export function beginTurn(
   state,
   dice,
@@ -12,14 +41,19 @@ export function beginTurn(
   state.activeTurn = state.turnIndex % 2 === 1;
   messages.push(state.activeTurn ? "Active turn." : "Non-active turn. Dice automatically assigned.");
   state.dice = dice;
+  state.forcedLocationDice = forcedLocationDiceIndices(state.dice);
+  if (state.forcedLocationDice.length) {
+    messages.push("Windrose rolled: it must stay in the location pair (acts as 1–5).");
+  }
 
   if (!state.activeTurn) {
-    state.locationSelection = [0, 1];
+    state.locationSelection = autoAssignLocationDice(state.dice, state.forcedLocationDice);
     const allPairs = filterAvailablePairs(uniqueLocationPairs(state.dice), board);
     state.locationPairs = allPairs;
     state.forceForfeit = allPairs.length === 0;
     if (state.forceForfeit) messages.push("No valid location pairs; forfeit a plot.");
   } else {
+    state.locationSelection = state.forcedLocationDice.slice();
     state.forceForfeit = false;
   }
 
@@ -38,6 +72,9 @@ export function selectLocationDie(state, dieIndex, { uniqueLocationPairs, filter
   if (state.diceLocked || state.pestilence || state.forceForfeit || state.activationMode) return { invalidSelection: false };
   const die = state.dice[dieIndex];
   if (!die || die.face === "X") return { invalidSelection: false };
+  if ((state.forcedLocationDice || []).includes(dieIndex)) {
+    return { invalidSelection: false, message: "Windrose dice must stay in the location pair." };
+  }
 
   const sel = state.locationSelection.slice();
   const existingIdx = sel.indexOf(dieIndex);
@@ -49,10 +86,12 @@ export function selectLocationDie(state, dieIndex, { uniqueLocationPairs, filter
     return { invalidSelection: false, message: "Unassign a location die before choosing another." };
   }
   state.locationSelection = sel;
+  mergeForcedLocationDice(state);
   return evaluateLocationSelection(state, { uniqueLocationPairs, filterAvailablePairs, board });
 }
 
 export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAvailablePairs, board }) {
+  mergeForcedLocationDice(state);
   const prevForce = state.forceForfeit;
   const locationDice = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
   const buildDice = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
@@ -65,7 +104,7 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
   let message = null;
 
   if (!state.diceLocked && allPairs.length === 0) {
-    state.locationSelection = [];
+    state.locationSelection = state.forcedLocationDice.slice();
     forceForfeit = true;
     invalidSelection = false;
     locationPairs = [];
@@ -145,7 +184,9 @@ export function recalcTracks(state, { computeScore, calcVagrants }) {
   state.tracks.population = pop;
   state.tracks.housing = housing;
   const vagrants = calcVagrants(pop, housing);
-  const scoreResult = computeScore(state.board, state.populationNodes, state.workerAllocations);
+  const scoreResult = computeScore(state.board, state.populationNodes, state.workerAllocations, {
+    allowPopulationActivation: false,
+  });
   return { vagrants, scoreResult };
 }
 

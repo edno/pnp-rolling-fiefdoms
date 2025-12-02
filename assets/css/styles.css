@@ -941,6 +941,11 @@ body.theme-dark .die-badge {
   height: 20px;
 }
 
+.die-windrose-icon {
+  width: 22px;
+  height: 22px;
+}
+
 .pip {
   width: 8px;
   height: 8px;
@@ -952,10 +957,6 @@ body.theme-dark .die-badge {
 .die-badge.location-selected {
   border-color: rgba(230, 126, 34, 0.9);
   box-shadow: 0 0 0 2px rgba(230, 126, 34, 0.25);
-}
-
-.die-badge.locked {
-  cursor: default;
 }
 
 .die-split {
@@ -992,21 +993,16 @@ body.theme-dark .die-badge {
   top: 40%;
 }
 
-.dice-locked .die-badge {
-  cursor: default;
-  pointer-events: none;
-  filter: grayscale(0.7);
-  opacity: 0.7;
+.dice-locked {
+  cursor: default !important;
+  pointer-events: none !important;
+  filter: grayscale(0.7) !important;
+  opacity: 0.7 !important;
 }
 
 .split-preview .die-badge {
   cursor: default;
   pointer-events: none;
-}
-
-.die-badge.die-special.locked {
-  opacity: 0.4;
-  filter: grayscale(0.8);
 }
 
 .die-no-pip {

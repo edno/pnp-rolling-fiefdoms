@@ -20,9 +20,10 @@ export function getCryptoRange(min, max) {
 }
 
 export function rollNumberedDie(label) {
-  const faces = [1, 2, 3, 4, 5, label === "N1" ? "1/2" : "4/5"];
+  const WINDROSE = "windrose";
+  const faces = [1, 2, 3, 4, 5, WINDROSE];
   const face = faces[getCryptoRange(0, faces.length - 1)];
-  const choices = face === "1/2" ? [1, 2] : face === "4/5" ? [4, 5] : [];
+  const choices = face === WINDROSE ? [1, 2, 3, 4, 5] : [];
   const resolved = choices.length ? choices[0] : face;
   return { label, face, choices, resolved };
 }

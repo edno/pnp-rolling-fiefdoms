@@ -60,6 +60,15 @@ function refreshDiceVisibility() {
   }
 }
 
+function shouldRerollWindrosePestilence(dice) {
+  if (!Array.isArray(dice) || dice.length < 4) return false;
+  const pestilence = dice.filter((d) => d.face === "X").length === 2;
+  if (!pestilence) return false;
+  const numbered = dice.filter((d) => d?.label?.startsWith("N"));
+  if (numbered.length !== 2) return false;
+  return numbered.every((d) => d.face === "windrose");
+}
+
 function toggleFullscreen() {
   const elem = document.documentElement;
   if (!document.fullscreenElement) {
@@ -300,11 +309,20 @@ function setupControls() {
 function rollDice() {
   if (state.activationMode) return;
   triggerDiceAnimation();
-  const n1 = rollNumberedDie("N1");
-  const n2 = rollNumberedDie("N2");
-  const x1 = rollXDie("X1");
-  const x2 = rollXDie("X2");
-  const { messages } = beginTurn(state, [n1, n2, x1, x2], state.board, {
+  let dice = [];
+  let rerollNeeded = false;
+  do {
+    const n1 = rollNumberedDie("N1");
+    const n2 = rollNumberedDie("N2");
+    const x1 = rollXDie("X1");
+    const x2 = rollXDie("X2");
+    dice = [n1, n2, x1, x2];
+    rerollNeeded = shouldRerollWindrosePestilence(dice);
+    if (rerollNeeded) {
+      log("Pestilence roll showed two windroses (0); rerolling dice.");
+    }
+  } while (rerollNeeded);
+  const { messages } = beginTurn(state, dice, state.board, {
     uniqueLocationPairs,
     computePestilenceInfo,
     filterAvailablePairs,
@@ -331,7 +349,15 @@ function describeDice(dice) {
   return dice
     .map((d) => {
       const face =
-        d.face === "X" ? "X" : d.face === "1/2" ? "1/2" : d.face === "4/5" ? "4/5" : d.face;
+        d.face === "X"
+          ? "X"
+          : d.face === "windrose"
+            ? "windrose"
+            : d.face === "1/2"
+              ? "1/2"
+              : d.face === "4/5"
+                ? "4/5"
+                : d.face;
       return `${d.label}:${face}`;
     })
     .join(", ");
@@ -394,6 +420,7 @@ function renderDice() {
       locked: locked || turnLocked || die.face === "X",
       clickable: !turnLocked,
       showRoleStyle: !turnLocked,
+      forcedLocation: (state.forcedLocationDice || []).includes(idx),
     });
     row.appendChild(badge);
   });
@@ -904,7 +931,7 @@ function applySpringhouseBoost(target) {
   log(`Springhouse reduced worker requirement for row ${tr + 1}, col ${tc + 1} by 1.`);
   renderBoard();
   updateTracks();
-  const scoreResult = computeScore(state.board, state.populationNodes, currentWorkerAllocationsForScore());
+  const scoreResult = currentScore();
   updateScoreOverlay(scoreResult.breakdown, scoreResult.total);
   state.pendingSpringhouseTarget = null;
   autoAdvance();
@@ -935,7 +962,7 @@ function forfeitCell(r, c) {
   state.pestilence = false;
   state.pestilenceInfo = null;
   state.forceForfeit = false;
-  const scoreResult = computeScore(state.board, state.populationNodes, currentWorkerAllocationsForScore());
+  const scoreResult = currentScore();
   updateScoreOverlay(scoreResult.breakdown, scoreResult.total);
   autoAdvance();
   maybeRollAfterLock();
@@ -985,7 +1012,7 @@ function finishActivation() {
   if (!state.activationMode) return;
   autoForfeitUnfillable(true);
   finishActivationState(state);
-  state.finalScore = computeScore(state.board, state.populationNodes, currentWorkerAllocationsForScore()).total;
+  state.finalScore = currentScore({ allowPopulationActivation: true }).total;
   state.activationSelection = { pop: null };
   if (finishActivationBtn) finishActivationBtn.style.display = "none";
   if (newGameBtn) newGameBtn.style.display = "inline-block";
@@ -1129,7 +1156,7 @@ function onPopulationNodeClick(nr, nc) {
   if (result.message) log(result.message);
   if (!result.placed) return;
   updateTracks();
-  const scoreResult = computeScore(state.board, state.populationNodes, currentWorkerAllocationsForScore());
+  const scoreResult = currentScore();
   updateScoreOverlay(scoreResult.breakdown, scoreResult.total);
   renderBoard();
   autoAdvance();
@@ -1146,7 +1173,7 @@ function actionMessage() {
   if (state.activationComplete) {
     const score = typeof state.finalScore === "number"
       ? state.finalScore
-      : computeScore(state.board, state.populationNodes, currentWorkerAllocationsForScore()).total;
+      : currentScore({ allowPopulationActivation: true }).total;
     return `Game over. Final score ${score}.`;
   }
   if (state.activationMode) {
@@ -1207,12 +1234,15 @@ function renderRegionOverlay() {
   };
   Object.entries(pestilenceAssignments).forEach(([region, nums]) => {
     const pos = positions[region];
-    if (!pos) return;
-    const [low, high] = nums.length === 1 ? [nums[0], nums[0]] : nums;
-    const coords = [
-      { val: low, top: pos.top[0], left: pos.left[0] },
-      { val: high, top: pos.top[1], left: pos.left[1] },
-    ];
+    if (!pos || !Array.isArray(nums) || nums.length === 0) return;
+    const minVal = Math.min(...nums);
+    const maxVal = Math.max(...nums);
+    const values = minVal === maxVal ? [minVal] : [minVal, maxVal];
+    const coords = values.map((val, idx) => ({
+      val,
+      top: pos.top[Math.min(idx, pos.top.length - 1)],
+      left: pos.left[Math.min(idx, pos.left.length - 1)],
+    }));
     coords.forEach((entry) => {
       const tag = document.createElement("div");
       tag.className = `region-tag ${region}`;
@@ -1356,6 +1386,7 @@ function renderSelectionDice(locationDice = [], buildDice = []) {
           locked: false,
           clickable: false,
           showRoleStyle: false,
+          forcedLocation: false,
         });
         locDicePreview.appendChild(badge);
       });
@@ -1373,6 +1404,7 @@ function renderSelectionDice(locationDice = [], buildDice = []) {
           locked: false,
           clickable: false,
           showRoleStyle: false,
+          forcedLocation: false,
         });
         buildDicePreview.appendChild(badge);
       });
@@ -1409,6 +1441,14 @@ function addDieContent(el, die) {
     el.appendChild(img);
     return;
   }
+  if (die.face === "windrose") {
+    const img = document.createElement("img");
+    img.src = "assets/img/windrose.svg";
+    img.alt = "Windrose";
+    img.className = "die-windrose-icon";
+    el.appendChild(img);
+    return;
+  }
   if (die.face === "1/2" || die.face === "4/5") {
     renderSplitFace(el, die.face);
     return;
@@ -1437,15 +1477,26 @@ function renderSplitFace(el, faceStr) {
   el.appendChild(split);
 }
 
-function makeDieBadge(die, idx, { role = null, locked = false, clickable = true, showRoleStyle = true } = {}) {
+function makeDieBadge(
+  die,
+  idx,
+  { role = null, locked = false, clickable = true, showRoleStyle = true, forcedLocation = false } = {},
+) {
   const badge = document.createElement("div");
   badge.className = "die-badge";
-  badge.classList.add(die.label[0] === "X" ? "die-special" : "die-number");
-  if (showRoleStyle) {
+  const baseClass = die.label[0] === "X" ? "die-special" : "die-number";
+  badge.classList.add(baseClass);
+  const forcedLocked = forcedLocation && baseClass === "die-number";
+  if (forcedLocked || (locked && die.face === "windrose" && baseClass === "die-number")) {
+    badge.classList.add("dice-locked");
+  }
+  const allowRoles = showRoleStyle && !(forcedLocked || (locked && die.face === "windrose"));
+  if (allowRoles) {
     if (role === "location") badge.classList.add("location-selected");
     if (role === "build") badge.classList.add("build-assigned");
   }
-  if (locked) badge.classList.add("locked");
+  if (forcedLocation) badge.title = "Windrose stays in the location pair (acts as 1–5).";
+  if (locked) badge.classList.add("dice-locked");
   badge.dataset.idx = idx;
   addDieContent(badge, die);
   if (clickable && !locked && die.face !== "X") {
@@ -1515,6 +1566,16 @@ function currentWorkerAllocationsForScore() {
   const rows = state.board.length;
   const cols = state.board[0]?.length || 0;
   return Array.from({ length: rows }, () => Array(cols).fill(0));
+}
+
+function currentScore({ allowPopulationActivation } = {}) {
+  const usePopActivation =
+    typeof allowPopulationActivation === "boolean"
+      ? allowPopulationActivation
+      : state.activationMode || state.activationComplete;
+  return computeScore(state.board, state.populationNodes, currentWorkerAllocationsForScore(), {
+    allowPopulationActivation: usePopActivation,
+  });
 }
 
 function updateScoreOverlay(breakdown, total = 0) {

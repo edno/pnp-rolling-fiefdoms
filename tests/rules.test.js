@@ -49,9 +49,9 @@ describe("uniqueLocationPairs", () => {
     expect(pairs).toEqual(expect.arrayContaining([[2, 4], [2, 2]]));
   });
 
-  it("expands paired faces even when resolved is set", () => {
+  it("expands windrose faces even when resolved is set", () => {
     const dice = [
-      { face: "1/2", resolved: 1, choices: [1, 2] },
+      { face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] },
       { resolved: 3 },
       { resolved: 2 },
       { resolved: null },
@@ -59,7 +59,8 @@ describe("uniqueLocationPairs", () => {
     const pairs = uniqueLocationPairs(dice);
     const flattened = pairs.map((p) => p.join(","));
     expect(flattened).toContain("1,2");
-    expect(flattened).toContain("2,2");
+    expect(flattened).toContain("2,3");
+    expect(flattened).toContain("3,5");
   });
 });
 
@@ -89,16 +90,16 @@ describe("buildingOptions", () => {
     expect(guildOpts.find((o) => o.code === "G")).toBeTruthy(); // sum 10
   });
 
-  it("expands unresolved paired dice combinations", () => {
+  it("expands unresolved windrose dice combinations", () => {
     const opts = buildingOptionsFromDice(
       [
-        { face: "1/2", resolved: null, choices: [1, 2] },
-        { face: "4/5", resolved: null, choices: [4, 5] },
+        { face: "windrose", resolved: null, choices: [1, 2, 3, 4, 5] },
+        { face: "windrose", resolved: null, choices: [1, 2, 3, 4, 5] },
       ],
       buildings,
     );
     const codes = opts.map((o) => o.code);
-    expect(codes).toEqual(expect.arrayContaining(["C", "F", "W", "M", "S", "T"]));
+    expect(codes).toEqual(expect.arrayContaining(["C", "F", "Q", "W", "M", "S", "T", "A", "G"]));
   });
 });
 
@@ -406,19 +407,20 @@ describe("filterAvailablePairs", () => {
 });
 
 describe("build pairing with flexible dice", () => {
-  it("keeps paired-face flexibility for build", () => {
+  it("keeps windrose flexibility for build when it remains in the build pool", () => {
     const dice = [
-      { face: "1/2", resolved: 1, choices: [1, 2], label: "N1" },
+      { face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5], label: "N1" },
       { face: 2, resolved: 2, choices: [], label: "N2" },
       { face: 4, resolved: 4, choices: [], label: "X1" },
-      { face: "X", resolved: null, choices: [], label: "X2" },
+      { face: 5, resolved: 5, choices: [], label: "X2" },
     ];
     const { buildDice } = computeBuildDice([2, 4], dice);
     const faces = buildDice.map((d) => d.face);
-    expect(faces).toContain("1/2"); // paired die remains for build
+    expect(faces).toContain("windrose"); // windrose remains flexible for build if left out of location
     const opts = buildingOptionsFromDice(buildDice, buildings);
     expect(opts.find((o) => o.code === "C")).toBeTruthy();
-    expect(opts.find((o) => o.code === "F")).toBeTruthy(); // flexibility keeps both 1 and 2 options
+    expect(opts.find((o) => o.code === "F")).toBeTruthy(); // flexibility keeps low windrose values available
+    expect(opts.find((o) => o.code === "G")).toBeTruthy(); // sum with windrose high values
   });
 });
 
@@ -430,7 +432,7 @@ describe("available location pairs helper", () => {
 
   it("returns pairs when open plots exist", () => {
     const dice = [
-      { label: "N1", face: "1/2", resolved: 1, choices: [1, 2] },
+      { label: "N1", face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] },
       { label: "N2", face: 3, resolved: 3, choices: [] },
       { label: "X1", face: 4, resolved: 4, choices: [] },
       { label: "X2", face: 2, resolved: 2, choices: [] },
@@ -632,8 +634,8 @@ describe("pestilence section mapping", () => {
   it("assigns sea to columns 4 and 5", () => {
     const board = emptyBoard();
     const dice = [
-      { label: "N1", resolved: 2 },
-      { label: "N2", resolved: 3 },
+      { label: "N1", resolved: 5 },
+      { label: "N2", resolved: 5 },
       { label: "X1", resolved: "X", face: "X" },
       { label: "X2", resolved: "X", face: "X" },
     ];
@@ -648,14 +650,42 @@ describe("pestilence section mapping", () => {
     const board = emptyBoard();
     const dice = [
       { label: "N1", resolved: 3 },
-      { label: "N2", resolved: 4 },
+      { label: "N2", resolved: 5 },
       { label: "X1", resolved: "X", face: "X" },
       { label: "X2", resolved: "X", face: "X" },
     ];
     const info = computePestilenceInfo(dice, board);
     const includesCorner = info.targetCells.some(([r, c]) => r === 0 && c === 0);
-    expect(info.section).toBe("mountain"); // 3+4=7 -> mountain
+    expect(info.section).toBe("mountain"); // 3+5=8 -> mountain
     expect(includesCorner).toBe(true);
+  });
+
+  it("assigns marsh when its range is the highest-priority match", () => {
+    const board = emptyBoard();
+    const dice = [
+      { label: "N1", resolved: 4 },
+      { label: "N2", resolved: 5 },
+      { label: "X1", face: "X", resolved: "X" },
+      { label: "X2", face: "X", resolved: "X" },
+    ];
+    const info = computePestilenceInfo(dice, board);
+    expect(info.section).toBe("marsh"); // sum 9 now maps to marsh (priority after forest/mountain)
+    const allMarsh = info.targetCells.every(([r]) => r >= 3); // rows 4-5 zero-based 3-4
+    expect(allMarsh).toBe(true);
+  });
+
+  it("treats windrose as 0 during pestilence and targets centre for low sums", () => {
+    const board = emptyBoard();
+    const dice = [
+      { label: "N1", resolved: 0, face: "windrose" },
+      { label: "N2", resolved: 1 },
+      { label: "X1", face: "X", resolved: "X" },
+      { label: "X2", face: "X", resolved: "X" },
+    ];
+    const info = computePestilenceInfo(dice, board);
+    expect(info.section).toBe("centre");
+    const allCentre = info.targetCells.every(([r, c]) => r >= 1 && r <= 3 && c >= 1 && c <= 3);
+    expect(allCentre).toBe(true);
   });
 
   it("returns empty targetCells when the section is already full", () => {
