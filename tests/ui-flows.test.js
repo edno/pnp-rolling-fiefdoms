@@ -486,3 +486,27 @@ describe("split population placement (jsdom)", () => {
     expect(logs.some((m) => m.includes("Placed 3 population"))).toBe(true);
   });
 });
+
+describe("score overlay display (jsdom)", () => {
+  it("shows a negative sign for negative reputation totals", async () => {
+    await setupApp({
+      numbered: [2, 3],
+      x: [5, 3],
+    });
+    clickRoll();
+
+    clickDie(0);
+    clickDie(1);
+    await flushMicrotasks();
+    selectBuilding("M", "die1");
+    clickBoardCell(1, 2);
+    await flushMicrotasks();
+
+    clickPopNode(0, 1);
+    await flushMicrotasks();
+
+    const reputationChip = document.getElementById("score-chip-reputation");
+    expect(reputationChip).toBeTruthy();
+    expect(reputationChip.textContent.trim()).toBe("-3");
+  });
+});

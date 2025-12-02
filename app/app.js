@@ -1641,6 +1641,11 @@ function refreshScoreOverlay(scoreResult = null) {
 
 function updateScoreOverlay(breakdown, total = 0) {
   if (!scoreOverlayEl) return;
+  const formatScoreValue = (value, key) => {
+    if (typeof value !== "number") return "0";
+    if (key === "reputation") return `${value}`;
+    return `${Math.abs(value)}`;
+  };
   const chips = scoringSpots
     .map((spot) => {
       const topPos = spot.y ?? 30;
@@ -1656,7 +1661,7 @@ function updateScoreOverlay(breakdown, total = 0) {
       if (negative || forceNegative) classes.push("negative");
       return `<div class="${classes.join(
         " ",
-      )}" id="score-chip-${spot.key}" style="left:${spot.x}px;top:${topPos}px;">${Math.abs(val)}</div>`; // negative sign printed on the board
+      )}" id="score-chip-${spot.key}" style="left:${spot.x}px;top:${topPos}px;">${formatScoreValue(val, spot.key)}</div>`; // board art includes negatives for most spots
     })
     .join("");
   scoreOverlayEl.innerHTML = chips;
