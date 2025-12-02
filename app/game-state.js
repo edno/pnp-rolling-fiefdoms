@@ -1,6 +1,12 @@
 import { resetTurnState } from "./state-controller.js";
 
 const WINDROSE_FACE = "windrose";
+const isNumberedDie = (die) => {
+  if (!die) return false;
+  if (typeof die.label === "string") return die.label.startsWith("N");
+  // Fallback for unlabeled dice: treat non-X faces as numbered
+  return die.face !== "X";
+};
 
 function forcedLocationDiceIndices(dice) {
   if (!Array.isArray(dice)) return [];
@@ -15,7 +21,7 @@ function autoAssignLocationDice(dice, forced = []) {
   const selection = [...forcedSet];
   const candidates = dice
     .map((die, idx) => ({ die, idx }))
-    .filter(({ die }) => die && die.face !== "X");
+    .filter(({ die }) => die && isNumberedDie(die));
   for (const { idx } of candidates) {
     if (selection.length >= 2) break;
     if (!selection.includes(idx)) selection.push(idx);
@@ -107,7 +113,21 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
   let message = null;
 
   if (!state.diceLocked && allPairs.length === 0) {
-    state.locationSelection = state.forcedLocationDice.slice();
+    if (state.activeTurn) {
+      state.locationSelection = state.forcedLocationDice.slice();
+    } else {
+      const numberedDice = state.dice
+        .map((die, idx) => ({ die, idx }))
+        .filter(({ die }) => die && isNumberedDie(die))
+        .map(({ idx }) => idx);
+      const preferred = [
+        ...(state.locationSelection || []),
+        ...(state.forcedLocationDice || []),
+      ].filter((idx, pos, arr) => arr.indexOf(idx) === pos && numberedDice.includes(idx));
+      const filled = preferred.slice(0, 2);
+      const fallback = numberedDice.filter((idx) => !filled.includes(idx)).slice(0, 2 - filled.length);
+      state.locationSelection = filled.concat(fallback).slice(0, 2);
+    }
     forceForfeit = true;
     invalidSelection = false;
     locationPairs = [];

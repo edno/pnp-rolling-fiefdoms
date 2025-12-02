@@ -162,6 +162,53 @@ describe("die selection and location evaluation", () => {
     expect(result.forceForfeit).toBe(true);
     expect(state.forceForfeit).toBe(true);
   });
+
+  it("keeps auto-assigned dice visible on non-active forced forfeits", () => {
+    const state = createState();
+    state.turnIndex = 1; // next turn is non-active
+    const dice = [
+      { face: "windrose", resolved: 1, label: "N1", choices: [1, 2, 3, 4, 5] },
+      { face: 3, resolved: 3, label: "N2" },
+      { face: "X", resolved: null, label: "X1" },
+      { face: "X", resolved: null, label: "X2" },
+    ];
+    const fullBoard = Array.from({ length: 5 }, () =>
+      Array.from({ length: 5 }, () => ({ building: "Q", forfeited: false, springBoost: 0 })),
+    );
+
+    beginTurn(state, dice, fullBoard, helpers);
+    evaluateLocationSelection(state, { ...helpers, board: fullBoard });
+
+    expect(state.activeTurn).toBe(false);
+    expect(new Set(state.locationSelection)).toEqual(new Set([0, 1])); // numbered dice stay in location
+    const buildDice = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
+    expect(buildDice).toHaveLength(2);
+    expect(buildDice.every((d) => d.face === "X")).toBe(true);
+    expect(state.forceForfeit).toBe(true);
+  });
+
+  it("keeps X dice out of location selection on non-active turns even when X shows a number", () => {
+    const state = createState();
+    state.turnIndex = 1; // non-active
+    const dice = [
+      { face: 2, resolved: 2, label: "N1" },
+      { face: 3, resolved: 3, label: "N2" },
+      { face: 5, resolved: 5, label: "X1" }, // X die showing a number
+      { face: "X", resolved: null, label: "X2" },
+    ];
+    const fullBoard = Array.from({ length: 5 }, () =>
+      Array.from({ length: 5 }, () => ({ building: "Q", forfeited: false, springBoost: 0 })),
+    );
+
+    beginTurn(state, dice, fullBoard, helpers);
+    evaluateLocationSelection(state, { ...helpers, board: fullBoard });
+
+    expect(state.activeTurn).toBe(false);
+    expect(state.locationSelection).toEqual([0, 1]); // numbered dice only
+    const buildDice = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
+    expect(buildDice).toHaveLength(2);
+    expect(buildDice.map((d) => d.label)).toEqual(["X1", "X2"]);
+  });
 });
 
 describe("activation lifecycle", () => {

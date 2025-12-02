@@ -28,6 +28,7 @@ import {
   maybeRollAfterLockState,
 } from "./game-state.js";
 import { rollNumberedDie, rollXDie } from "./dice.js";
+import { splitForcedDice } from "./dice-display.js";
 
 const terrainLayout = [
   ["Mt", "Fo", "Fo", "Fo", "Se"],
@@ -62,6 +63,13 @@ function prepareNextRoll() {
   highlightLocations();
 }
 
+function shouldRerollDoubleWindrose(dice) {
+  if (!Array.isArray(dice) || dice.length < 4) return false;
+  const numbered = dice.filter((d) => d?.label?.startsWith("N"));
+  if (numbered.length !== 2) return false;
+  return numbered.every((d) => d.face === "windrose");
+}
+
 function updateRollButton() {
   const rollBtn = document.getElementById("rollBtn");
   if (!rollBtn) return;
@@ -87,13 +95,6 @@ function refreshDiceVisibility() {
     }
     if (awaitingRoll) turnHintEl.textContent = "";
   }
-}
-
-function shouldRerollDoubleWindrose(dice) {
-  if (!Array.isArray(dice) || dice.length < 4) return false;
-  const numbered = dice.filter((d) => d?.label?.startsWith("N"));
-  if (numbered.length !== 2) return false;
-  return numbered.every((d) => d.face === "windrose");
 }
 
 function toggleFullscreen() {
@@ -1439,23 +1440,29 @@ function renderPopulationNodes() {
 
 function renderSelectionDice(locationDice = [], buildDice = []) {
   const currentLocFromState = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
-  const pestLoc = (state.pestilence || state.forceForfeit) ? state.dice.filter((d) => d.face !== "X") : [];
+  const forcedMode =
+    state.pestilence ||
+    state.forceForfeit ||
+    (!state.activeTurn && (!state.locationPairs || state.locationPairs.length === 0));
+  const forcedSplit = forcedMode ? splitForcedDice(state.dice || []) : null;
   const doubleWindrose = shouldRerollDoubleWindrose(state.dice || []);
+
   const effectiveLoc =
     (doubleWindrose
       ? []
-      : (pestLoc.length && pestLoc) ||
+      : (forcedSplit && forcedSplit.locationDice.length && forcedSplit.locationDice) ||
         (locationDice && locationDice.length && locationDice) ||
         (currentLocFromState.length && currentLocFromState) ||
         (state.lockedLocationDice && state.lockedLocationDice.length && state.lockedLocationDice) ||
         []);
+
   const currentBuildFromState = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
-  const forcedXs = state.dice.filter((d) => d.face === "X");
+  const forcedXs = state.dice.filter((d) => d.face === "X"); // normal flow: only X faces show in build before selection
   const effectiveBuild =
     doubleWindrose
       ? []
-      : (state.pestilence || state.forceForfeit)
-        ? forcedXs
+      : (forcedSplit && forcedSplit.buildDice.length)
+        ? forcedSplit.buildDice
         : state.locationSelection.length === 2
           ? (buildDice && buildDice.length && buildDice) ||
             (currentBuildFromState.length && currentBuildFromState) ||
@@ -1463,6 +1470,7 @@ function renderSelectionDice(locationDice = [], buildDice = []) {
             (state.lastBuildDice && state.lastBuildDice.length && state.lastBuildDice) ||
             []
           : forcedXs;
+
   if (locDicePreview) {
     renderDicePreview(locDicePreview, effectiveLoc, "location", "Select 2 dice for location");
   }
@@ -1643,11 +1651,11 @@ function updateScoreOverlay(breakdown, total = 0) {
   if (!scoreOverlayEl) return;
   const formatScoreValue = (value, key) => {
     if (typeof value !== "number") return "0";
-    if (key === "reputation") return `${value}`;
+    if (key === "reputation") return `${value}`; // reputation spot shows negatives
     return `${Math.abs(value)}`;
   };
-  const chips = scoringSpots
-    .map((spot) => {
+  scoreOverlayEl.innerHTML = "";
+  scoringSpots.forEach((spot) => {
       const topPos = spot.y ?? 30;
       const val =
         spot.key === "reputation"
@@ -1657,14 +1665,16 @@ function updateScoreOverlay(breakdown, total = 0) {
             : 0;
       const negative = typeof val === "number" && val < 0;
       const forceNegative = spot.key === "vagrants" || spot.key === "springhouse";
-      const classes = ["score-chip"];
-      if (negative || forceNegative) classes.push("negative");
-      return `<div class="${classes.join(
-        " ",
-      )}" id="score-chip-${spot.key}" style="left:${spot.x}px;top:${topPos}px;">${formatScoreValue(val, spot.key)}</div>`; // board art includes negatives for most spots
-    })
-    .join("");
-  scoreOverlayEl.innerHTML = chips;
+    const chip = document.createElement("div");
+    chip.className = ["score-chip"]
+      .concat(negative || forceNegative ? ["negative"] : [])
+      .join(" ");
+    chip.id = `score-chip-${spot.key}`;
+    chip.style.left = `${spot.x}px`;
+    chip.style.top = `${topPos}px`;
+    chip.textContent = formatScoreValue(val, spot.key); // board art includes negatives for most spots
+    scoreOverlayEl.appendChild(chip);
+  });
 }
 
 
