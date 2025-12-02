@@ -256,6 +256,8 @@ function resetState() {
   state.finalScore = null;
   state.log = [];
   state.rollAvailable = true;
+  state.pendingTurnIndex = null;
+  state.pendingActiveTurn = null;
   resetTurnState(state);
   if (logEl) logEl.innerHTML = "";
   if (finishActivationBtn) finishActivationBtn.style.display = "none";
@@ -351,6 +353,8 @@ function rollDice() {
     state.bannerOverride =
       'Double <img src="assets/img/windrose.svg" alt="windrose" class="inline-icon"> rolled; press Roll Dice to reroll.';
     updateActionBanner();
+    state.pendingTurnIndex = state.turnIndex + 1;
+    state.pendingActiveTurn = ((state.turnIndex + 1) % 2 === 1);
     prepareNextRoll();
     return;
   }
@@ -363,7 +367,11 @@ function rollDice() {
     computePestilenceInfo,
     filterAvailablePairs,
     sectionLabels,
+    turnIndexOverride: state.pendingTurnIndex,
+    activeTurnOverride: state.pendingActiveTurn,
   });
+  state.pendingTurnIndex = null;
+  state.pendingActiveTurn = null;
   log(`Rolled ${describeDice(dice)}`);
   messages.forEach((m) => log(m));
   if (state.pestilence) {

@@ -36,6 +36,8 @@ const baseState = {
   theme: "light",
   forcedLocationDice: [],
   rollAvailable: true,
+  pendingTurnIndex: null,
+  pendingActiveTurn: null,
 };
 
 export function createState() {

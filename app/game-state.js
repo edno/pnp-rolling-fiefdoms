@@ -33,12 +33,15 @@ export function beginTurn(
   state,
   dice,
   board,
-  { uniqueLocationPairs, filterAvailablePairs, computePestilenceInfo, sectionLabels },
+  { uniqueLocationPairs, filterAvailablePairs, computePestilenceInfo, sectionLabels, turnIndexOverride = null, activeTurnOverride = null },
 ) {
   const messages = [];
   resetTurnState(state);
-  state.turnIndex += 1;
-  state.activeTurn = state.turnIndex % 2 === 1;
+  const newTurnIndex = typeof turnIndexOverride === "number" ? turnIndexOverride : state.turnIndex + 1;
+  state.turnIndex = newTurnIndex;
+  state.activeTurn = typeof activeTurnOverride === "boolean" ? activeTurnOverride : newTurnIndex % 2 === 1;
+  state.pendingTurnIndex = null;
+  state.pendingActiveTurn = null;
   messages.push(state.activeTurn ? "Active turn." : "Non-active turn. Dice automatically assigned.");
   state.dice = dice;
   state.forcedLocationDice = forcedLocationDiceIndices(state.dice);
