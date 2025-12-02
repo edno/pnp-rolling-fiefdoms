@@ -239,6 +239,52 @@ describe("logging integrity (jsdom)", () => {
     expect(gameIdx).toBe(2);
   });
 
+  it("resets UI and logs when starting a new game", async () => {
+    await setupApp({
+      numbered: [3, 4],
+      x: [2, 2],
+    });
+    clickRoll(); // populate dice/logs
+    const newGameBtn = document.getElementById("newGameBtn");
+    newGameBtn.style.display = "inline-block";
+    newGameBtn.click();
+    await flushMicrotasks();
+
+    expect(document.querySelectorAll("#diceView .die-badge").length).toBe(0);
+    expect(document.querySelector("#locDicePreview").textContent).toContain("Select 2 dice for location");
+    expect(document.querySelector("#buildDicePreview").textContent).toContain("Remaining dice used for build");
+    const logs = latestLogs();
+    expect(logs).toEqual(["Game started."]);
+    const actionBanner = document.getElementById("actionBanner");
+    expect(actionBanner.textContent).toContain("Press Roll Dice");
+  });
+
+  it("clears forfeit/pestilence prompts when restarting via Play again", async () => {
+    await setupApp({
+      numbered: [2, 3, 1, 1], // pestilence then padding
+      x: ["X", "X", 1, 1],
+    });
+
+    clickRoll(); // trigger pestilence (forces forfeit prompt)
+    expect(document.getElementById("actionBanner").textContent).toContain("Forfeit");
+    expect(document.getElementById("turnHint").textContent).toMatch(/forfeit/i);
+    const newGameBtn = document.getElementById("newGameBtn");
+    newGameBtn.style.display = "inline-block";
+    newGameBtn.click();
+    await flushMicrotasks();
+
+    const actionBanner = document.getElementById("actionBanner");
+    expect(actionBanner.textContent).toContain("Press Roll Dice");
+    expect(actionBanner.textContent).not.toContain("Select two location dice");
+    expect(actionBanner.textContent).not.toContain("Forfeit");
+    expect(document.getElementById("turnHint").textContent.trim()).toBe("");
+    expect(document.querySelectorAll("#diceView .die-badge").length).toBe(0);
+    expect(document.querySelectorAll("#locDicePreview .die-badge").length).toBe(0);
+    expect(document.querySelectorAll("#buildDicePreview .die-badge").length).toBe(0);
+    const logs = latestLogs();
+    expect(logs).toEqual(["Game started."]);
+  });
+
   it("orders logs as status -> roll -> windrose for windrose rolls", async () => {
     await setupApp({
       numbered: [{ face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] }, 4],

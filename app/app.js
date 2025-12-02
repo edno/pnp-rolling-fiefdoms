@@ -251,6 +251,7 @@ function resetState() {
   state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
   state.populationAvailable = null;
   state.workerAllocations = null;
+  state.activationMode = false;
   state.turnIndex = 0;
   state.activeTurn = true;
   state.finalScore = null;
@@ -1080,7 +1081,13 @@ function newGame() {
   resetState();
   renderBoard();
   renderRegionOverlay();
+  prepareNextRoll();
+  renderSelectionDice([], []);
   updateTracks();
+  state.pendingTurnIndex = null;
+  state.pendingActiveTurn = null;
+  state.bannerOverride = null;
+  if (turnHintEl) turnHintEl.textContent = "";
   updateActionBanner();
   if (newGameBtn) newGameBtn.style.display = "none";
   refreshDiceVisibility();
