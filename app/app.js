@@ -339,8 +339,6 @@ function rollDice() {
     log("Roll already used this turn. Finish the turn to roll again.");
     return;
   }
-  state.bannerOverride = null;
-  triggerDiceAnimation();
   const n1 = rollNumberedDie("N1");
   const n2 = rollNumberedDie("N2");
   const x1 = rollXDie("X1");
@@ -355,6 +353,8 @@ function rollDice() {
     prepareNextRoll();
     return;
   }
+  state.bannerOverride = null;
+  triggerDiceAnimation();
   state.rollAvailable = debugMode ? true : false;
   updateRollButton();
   const { messages } = beginTurn(state, dice, state.board, {
@@ -398,12 +398,13 @@ function triggerDiceAnimation() {
   if (!diceView) return;
   state.diceRolling = true;
   diceView.classList.add("dice-rolling");
-  state.bannerOverride = "Rolling dice...";
+  const rollingMsg = "Rolling dice...";
+  state.bannerOverride = rollingMsg;
   updateActionBanner();
   setTimeout(() => {
     state.diceRolling = false;
     diceView.classList.remove("dice-rolling");
-    state.bannerOverride = null;
+    if (state.bannerOverride === rollingMsg) state.bannerOverride = null;
     updateActionBanner();
   }, 1200);
 }
@@ -1247,7 +1248,11 @@ function updateActionBanner() {
   const prevText = actionBannerEl.dataset.msg || "";
   const changed = prevText !== newText;
   actionBannerEl.dataset.msg = newText;
-  actionBannerEl.textContent = newText;
+  if (newText && newText.includes("<")) {
+    actionBannerEl.innerHTML = newText;
+  } else {
+    actionBannerEl.textContent = newText;
+  }
   if (changed) {
     actionBannerEl.classList.remove("bump");
     void actionBannerEl.offsetWidth; // restart animation
@@ -1395,20 +1400,30 @@ function renderPopulationNodes() {
 
 function renderSelectionDice(locationDice = [], buildDice = []) {
   const currentLocFromState = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
+  const pestLoc = (state.pestilence || state.forceForfeit) ? state.dice.filter((d) => d.face !== "X") : [];
+  const doubleWindrose = shouldRerollDoubleWindrose(state.dice || []);
   const effectiveLoc =
-    (locationDice && locationDice.length && locationDice) ||
-    (currentLocFromState.length && currentLocFromState) ||
-    (state.lockedLocationDice && state.lockedLocationDice.length && state.lockedLocationDice) ||
-    [];
+    (doubleWindrose
+      ? []
+      : (pestLoc.length && pestLoc) ||
+        (locationDice && locationDice.length && locationDice) ||
+        (currentLocFromState.length && currentLocFromState) ||
+        (state.lockedLocationDice && state.lockedLocationDice.length && state.lockedLocationDice) ||
+        []);
   const currentBuildFromState = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
+  const forcedXs = state.dice.filter((d) => d.face === "X");
   const effectiveBuild =
-    state.locationSelection.length === 2
-      ? (buildDice && buildDice.length && buildDice) ||
-        (currentBuildFromState.length && currentBuildFromState) ||
-        (state.lockedBuildDice && state.lockedBuildDice.length && state.lockedBuildDice) ||
-        (state.lastBuildDice && state.lastBuildDice.length && state.lastBuildDice) ||
-        []
-      : [];
+    doubleWindrose
+      ? []
+      : (state.pestilence || state.forceForfeit)
+        ? forcedXs
+        : state.locationSelection.length === 2
+          ? (buildDice && buildDice.length && buildDice) ||
+            (currentBuildFromState.length && currentBuildFromState) ||
+            (state.lockedBuildDice && state.lockedBuildDice.length && state.lockedBuildDice) ||
+            (state.lastBuildDice && state.lastBuildDice.length && state.lastBuildDice) ||
+            []
+          : forcedXs;
   if (locDicePreview) {
     renderDicePreview(locDicePreview, effectiveLoc, "location", "Select 2 dice for location");
   }
@@ -1491,7 +1506,7 @@ function renderDicePreview(container, dice, role, emptyText) {
   container.classList.add("split-preview");
   container.innerHTML = "";
   if (!dice?.length) {
-    container.innerHTML = `<span class="hint">${emptyText}</span>`;
+    container.innerHTML = `<span class="muted">${emptyText}</span>`;
     return;
   }
   dice.forEach((die, idx) => {
