@@ -43,7 +43,7 @@ export function beginTurn(
   state.dice = dice;
   state.forcedLocationDice = forcedLocationDiceIndices(state.dice);
   if (state.forcedLocationDice.length) {
-    messages.push("Windrose rolled: it must stay in the location pair (acts as 1–5).");
+    messages.push("Windrose rolled (acts as 1–5).");
   }
 
   if (!state.activeTurn) {
