@@ -135,7 +135,7 @@ const sheetEl = document.getElementById("sheet");
 const regionOverlayEl = document.getElementById("regionOverlay");
 const SHEET_VERSION = "v1.1";
 const POP_CAPACITY = 5;
-const POP_LAYOUT = { cols: 9, rows: 2, pipsPerCell: 4 };
+const POP_LAYOUT = { cols: 7, rows: 2, pipsPerCell: 4 };
 const debugMode = new URLSearchParams(window.location.search).has("debug");
 const THEME_STORAGE_KEY = "rolling-fiefdoms-theme";
 // Hitboxes relative to printed sheet regions (percent of Buildings/Guilds box)
@@ -173,17 +173,17 @@ function builtGuildTypes(board) {
 }
 
 const scoringSpots = [
-  { key: "cottages", x: 22, y: 20 },
-  { key: "farm", x: 68, y: 20 },
-  { key: "quarry", x: 114, y: 20 },
-  { key: "windmill", x: 158, y: 20 },
-  { key: "market", x: 204, y: 20 },
-  { key: "townhall", x: 246, y: 20 },
-  { key: "university", x: 292, y: 20 },
-  { key: "guilds", x: 336, y: 20 },
-  { key: "springhouse", x: 384, y: 20 },
-  { key: "vagrants", x: 428, y: 20 },
-  { key: "reputation", x: 530, y: 20 },
+  { key: "cottages", x: 22, y: 30 },
+  { key: "farm", x: 68, y: 30 },
+  { key: "quarry", x: 114, y: 30 },
+  { key: "windmill", x: 158, y: 30 },
+  { key: "market", x: 204, y: 30 },
+  { key: "townhall", x: 246, y: 30 },
+  { key: "university", x: 292, y: 30 },
+  { key: "guilds", x: 336, y: 30 },
+  { key: "springhouse", x: 384, y: 30 },
+  { key: "vagrants", x: 428, y: 30 },
+  { key: "reputation", x: 530, y: 30 },
 ];
 
 function readStoredTheme() {
@@ -1303,10 +1303,10 @@ function renderRegionOverlay() {
   if (!regionOverlayEl) return;
   regionOverlayEl.innerHTML = "";
   const positions = {
-    forest: { top: [100, 100], left: [258, 378] },
-    mountain: { top: [292, 422], left: [55, 55] },
-    sea: { top: [292, 410], left: [570, 570] },
-    marsh: { top: [600, 600], left: [252, 378] },
+    forest: { top: [110, 110], left: [258, 378] },
+    mountain: { top: [302, 432], left: [55, 55] },
+    sea: { top: [302, 420], left: [570, 570] },
+    marsh: { top: [610, 610], left: [252, 378] },
   };
   Object.entries(pestilenceAssignments).forEach(([region, nums]) => {
     const pos = positions[region];
@@ -1643,7 +1643,7 @@ function updateScoreOverlay(breakdown, total = 0) {
   if (!scoreOverlayEl) return;
   const chips = scoringSpots
     .map((spot) => {
-      const topPos = spot.y ?? 20;
+      const topPos = spot.y ?? 30;
       const val =
         spot.key === "reputation"
           ? total

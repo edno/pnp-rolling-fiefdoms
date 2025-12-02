@@ -116,7 +116,7 @@ body.theme-dark #themeToggleIcon {
 
 .fiefdom-overlay {
   position: absolute;
-  top: 8px;
+  top: 18px;
   left: 210px;
   width: 220px;
   text-align: center;
@@ -327,8 +327,8 @@ body.theme-dark .sheet::before {
 
 .board {
   position: absolute;
-  top: 137px;
-  left: 102px;
+  top: 150px;
+  left: 98px;
   width: 430px;
   height: 430px;
   display: grid;
@@ -377,21 +377,12 @@ body.theme-dark .sheet::before {
   color: #fff;
   text-align: center;
   position: absolute;
-  top: 50px;
+  top: 60px;
   background: var(--accent);
   width: 40px;
   font-family: "Roboto";
   border-radius: 10px;
 }
-
-/* .cell.forfeit .label.building:after {
-  content: url("../img/forfeit.svg");
-  opacity: 0.8;
-  top: 14px;
-  left: 26px;
-  display: block;
-  position: absolute;
-} */
 
 .population-node {
   width: 45px;
@@ -611,9 +602,9 @@ body.theme-dark .sheet::before {
 
 .pop-housing-overlay {
   position: absolute;
-  left: 657px;
-  top: 39px;
-  width: 382px;
+  left: 637px;
+  top: 51px;
+  width: 294px;
   height: 80px;
   pointer-events: none;
 }
@@ -623,7 +614,7 @@ body.theme-dark .sheet::before {
   width: 100%;
   height: 100%;
   display: grid;
-  grid-template-columns: repeat(9, 1fr);
+  grid-template-columns: repeat(7, 1fr);
   grid-template-rows: repeat(2, 1fr);
   gap: 4px;
 }
@@ -732,8 +723,8 @@ button:disabled {
 }
 
 .buildings-overlay {
-  left: 640px;
-  top: 170px;
+  left: 632px;
+  top: 180px;
   width: 420px;
   height: 280px;
   grid-template-columns: repeat(2, 1fr);
@@ -741,8 +732,8 @@ button:disabled {
 }
 
 .guilds-overlay {
-  left: 640px;
-  top: 470px;
+  left: 632px;
+  top: 490px;
   width: 420px;
   height: 126px;
   grid-template-columns: repeat(2, 1fr);
@@ -1022,7 +1013,7 @@ body.theme-dark .die-badge {
 
 .die-face-label {
   position: absolute;
-  top: -6px;
+  top: 4px;
   left: 4px;
   font-size: 10px;
   color: var(--muted);
