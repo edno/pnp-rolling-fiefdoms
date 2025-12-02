@@ -222,6 +222,36 @@ describe("logging integrity (jsdom)", () => {
     expect(rolledLogs).toHaveLength(1);
   });
 
+  it("orders game start < turn status < roll (oldest at bottom)", async () => {
+    await setupApp({
+      numbered: [5, 2],
+      x: [4, 3],
+    });
+    clickRoll();
+    const logs = latestLogs();
+    const gameIdx = logs.findIndex((m) => m.includes("Game started."));
+    const statusIdx = logs.findIndex((m) => /Active turn\.|Non-active turn\./.test(m));
+    const rollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:5, N2:2"));
+    expect(rollIdx).toBe(0);
+    expect(statusIdx).toBeGreaterThan(rollIdx);
+    expect(gameIdx).toBeGreaterThan(statusIdx);
+  });
+
+  it("orders logs as status -> roll -> windrose for windrose rolls", async () => {
+    await setupApp({
+      numbered: [{ face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] }, 4],
+      x: [2, 3],
+    });
+    clickRoll();
+    const logs = latestLogs();
+    const statusIdx = logs.findIndex((m) => m.startsWith("Active turn."));
+    const rollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:windrose, N2:4"));
+    const windroseIdx = logs.findIndex((m) => m.includes("Windrose rolled"));
+    expect(windroseIdx).toBe(0); // newest first
+    expect(rollIdx).toBe(1);
+    expect(statusIdx).toBe(2);
+  });
+
   it("logs a single roll entry for each double-windrose reroll attempt", async () => {
     await setupApp({
       numbered: [
@@ -234,10 +264,20 @@ describe("logging integrity (jsdom)", () => {
     });
     clickRoll(); // double windrose -> reroll prompt
     let logs = latestLogs();
-    expect(logs.filter((m) => m.startsWith("Rolled N1:windrose, N2:windrose"))).toHaveLength(1);
+    const firstRolls = logs.filter((m) => m.startsWith("Rolled N1:windrose, N2:windrose"));
+    expect(firstRolls).toHaveLength(1);
+    const rollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:windrose, N2:windrose"));
+    const promptIdx = logs.findIndex((m) => m.toLowerCase().includes("double windrose rolled"));
+    expect(promptIdx).toBeGreaterThan(-1);
+    expect(promptIdx).toBeLessThan(rollIdx); // newest first
+
     clickRoll(); // valid roll
     logs = latestLogs();
     expect(logs.filter((m) => m.startsWith("Rolled N1:4, N2:5"))).toHaveLength(1);
+    const statusIdx = logs.findIndex((m) => /Active turn|Non-active turn/.test(m));
+    const rollIdxValid = logs.findIndex((m) => m.startsWith("Rolled N1:4, N2:5"));
+    expect(rollIdxValid).toBe(0); // newest
+    expect(statusIdx).toBeGreaterThan(rollIdxValid);
   });
 });
 

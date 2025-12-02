@@ -348,8 +348,8 @@ function rollDice() {
   const dice = [n1, n2, x1, x2];
   if (shouldRerollDoubleWindrose(dice)) {
     const msg = "Double windrose rolled; press Roll Dice to reroll.";
-    log(msg);
     log(`Rolled ${describeDice(dice)}`);
+    log(msg);
     state.bannerOverride =
       'Double <img src="assets/img/windrose.svg" alt="windrose" class="inline-icon"> rolled; press Roll Dice to reroll.';
     updateActionBanner();
@@ -372,8 +372,16 @@ function rollDice() {
   });
   state.pendingTurnIndex = null;
   state.pendingActiveTurn = null;
-  log(`Rolled ${describeDice(dice)}`);
-  messages.forEach((m) => log(m));
+  const rollMsg = `Rolled ${describeDice(dice)}`;
+  if (Array.isArray(messages) && messages.length) {
+    const status = messages[0];
+    const extras = messages.slice(1); // windrose/pestilence/etc in chronological order (oldest first)
+    log(status); // older than roll
+    log(rollMsg); // newer than status
+    extras.forEach((m) => log(m)); // newest
+  } else {
+    log(rollMsg);
+  }
   if (state.pestilence) {
     const target = state.pestilenceInfo?.sectionLabel || "any section";
     if (turnHintEl) turnHintEl.textContent = `Pestilence! Forfeit a plot in ${target}.`;
