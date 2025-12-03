@@ -390,6 +390,185 @@ describe("logging integrity (jsdom)", () => {
     expect(rollIdx).toBeGreaterThan(windroseIdx);
     expect(statusIdx).toBeGreaterThan(rollIdx);
   });
+
+  it("logs the correct status when rerolling double windrose on the next active turn", async () => {
+    await setupApp({
+      numbered: [
+        3, 4, // turn 1 (active)
+        1, 2, // turn 2 (non-active)
+        { face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] },
+        { face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] }, // turn 3 double windrose
+        2,
+        5, // reroll on turn 3
+      ],
+      x: [1, 1, 3, 2, 3, 2, 4, 1],
+      debug: true,
+    });
+    clickRoll(); // turn 1 active
+    await flushMicrotasks();
+    clickRoll(); // turn 2 non-active
+    await flushMicrotasks();
+    clickRoll(); // turn 3 double windrose -> prompt reroll
+    await flushMicrotasks();
+    clickRoll(); // reroll resolves turn 3 (active)
+    await flushMicrotasks();
+
+    const logs = latestLogs();
+    const nonActiveIdx = logs.lastIndexOf("Non-active turn. Dice automatically assigned.");
+    const activeIdx = logs.indexOf("Active turn.");
+    const promptIdx = logs.indexOf("Double windrose rolled; press Roll Dice to reroll.");
+    const doubleRollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:windrose, N2:windrose"));
+    const rerollRollIdx = logs.indexOf("Rolled N1:2, N2:5, X1:4, X2:1");
+    if ([nonActiveIdx, activeIdx, promptIdx, doubleRollIdx, rerollRollIdx].some((idx) => idx === -1)) {
+      throw new Error(`Unexpected logs: ${JSON.stringify(logs, null, 2)}`);
+    }
+    expect(nonActiveIdx).toBeGreaterThan(promptIdx); // prior turn status is older than prompt/rolls
+    expect(activeIdx).toBeGreaterThan(rerollRollIdx); // active status for the reroll turn is older than the reroll roll
+    expect(promptIdx).toBeLessThan(doubleRollIdx); // prompt newer than the double-windrose roll
+  });
+
+  it("emits non-active then active statuses correctly around a double-windrose reroll", async () => {
+    await setupApp({
+      numbered: [
+        4, 3, // turn 1 (active)
+        1, 2, // turn 2 (non-active)
+        { face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] },
+        { face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] }, // turn 3 double windrose
+        5,
+        2, // reroll on turn 3
+      ],
+      x: [1, 1, 2, 3, 2, 2, 5, 4],
+      debug: true,
+    });
+
+    clickRoll(); // turn 1 active
+    await flushMicrotasks();
+    clickRoll(); // turn 2 non-active (normal)
+    await flushMicrotasks();
+    clickRoll(); // turn 3 double windrose -> reroll prompt
+    await flushMicrotasks();
+    clickRoll(); // reroll resolves turn 3
+    await flushMicrotasks();
+
+    const logs = latestLogs();
+    const nonActiveIdx = logs.indexOf("Non-active turn. Dice automatically assigned.");
+    const activeIdx = logs.indexOf("Active turn.");
+    const doubleRollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:windrose, N2:windrose"));
+    const rerollRollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:5, N2:2"));
+    expect(nonActiveIdx).toBeGreaterThan(-1);
+    expect(activeIdx).toBeGreaterThan(-1);
+    expect(doubleRollIdx).toBeGreaterThan(-1);
+    expect(rerollRollIdx).toBeGreaterThan(-1);
+    expect(nonActiveIdx).toBeGreaterThan(doubleRollIdx); // non-active status from turn 2 is older than turn 3 logs
+    expect(activeIdx).toBeGreaterThan(rerollRollIdx); // active status for turn 3 is older than its reroll roll
+  });
+
+  it("logs non-active status before a double-windrose roll on a non-active turn", async () => {
+    await setupApp({
+      numbered: [
+        4,
+        1, // turn 1 (active)
+        { face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] },
+        { face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] }, // turn 2 double windrose (non-active)
+        4,
+        2, // reroll resolves turn 2 (still non-active)
+        3,
+        3, // turn 3 (active)
+      ],
+      x: ["X", 3, 1, 3, 3, 2, 1, 4],
+      debug: true,
+    });
+
+    clickRoll(); // turn 1 active
+    await flushMicrotasks();
+    clickRoll(); // turn 2 double windrose (non-active)
+    await flushMicrotasks();
+    clickRoll(); // reroll resolves turn 2
+    await flushMicrotasks();
+
+    const logs = latestLogs();
+    const nonActiveIdx = logs.indexOf("Non-active turn. Dice automatically assigned.");
+    const doubleRollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:windrose, N2:windrose"));
+    const promptIdx = logs.indexOf("Double windrose rolled; press Roll Dice to reroll.");
+    if ([nonActiveIdx, doubleRollIdx, promptIdx].some((idx) => idx === -1)) {
+      throw new Error(`Unexpected logs: ${JSON.stringify(logs, null, 2)}`);
+    }
+    // Status is logged first (oldest among this turn), so its index should be greater than the roll/prompt indices.
+    expect(nonActiveIdx).toBeGreaterThan(promptIdx);
+    expect(nonActiveIdx).toBeGreaterThan(doubleRollIdx);
+  });
+
+  it("logs the new turn status before a double-windrose roll without pushing it to the bottom of the log", async () => {
+    await setupApp({
+      numbered: [
+        5, 3, // turn 1 (active)
+        3, 2, // turn 2 (non-active)
+        { face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] },
+        { face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] }, // turn 3 double windrose (active)
+        2,
+        1, // turn 3 reroll
+      ],
+      x: [1, 1, 1, 1, 2, 3, 4, 5],
+      debug: true,
+    });
+
+    clickRoll(); // turn 1 active
+    await flushMicrotasks();
+    clickRoll(); // turn 2 non-active
+    await flushMicrotasks();
+    clickRoll(); // turn 3 double windrose (status should log before the double roll)
+    await flushMicrotasks();
+    clickRoll(); // turn 3 reroll
+    await flushMicrotasks();
+
+    const logs = latestLogs();
+    const previousRollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:3, N2:2"));
+    const doubleRollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:windrose, N2:windrose"));
+    const activeIdx = logs.findIndex(
+      (m, idx) => m === "Active turn." && idx > doubleRollIdx && idx < previousRollIdx,
+    );
+    if ([previousRollIdx, doubleRollIdx, activeIdx].some((idx) => idx === -1)) {
+      throw new Error(`Unexpected logs: ${JSON.stringify(logs, null, 2)}`);
+    }
+    expect(doubleRollIdx).toBeGreaterThan(-1);
+    expect(activeIdx).toBeGreaterThan(-1);
+    expect(doubleRollIdx).toBeLessThan(activeIdx); // status is older than the double-windrose roll
+    expect(activeIdx).toBeLessThan(previousRollIdx); // and newer than the prior turn's roll
+  });
+
+  it("omits windrose helper text on the double-windrose reroll attempt itself", async () => {
+    await setupApp({
+      numbered: [
+        1, 2, // turn 1 (active)
+        { face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] },
+        { face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] }, // turn 2 double windrose -> reroll
+        4,
+        5, // turn 2 reroll
+      ],
+      x: ["X", 2, 1, 1, 3, 4],
+      debug: true,
+    });
+
+    clickRoll(); // turn 1 (active)
+    await flushMicrotasks();
+    clickRoll(); // turn 2 double windrose
+    await flushMicrotasks();
+    const logsAfterDouble = latestLogs();
+    const windroseHelperIdx = logsAfterDouble.findIndex((m) => m.startsWith("Windrose rolled (acts as 1–5)."));
+    const doubleRollIdx = logsAfterDouble.findIndex((m) => m.startsWith("Rolled N1:windrose, N2:windrose"));
+    const promptIdx = logsAfterDouble.indexOf("Double windrose rolled; press Roll Dice to reroll.");
+    expect(doubleRollIdx).toBeGreaterThan(-1);
+    expect(promptIdx).toBeGreaterThan(-1);
+    expect(windroseHelperIdx).toBe(-1); // no helper text during the double-windrose attempt
+
+    clickRoll(); // reroll resolves
+    await flushMicrotasks();
+    const logsAfterReroll = latestLogs();
+    const rerollWindroseIdx = logsAfterReroll.findIndex((m) => m.startsWith("Windrose rolled (acts as 1–5)."));
+    const rerollRollIdx = logsAfterReroll.findIndex((m) => m.startsWith("Rolled N1:4, N2:5"));
+    expect(rerollWindroseIdx).toBe(-1); // reroll had no windrose
+    expect(rerollRollIdx).toBeGreaterThan(-1);
+  });
 });
 
 describe("turn status chip (jsdom)", () => {

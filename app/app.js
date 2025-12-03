@@ -55,7 +55,6 @@ function prepareNextRoll() {
   state.lockedBuildDice = null;
   state.lockedLocationPairs = null;
   state.pendingNextRoll = false;
-  state.deferStatusAppend = false;
   if (diceView) diceView.innerHTML = "";
   updateRollButton();
   updateActionBanner();
@@ -259,6 +258,7 @@ function resetState() {
   state.activationMode = false;
   state.turnIndex = 0;
   state.activeTurn = true;
+  state.lastStatusTurnIndex = 0;
   state.finalScore = null;
   state.log = [];
   state.rollAvailable = true;
@@ -353,49 +353,51 @@ function rollDice() {
   const x1 = rollXDie("X1");
   const x2 = rollXDie("X2");
   const dice = [n1, n2, x1, x2];
-  if (shouldRerollDoubleWindrose(dice)) {
-    const msg = "Double windrose rolled; press Roll Dice to reroll.";
-    log(`Rolled ${describeDice(dice)}`);
-    log(msg);
-    state.deferStatusAppend = true;
-    state.bannerOverride =
-      'Double <img src="assets/img/windrose.svg" alt="windrose" class="inline-icon"> rolled; press Roll Dice to reroll.';
-    updateActionBanner();
-    state.pendingTurnIndex = state.turnIndex + 1;
-    state.pendingActiveTurn = ((state.turnIndex + 1) % 2 === 1);
-    prepareNextRoll();
-    renderSelectionDice([], []);
-    return;
-  }
+  const needsDoubleReroll = shouldRerollDoubleWindrose(dice);
+  const turnIndexOverride = typeof state.pendingTurnIndex === "number" ? state.pendingTurnIndex : null;
+  const activeTurnOverride = typeof state.pendingActiveTurn === "boolean" ? state.pendingActiveTurn : null;
+
   state.bannerOverride = null;
-  triggerDiceAnimation();
-  state.rollAvailable = debugMode ? true : false;
-  updateRollButton();
+  if (!needsDoubleReroll) {
+    triggerDiceAnimation();
+    state.rollAvailable = debugMode ? true : false;
+    updateRollButton();
+  }
   const { messages } = beginTurn(state, dice, state.board, {
     uniqueLocationPairs,
     computePestilenceInfo,
     filterAvailablePairs,
     sectionLabels,
-    turnIndexOverride: state.pendingTurnIndex,
-    activeTurnOverride: state.pendingActiveTurn,
+    turnIndexOverride,
+    activeTurnOverride,
   });
   state.pendingTurnIndex = null;
   state.pendingActiveTurn = null;
   const rollMsg = `Rolled ${describeDice(dice)}`;
   if (Array.isArray(messages) && messages.length) {
-    const status = messages[0];
-    const extras = messages.slice(1); // windrose/pestilence/etc
-    const appendStatus = Boolean(state.deferStatusAppend);
-    state.deferStatusAppend = false;
-    if (appendStatus) {
-      appendOldestLog(status);
-    } else {
-      log(status);
+    const statusPattern = /^(Active|Non-active) turn/;
+    const status = statusPattern.test(messages[0]) ? messages[0] : null;
+    let extras = status ? messages.slice(1) : messages.slice(); // windrose/pestilence/etc
+    if (needsDoubleReroll) {
+      extras = extras.filter((m) => !m.startsWith("Windrose rolled"));
     }
+    if (status) log(status);
     log(rollMsg); // mid-layer
     extras.forEach((m) => log(m)); // newest
   } else {
     log(rollMsg);
+  }
+  if (needsDoubleReroll) {
+    const msg = "Double windrose rolled; press Roll Dice to reroll.";
+    log(msg);
+    state.bannerOverride =
+      'Double <img src="assets/img/windrose.svg" alt="windrose" class="inline-icon"> rolled; press Roll Dice to reroll.';
+    updateActionBanner();
+    state.pendingTurnIndex = state.turnIndex;
+    state.pendingActiveTurn = state.activeTurn;
+    prepareNextRoll();
+    renderSelectionDice([], []);
+    return;
   }
   if (state.pestilence) {
     const target = state.pestilenceInfo?.sectionLabel || "any section";
@@ -1043,11 +1045,6 @@ function updateTracks() {
 
 function log(msg) {
   state.log.unshift(msg);
-  logEl.innerHTML = state.log.map((m) => `<li>${m}</li>`).join("");
-}
-
-function appendOldestLog(msg) {
-  state.log.push(msg);
   logEl.innerHTML = state.log.map((m) => `<li>${m}</li>`).join("");
 }
 

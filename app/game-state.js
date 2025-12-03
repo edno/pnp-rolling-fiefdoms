@@ -48,7 +48,11 @@ export function beginTurn(
   state.activeTurn = typeof activeTurnOverride === "boolean" ? activeTurnOverride : newTurnIndex % 2 === 1;
   state.pendingTurnIndex = null;
   state.pendingActiveTurn = null;
-  messages.push(state.activeTurn ? "Active turn." : "Non-active turn. Dice automatically assigned.");
+  const statusLogged = state.lastStatusTurnIndex === newTurnIndex;
+  if (!statusLogged) {
+    messages.push(state.activeTurn ? "Active turn." : "Non-active turn. Dice automatically assigned.");
+    state.lastStatusTurnIndex = newTurnIndex;
+  }
   state.dice = dice;
   state.forcedLocationDice = forcedLocationDiceIndices(state.dice);
   if (state.forcedLocationDice.length) {

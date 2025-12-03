@@ -27,7 +27,6 @@ const baseState = {
   lockedLocationPairs: null,
   lastLocationDice: [],
   lastBuildDice: [],
-  deferStatusAppend: false,
   bannerOverride: null,
   fiefdomName: "",
   activeTurn: true,
@@ -39,6 +38,7 @@ const baseState = {
   rollAvailable: true,
   pendingTurnIndex: null,
   pendingActiveTurn: null,
+  lastStatusTurnIndex: 0,
 };
 
 export function createState() {
@@ -61,7 +61,6 @@ export function resetTurnState(state) {
   state.lockedLocationPairs = null;
   state.lastLocationDice = [];
   state.lastBuildDice = [];
-  state.deferStatusAppend = false;
   state.bannerOverride = null;
   state.invalidSelection = false;
   state.forceForfeit = false;
