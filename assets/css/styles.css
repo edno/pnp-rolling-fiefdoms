@@ -556,7 +556,7 @@ body.theme-dark .sheet::before {
 
 .score-overlay {
   position: absolute;
-  left: 24px;
+  left: 20px;
   top: 664px;
   width: 900px;
   height: 70px;
