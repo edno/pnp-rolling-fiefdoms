@@ -39,7 +39,7 @@ body {
 }
 
 header {
-  padding: 4px 24px;
+  padding: 0px 24px;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
   display: flex;
@@ -52,7 +52,8 @@ header {
 }
 
 header h1 {
-  font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: "QT Black Forest", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 36pt;
 }
 
 .top-menu {
@@ -677,7 +678,7 @@ body.theme-dark .sheet::before {
 
 .panel h2 {
   margin: 0 0 8px 0;
-  font-size: 20px;
+  font-size: calc(20px + 4pt);
   font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
