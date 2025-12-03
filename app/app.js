@@ -88,6 +88,7 @@ function refreshDiceVisibility() {
   const awaitingRoll = !debugMode && state.rollAvailable;
   if (diceView) diceView.style.display = hidden || awaitingRoll ? "none" : "";
   updateRollButton();
+  updateTurnStatusChip();
   if (turnHintEl) {
     turnHintEl.style.display = hidden ? "none" : "";
     if (!hidden && !state.activationMode && !state.activationComplete && !awaitingRoll) {
@@ -131,6 +132,7 @@ const themeToggleBtn = document.getElementById("themeToggle");
 const themeToggleIcon = document.getElementById("themeToggleIcon");
 const themeToggleText = document.getElementById("themeToggleText");
 const actionBannerEl = document.getElementById("actionBanner");
+const turnStatusChip = document.getElementById("turnStatusChip");
 const loadingOverlay = document.getElementById("loadingOverlay");
 const sheetEl = document.getElementById("sheet");
 const regionOverlayEl = document.getElementById("regionOverlay");
@@ -238,6 +240,7 @@ function init() {
   renderBoard();
   renderRegionOverlay();
   updateTracks();
+  updateTurnStatusChip();
   updateActionBanner();
   refreshDiceVisibility();
   if (!controlsReady) {
@@ -266,6 +269,7 @@ function resetState() {
   if (finishActivationBtn) finishActivationBtn.style.display = "none";
   if (newGameBtn) newGameBtn.style.display = "none";
   refreshDiceVisibility();
+  updateTurnStatusChip();
   log("Game started.");
 }
 
@@ -403,6 +407,7 @@ function rollDice() {
   } else if (turnHintEl) {
     turnHintEl.textContent = state.activeTurn ? "" : "Non-active turn. Dice automatically assigned.";
   }
+  updateTurnStatusChip();
   updateDiceAssignments();
   renderDice();
   updateActionBanner();
@@ -1298,6 +1303,17 @@ function updateActionBanner() {
     void actionBannerEl.offsetWidth; // restart animation
     actionBannerEl.classList.add("bump");
   }
+}
+
+function updateTurnStatusChip() {
+  if (!turnStatusChip) return;
+  const active = Boolean(state.activeTurn);
+  const label = active ? "Active turn" : "Non-active turn";
+  turnStatusChip.textContent = label;
+  turnStatusChip.setAttribute("aria-label", label);
+  turnStatusChip.title = label;
+  turnStatusChip.classList.toggle("status-active", active);
+  turnStatusChip.classList.toggle("status-inactive", !active);
 }
 
 function renderRegionOverlay() {
