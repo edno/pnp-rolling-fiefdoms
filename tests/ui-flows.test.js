@@ -41,6 +41,7 @@ const baseHtml = `
   <button id="fullscreenToggle"></button>
   <button id="themeToggle"><span id="themeToggleIcon"></span><span id="themeToggleText"></span></button>
   <div id="actionBanner"></div>
+  <span id="turnStatusChip"></span>
   <div id="regionOverlay"></div>
   <button id="rollBtn"></button>
   <input id="fiefdomInput" />
@@ -388,6 +389,27 @@ describe("logging integrity (jsdom)", () => {
     expect(windroseIdx).toBe(0);
     expect(rollIdx).toBeGreaterThan(windroseIdx);
     expect(statusIdx).toBeGreaterThan(rollIdx);
+  });
+});
+
+describe("turn status chip (jsdom)", () => {
+  it("is hidden before the first roll", async () => {
+    await setupApp();
+    const chip = document.getElementById("turnStatusChip");
+    expect(chip).toBeTruthy();
+    expect(chip.classList.contains("hidden")).toBe(true);
+  });
+
+  it("shows Active after the first roll and Non-active after the next", async () => {
+    await setupApp({ numbered: [2, 3, 4, 5, 1, 1], x: [1, 1, 1, 1, 1, 1], debug: true });
+    const chip = document.getElementById("turnStatusChip");
+    clickRoll();
+    await flushMicrotasks();
+    expect(chip.classList.contains("hidden")).toBe(false);
+    expect(chip.textContent).toContain("Active turn");
+    clickRoll(); // debug mode allows immediate next roll; turn index advances
+    await flushMicrotasks();
+    expect(chip.textContent).toContain("Non-active turn");
   });
 });
 
