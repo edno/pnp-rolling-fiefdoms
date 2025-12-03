@@ -1094,6 +1094,7 @@ function finishActivation() {
   log("Activation finished. Scoring updated.");
   log(`Game end. Final score ${state.finalScore}.`);
   updateActionBanner();
+  updateTurnStatusChip();
 }
 
 function newGame() {
@@ -1307,13 +1308,23 @@ function updateActionBanner() {
 
 function updateTurnStatusChip() {
   if (!turnStatusChip) return;
+  const hasDice = Array.isArray(state.dice) && state.dice.length >= 4;
+  const awaitingRoll = !debugMode && state.rollAvailable;
+  const show = hasDice && !state.activationComplete && !awaitingRoll;
   const active = Boolean(state.activeTurn);
   const label = active ? "Active turn" : "Non-active turn";
-  turnStatusChip.textContent = label;
-  turnStatusChip.setAttribute("aria-label", label);
-  turnStatusChip.title = label;
-  turnStatusChip.classList.toggle("status-active", active);
-  turnStatusChip.classList.toggle("status-inactive", !active);
+  if (!show) {
+    turnStatusChip.classList.add("hidden");
+    turnStatusChip.setAttribute("aria-hidden", "true");
+  } else {
+    turnStatusChip.textContent = label;
+    turnStatusChip.setAttribute("aria-label", label);
+    turnStatusChip.title = label;
+    turnStatusChip.classList.remove("hidden");
+    turnStatusChip.removeAttribute("aria-hidden");
+    turnStatusChip.classList.toggle("status-active", active);
+    turnStatusChip.classList.toggle("status-inactive", !active);
+  }
 }
 
 function renderRegionOverlay() {

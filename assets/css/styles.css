@@ -700,6 +700,10 @@ body.theme-dark .sheet::before {
   border: 1px solid var(--border);
 }
 
+.status-chip.hidden {
+  display: none;
+}
+
 .status-chip::before {
   content: "";
   width: 8px;
