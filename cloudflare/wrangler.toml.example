@@ -1,0 +1,11 @@
+name = "rolling-fiefdoms-signalling"
+main = "worker.js"
+compatibility_date = "2024-12-04"
+
+[[durable_objects.bindings]]
+name = "SIGNALLING"
+class_name = "Signalling"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["Signalling"]

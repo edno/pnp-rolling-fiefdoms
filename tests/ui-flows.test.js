@@ -47,6 +47,18 @@ const baseHtml = `
   <input id="fiefdomInput" />
   <div id="buildingsOverlay"></div>
   <div id="guildsOverlay"></div>
+  <div id="p2pPanel">
+    <div id="p2pStatus"></div>
+    <textarea id="p2pCode"></textarea>
+    <input id="p2pSecret" />
+    <button id="p2pHostBtn"></button>
+    <button id="p2pJoinBtn"></button>
+  <button id="p2pApplyBtn"></button>
+  <button id="p2pCopyBtn"></button>
+  <button id="p2pDisconnectBtn"></button>
+  <button id="p2pSendAnswerBtn"></button>
+  <div id="p2pHint"></div>
+  </div>
 `;
 
 async function flushMicrotasks() {
@@ -709,5 +721,16 @@ describe("score overlay display (jsdom)", () => {
     const reputationChip = document.getElementById("score-chip-reputation");
     expect(reputationChip).toBeTruthy();
     expect(reputationChip.textContent.trim()).toBe("-3");
+  });
+});
+
+describe("manual p2p panel (jsdom)", () => {
+  it("disables controls when WebRTC is unavailable", async () => {
+    await setupApp();
+    const hostBtn = document.getElementById("p2pHostBtn");
+    const status = document.getElementById("p2pStatus");
+    expect(hostBtn).toBeTruthy();
+    expect(hostBtn.disabled).toBe(true);
+    expect(status.textContent.toLowerCase()).toContain("not available");
   });
 });

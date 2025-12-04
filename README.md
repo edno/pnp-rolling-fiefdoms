@@ -12,6 +12,14 @@ npm run serve # start a static server at http://localhost:4173
 
 Open `index.html` directly or serve the folder with your preferred static server. The app is plain JS/DOM; no bundler required for basic usage.
 
+### P2P signalling (optional)
+
+- The app auto-selects a signalling endpoint for WebRTC offer/answer exchange:
+  - If the page host is localhost, a private LAN IP (10.x/192.168.x/172.16–31.x), or `.local`, it targets `http://<host>:8787` (for local `wrangler dev` of the Cloudflare Durable Object).
+  - Otherwise it targets `https://signal.rolling-fiefdoms.edno.io`.
+  - You can override with `?signal=http://host:8787` in the page URL or set `data-signalling-url` on `<body>`.
+- If signalling is unreachable, the UI falls back to manual invite/answer exchange.
+
 ## How to play in the helper
 
 - Roll phase: four dice (two numbered, two X) appear in the Turn panel. Click two non-X dice to set the Location pair; X dice are auto-assigned to Build. Building/Guild overlays stay disabled until two location dice are selected.

@@ -99,6 +99,30 @@
         </div>
       </div>
 
+      <div class="panel p2p-panel" id="p2pPanel">
+        <h2>Manual P2P</h2>
+        <div class="p2p-status" id="p2pStatus">Checking browser support…</div>
+        <div class="field">
+          <label for="p2pSecret">Passcode (optional)</label>
+          <input id="p2pSecret" type="text" maxlength="32" placeholder="Shared code" />
+        </div>
+        <div class="p2p-actions">
+          <button id="p2pHostBtn" type="button">Create invite</button>
+          <button id="p2pDisconnectBtn" class="link-btn" type="button">Reset</button>
+        </div>
+        <label for="p2pCode">Invite</label>
+        <div class="p2p-row">
+          <input id="p2pCode" type="text" readonly placeholder="Invite link" />
+          <div class="p2p-row-actions">
+            <button id="p2pCopyBtn" type="button">Copy</button>
+            <button id="p2pShowQrBtn" type="button">Show QR</button>
+          </div>
+        </div>
+        <p class="p2p-hint" id="p2pHint">
+          Manual exchange only. Host to generate an invite, or paste an invite to craft your answer.
+        </p>
+      </div>
+
       <div class="panel log-panel">
         <h2>Log</h2>
         <div class="log-body">
@@ -121,5 +145,13 @@
   </footer>
 
   <script type="module" src="app/app.js?v=v1"></script>
+
+  <div id="p2pQrModal" class="p2p-qr-modal hidden">
+    <div class="p2p-qr-dialog">
+      <button class="p2p-qr-close" id="p2pQrClose" type="button" aria-label="Close QR overlay">×</button>
+      <img id="p2pQrImg" alt="P2P invite QR" />
+      <div class="p2p-qr-caption" id="p2pQrCaption">Scan to open this invite on another device.</div>
+    </div>
+  </div>
 </body>
 </html>

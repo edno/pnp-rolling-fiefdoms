@@ -29,6 +29,9 @@ import {
 } from "./game-state.js";
 import { rollNumberedDie, rollXDie } from "./dice.js";
 import { splitForcedDice } from "./dice-display.js";
+import { createManualP2P } from "./p2p.js";
+import { createQrDataUrl } from "./qr.js";
+import { compressToBase64Url, decompressFromBase64Url } from "./compact.js";
 
 const terrainLayout = [
   ["Mt", "Fo", "Fo", "Fo", "Se"],
@@ -41,6 +44,99 @@ const terrainLayout = [
 const state = createState();
 
 let controlsReady = false;
+const p2pUiState = {
+  mode: "idle",
+  lastError: null,
+  remoteSnapshot: null,
+  awaitingAnswer: false,
+  channelOpen: false,
+  sessionId: null,
+  loadedFromUrl: false,
+  signallingUrl: null,
+  signallingActive: false,
+  signallingPoll: null,
+  signallingDisabled: false,
+  lastInviteLink: "",
+  lastQrDataUrl: "",
+};
+
+function logP2P(...args) {
+  if (typeof console !== "undefined" && typeof console.info === "function") {
+    console.info("[P2P]", ...args);
+  }
+}
+
+function resetSecretField() {
+  const fresh = randomPasscode();
+  if (p2pSecretEl) p2pSecretEl.value = fresh;
+  return fresh;
+}
+
+function freshSessionId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `session-${crypto.randomUUID()}`;
+  }
+  return `session-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 8)}`;
+}
+
+function randomPasscode() {
+  const words = [
+    "oak",
+    "river",
+    "stone",
+    "forge",
+    "crown",
+    "harbor",
+    "ember",
+    "meadow",
+    "quill",
+    "lantern",
+    "willow",
+    "bridge",
+    "maple",
+    "cobalt",
+    "granite",
+    "piper",
+    "saddle",
+    "glen",
+    "harvest",
+    "summit",
+  ];
+  const randomCase = (word) =>
+    word
+      .split("")
+      .map((ch) => (Math.random() < 0.5 ? ch.toLowerCase() : ch.toUpperCase()))
+      .join("");
+  const maybeDigitWord = (word) => {
+    if (Math.random() < 0.4) {
+      const digit = Math.floor(Math.random() * 10);
+      return Math.random() < 0.5 ? `${digit}${word}` : `${word}${digit}`;
+    }
+    return word;
+  };
+  const pick = () => maybeDigitWord(randomCase(words[Math.floor(Math.random() * words.length)]));
+  return `${pick()}-${pick()}-${pick()}`;
+}
+
+function parseSessionLink(value) {
+  if (!value) return null;
+  try {
+    const url = value.includes("://") ? new URL(value) : new URL(value, window.location.href);
+    const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""));
+    const sessionId = hashParams.get("s");
+    const secret = hashParams.get("k");
+    return sessionId || secret ? { sessionId, secret } : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+const p2p = createManualP2P({
+  onLog: (msg) => logP2P(msg),
+  onStatus: (status) => handleP2PStatus(status),
+  onMessage: (message) => handleP2PMessage(message),
+  captureState: () => captureP2PSnapshot(),
+});
 
 function prepareNextRoll() {
   state.rollAvailable = true;
@@ -135,6 +231,22 @@ const turnStatusChip = document.getElementById("turnStatusChip");
 const loadingOverlay = document.getElementById("loadingOverlay");
 const sheetEl = document.getElementById("sheet");
 const regionOverlayEl = document.getElementById("regionOverlay");
+const p2pPanel = document.getElementById("p2pPanel");
+const p2pStatusEl = document.getElementById("p2pStatus");
+const p2pCodeEl = document.getElementById("p2pCode");
+const p2pSecretEl = document.getElementById("p2pSecret");
+const p2pCopyBtn = document.getElementById("p2pCopyBtn");
+const p2pApplyBtn = document.getElementById("p2pApplyBtn");
+const p2pHostBtn = document.getElementById("p2pHostBtn");
+const p2pJoinBtn = document.getElementById("p2pJoinBtn");
+const p2pDisconnectBtn = document.getElementById("p2pDisconnectBtn");
+const p2pSendAnswerBtn = document.getElementById("p2pSendAnswerBtn");
+const p2pHintEl = document.getElementById("p2pHint");
+const p2pQrImg = document.getElementById("p2pQrImg");
+const p2pQrCaption = document.getElementById("p2pQrCaption");
+const p2pQrModal = document.getElementById("p2pQrModal");
+const p2pQrClose = document.getElementById("p2pQrClose");
+const p2pShowQrBtn = document.getElementById("p2pShowQrBtn");
 const SHEET_VERSION = "v1.1";
 const POP_CAPACITY = 5;
 const POP_LAYOUT = { cols: 7, rows: 2, pipsPerCell: 4 };
@@ -337,6 +449,426 @@ function setupControls() {
     finishActivationBtn.onclick = () => finishActivation();
     finishActivationBtn.style.display = "none";
   }
+  setupP2PControls();
+}
+
+function captureP2PSnapshot() {
+  const snapshotScore = currentScore({ allowPopulationActivation: false });
+  return {
+    fiefdomName: state.fiefdomName || "",
+    turnIndex: state.turnIndex || 0,
+    activeTurn: Boolean(state.activeTurn),
+    rollAvailable: Boolean(state.rollAvailable),
+    score: snapshotScore?.total ?? 0,
+  };
+}
+
+function handleP2PMessage(message) {
+  if (!message || typeof message !== "object") return;
+  if (message.type === "hello") {
+    p2pUiState.remoteSnapshot = message.payload?.snapshot || null;
+    updateP2PStatus("Peer handshake received. Manual state sync only.");
+    logP2P("Peer handshake received.");
+  }
+}
+
+function handleP2PStatus(status) {
+  const channelJustOpened = !p2pUiState.channelOpen && status?.channelOpen;
+  p2pUiState.channelOpen = Boolean(status?.channelOpen);
+  p2pUiState.lastError = status?.lastError || null;
+  if (status?.sessionId) p2pUiState.sessionId = status.sessionId;
+  if (p2pUiState.channelOpen && p2pUiState.awaitingAnswer) p2pUiState.awaitingAnswer = false;
+  if (channelJustOpened) {
+    logP2P("Connected to peer.");
+  }
+  if (status?.lastError) {
+    logP2P(status.lastError);
+  }
+  updateP2PStatus();
+}
+
+function updateP2PStatus(hintOverride = null) {
+  if (!p2pPanel) return;
+  if (p2pUiState.signallingDisabled) {
+    if (p2pStatusEl) p2pStatusEl.textContent = "P2P disabled: signalling unavailable.";
+    if (p2pHintEl) p2pHintEl.textContent = "Signalling must be reachable to use P2P.";
+    if (p2pPanel) p2pPanel.classList.add("disabled");
+    updateP2PControlsVisibility({});
+    return;
+  }
+  const status = typeof p2p?.getStatus === "function" ? p2p.getStatus() : { supported: false };
+  const main =
+    !status.supported
+      ? "Manual P2P is not available in this browser."
+      : status.channelOpen
+        ? "Connected via manual P2P."
+        : p2pUiState.awaitingAnswer
+          ? "Hosting: waiting for the peer's answer."
+      : p2pUiState.mode === "answerReady"
+        ? "Answer generated. Send it back to the host."
+        : p2pUiState.mode === "joining"
+          ? "Joining: paste an invite code, then apply to craft your answer."
+          : p2pUiState.mode === "hosting"
+            ? "Preparing an invite…"
+            : "Idle. Host to create an invite or join with one.";
+
+  const defaultHint = !status.supported
+    ? "Use a browser with WebRTC data channels to try manual invites."
+    : status.channelOpen
+      ? "Manual copy/paste only; keep playing locally. Game actions are not auto-synced yet."
+      : p2pUiState.awaitingAnswer
+        ? "Share your invite, then paste their answer code here and apply it."
+        : p2pUiState.mode === "answerReady"
+          ? "Send this answer to the host; the link opens once they apply it."
+          : "Host to generate an invite, or paste an invite to produce an answer.";
+
+  const errorText = status.lastError ? ` (${status.lastError})` : "";
+  const remoteText =
+    status.channelOpen && p2pUiState.remoteSnapshot ? describeRemoteSnapshot(p2pUiState.remoteSnapshot) : "";
+  if (p2pStatusEl) p2pStatusEl.textContent = `${main}${remoteText}${errorText}`;
+  if (p2pHintEl) p2pHintEl.textContent = hintOverride || defaultHint;
+  updateP2PControlsVisibility(status);
+}
+
+function readP2PSecret() {
+  return (p2pSecretEl?.value || "").trim();
+}
+
+function readP2PSecretOrDefault() {
+  const provided = readP2PSecret();
+  if (provided) return provided;
+  if (p2pUiState.sessionId) return p2pUiState.sessionId;
+  return "default";
+}
+
+function setP2PMode(mode, { awaitingAnswer = false } = {}) {
+  p2pUiState.mode = mode;
+  p2pUiState.awaitingAnswer = awaitingAnswer;
+}
+
+function buildInviteUrl({ sessionId, secret, signallingUrl }) {
+  try {
+    const url = new URL(window.location.href);
+    url.search = "";
+    const params = new URLSearchParams();
+    if (signallingUrl) params.set("signal", signallingUrl);
+    url.search = params.toString();
+    const hashParams = new URLSearchParams();
+    if (sessionId) hashParams.set("s", sessionId);
+    if (secret) hashParams.set("k", secret);
+    url.hash = `#${hashParams.toString()}`;
+    return url.toString();
+  } catch (err) {
+    return null;
+  }
+}
+
+function renderP2PQr(link) {
+  if (!p2pQrImg || !p2pQrCaption) return;
+  if (!link) {
+    p2pUiState.lastInviteLink = "";
+    p2pUiState.lastQrDataUrl = "";
+    return;
+  }
+  const dataUrl = createQrDataUrl(link, { size: 400, margin: 6, errorCorrection: "L" });
+  p2pUiState.lastInviteLink = link;
+  p2pUiState.lastQrDataUrl = dataUrl || "";
+  if (p2pShowQrBtn) p2pShowQrBtn.disabled = !dataUrl;
+}
+
+function maybeLoadInviteFromUrl() {
+  try {
+    const parsed = parseSessionLink(window.location.href);
+    if (parsed && p2pCodeEl) {
+      if (parsed.sessionId) p2pUiState.sessionId = parsed.sessionId;
+      if (parsed.secret && p2pSecretEl) p2pSecretEl.value = parsed.secret;
+      p2pCodeEl.value = buildInviteUrl({
+        sessionId: parsed.sessionId,
+        secret: parsed.secret,
+        signallingUrl: p2pUiState.signallingUrl,
+      });
+      p2pUiState.loadedFromUrl = true;
+      setP2PMode("joining");
+      updateP2PStatus("Invite loaded from link. Generating your answer…");
+      renderP2PQr(p2pCodeEl.value);
+      setTimeout(() => {
+        joinViaSignalling(parsed.sessionId, parsed.secret);
+      }, 20);
+    }
+  } catch (err) {
+    // ignore malformed URLs
+  }
+}
+
+function describeRemoteSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== "object") return "";
+  const name = snapshot.fiefdomName ? ` ${snapshot.fiefdomName}` : "";
+  const turn =
+    typeof snapshot.turnIndex === "number" ? ` · Turn ${Math.max(1, Number(snapshot.turnIndex) + 1)}` : "";
+  const active = snapshot.activeTurn ? " (Active)" : "";
+  return `${name}${turn}${active}`;
+}
+
+async function startP2PHosting() {
+  if (!p2p?.supported) {
+    updateP2PStatus("Manual P2P is not supported here.");
+    return;
+  }
+  if (!p2pUiState.signallingUrl) {
+    disableP2P("P2P disabled: signalling unavailable.");
+    return;
+  }
+  setP2PMode("hosting", { awaitingAnswer: true });
+  updateP2PStatus("Building invite…");
+  try {
+    const { code, error } = await p2p.startHosting(readP2PSecret());
+    if (error) {
+      setP2PMode("idle");
+      updateP2PStatus(error);
+      logP2P(error);
+      return;
+    }
+    const compact = await compressToBase64Url(code || "");
+    if (!p2pUiState.sessionId) p2pUiState.sessionId = freshSessionId();
+    const secret = readP2PSecretOrDefault();
+    const sessionId = p2pUiState.sessionId;
+    const shareLink = buildInviteUrl({
+      sessionId,
+      secret,
+      signallingUrl: p2pUiState.signallingUrl,
+    });
+    if (sessionId) p2pUiState.sessionId = sessionId;
+    if (p2pCodeEl) p2pCodeEl.value = shareLink || "";
+    renderP2PQr(shareLink);
+    if (p2pCopyBtn) p2pCopyBtn.disabled = false;
+    const sent = await sendSignalBlob("host", compact, secret);
+    if (sent.ok) {
+      p2pUiState.signallingActive = true;
+      setP2PMode("awaitingAnswer", { awaitingAnswer: true });
+      updateP2PStatus("Invite ready. Waiting for answer via signalling… (QR/link sharing still works)");
+      pollSignal("host", secret, { timeoutMs: 60000 }).then(async (answerCompact) => {
+        if (!answerCompact) {
+          logP2P("poll timeout waiting for answer");
+          disconnectP2P("Signalling timeout. Resetting P2P.");
+          return;
+        }
+        const answerCode = await decompressFromBase64Url(answerCompact).catch(() => null);
+        if (!answerCode) return;
+        await p2p.applyAnswer(answerCode, secret);
+        updateP2PStatus("Answer received via signalling. Completing link…");
+      });
+    } else {
+      disableP2P("Signalling unavailable. P2P disabled.");
+    }
+  } catch (err) {
+    setP2PMode("idle");
+    const message = err?.message || "Unable to create invite.";
+    updateP2PStatus(message);
+    logP2P(message);
+  }
+}
+
+function disconnectP2P(reason = "") {
+  if (p2p?.disconnect) p2p.disconnect(reason);
+  if (p2pUiState.signallingPoll) {
+    clearTimeout(p2pUiState.signallingPoll);
+    p2pUiState.signallingPoll = null;
+  }
+  p2pUiState.remoteSnapshot = null;
+  setP2PMode("idle");
+  p2pUiState.sessionId = freshSessionId();
+  p2pUiState.signallingDisabled = false;
+  if (p2pCodeEl) p2pCodeEl.value = "";
+  renderP2PQr("");
+  resetSecretField();
+  if (p2pCopyBtn) p2pCopyBtn.disabled = true;
+  if (p2pShowQrBtn) p2pShowQrBtn.disabled = true;
+  updateP2PStatus(reason || "P2P link reset.");
+}
+
+function setupP2PControls() {
+  if (!p2pPanel) return;
+  p2pUiState.signallingUrl = resolveSignallingUrl();
+  if (!p2pUiState.signallingUrl) {
+    disableP2P("P2P disabled: signalling URL unavailable.");
+    return;
+  }
+  const supported = Boolean(p2p?.supported);
+  const controls = [p2pHostBtn, p2pJoinBtn, p2pApplyBtn, p2pCopyBtn, p2pDisconnectBtn, p2pCodeEl, p2pSecretEl];
+  if (!supported) {
+    controls.forEach((el) => {
+      if (!el) return;
+      el.disabled = true;
+    });
+    updateP2PStatus("Manual P2P is not available in this browser.");
+    return;
+  }
+  if (p2pHostBtn) p2pHostBtn.onclick = () => startP2PHosting();
+  if (p2pJoinBtn) p2pJoinBtn.style.display = "none";
+  if (p2pApplyBtn) p2pApplyBtn.style.display = "none";
+  if (p2pCopyBtn) {
+    p2pCopyBtn.onclick = () => copyInviteLink();
+    p2pCopyBtn.disabled = true;
+  }
+  if (p2pDisconnectBtn) p2pDisconnectBtn.onclick = () => disconnectP2P("P2P link reset.");
+  if (p2pSendAnswerBtn) p2pSendAnswerBtn.style.display = "none";
+  if (p2pCodeEl) p2pCodeEl.style.display = "none";
+  if (p2pShowQrBtn) {
+    p2pShowQrBtn.onclick = () => toggleQrModal(true);
+    p2pShowQrBtn.disabled = true;
+  }
+  if (p2pQrClose) p2pQrClose.onclick = () => toggleQrModal(false);
+  if (p2pQrModal) {
+    p2pQrModal.addEventListener("click", (e) => {
+      if (e.target === p2pQrModal) toggleQrModal(false);
+    });
+  }
+  if (p2pSecretEl && !p2pSecretEl.value) {
+    resetSecretField();
+  }
+  maybeLoadInviteFromUrl();
+  updateP2PStatus();
+}
+
+function updateP2PControlsVisibility(status = {}) {
+  if (p2pUiState.signallingDisabled) {
+    const all = [p2pHostBtn, p2pJoinBtn, p2pApplyBtn, p2pCopyBtn, p2pDisconnectBtn, p2pSendAnswerBtn, p2pSecretEl, p2pCodeEl, p2pQrImg, p2pQrCaption];
+    all.forEach((el) => {
+      if (!el) return;
+      el.style.display = "none";
+      el.disabled = true;
+    });
+    return;
+  }
+  // Manual code/answer UI hidden; only host button and passcode remain.
+  if (p2pHostBtn) p2pHostBtn.style.display = "inline-block";
+  if (p2pJoinBtn) p2pJoinBtn.style.display = "none";
+  if (p2pApplyBtn) p2pApplyBtn.style.display = "none";
+  if (p2pCopyBtn) p2pCopyBtn.style.display = "inline-block";
+  if (p2pShowQrBtn) p2pShowQrBtn.style.display = "inline-block";
+  if (p2pSendAnswerBtn) p2pSendAnswerBtn.style.display = "none";
+  if (p2pSecretEl) p2pSecretEl.style.display = "inline-block";
+  if (p2pCodeEl) p2pCodeEl.style.display = "inline-block";
+}
+
+function resolveSignallingUrl() {
+  const paramUrl = new URLSearchParams(window.location.search).get("signal");
+  if (paramUrl) return paramUrl;
+  const dataUrl = document.body?.dataset?.signallingUrl;
+  if (dataUrl) return dataUrl;
+  const host = window.location.hostname || "";
+  const isLoopback = host === "localhost" || host === "127.0.0.1";
+  const isPrivateIp =
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\\d|3[0-1])\./.test(host) ||
+    /^\d{1,3}(\.\d{1,3}){3}$/.test(host) ||
+    host.endsWith(".local");
+  if (isLoopback || isPrivateIp) {
+    return `http://${host}:8787`;
+  }
+  return "https://signal.rolling-fiefdoms.edno.io";
+}
+
+function disableP2P(reason = "P2P disabled") {
+  p2pUiState.signallingDisabled = true;
+  p2pUiState.signallingActive = false;
+  if (p2pUiState.signallingPoll) {
+    clearTimeout(p2pUiState.signallingPoll);
+    p2pUiState.signallingPoll = null;
+  }
+  p2pUiState.mode = "idle";
+  p2pUiState.awaitingAnswer = false;
+  logP2P("P2P disabled:", reason);
+  if (p2pCopyBtn) p2pCopyBtn.disabled = true;
+  updateP2PStatus(reason);
+}
+
+async function sendSignalBlob(role, compactCode, secret) {
+  if (!p2pUiState.signallingUrl || !compactCode) return { ok: false };
+  const safeSecret = secret || readP2PSecretOrDefault();
+  try {
+    const url = new URL(`/session/${p2pUiState.sessionId || "session"}`, p2pUiState.signallingUrl);
+    url.searchParams.set("role", role);
+    url.searchParams.set("secret", safeSecret);
+    logP2P("sending signal", { role, url: url.toString() });
+    const resp = await fetch(url.toString(), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sdp: compactCode, ice: [] }),
+    });
+    if (!resp.ok) logP2P("signal send failed", resp.status);
+    return { ok: resp.ok, status: resp.status };
+  } catch (err) {
+    logP2P("signal send error", err?.message || err);
+    return { ok: false, error: err?.message };
+  }
+}
+
+async function pollSignal(role, secret, { timeoutMs = 20000, intervalMs = 1200 } = {}) {
+  if (!p2pUiState.signallingUrl) return null;
+  const safeSecret = secret || readP2PSecretOrDefault();
+  const start = Date.now();
+  let timer = null;
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const url = new URL(`/session/${p2pUiState.sessionId || "session"}`, p2pUiState.signallingUrl);
+      url.searchParams.set("role", role);
+      url.searchParams.set("secret", safeSecret);
+      logP2P("polling signal", { role, url: url.toString() });
+      const resp = await fetch(url.toString());
+      if (resp.status === 200) {
+        const data = await resp.json();
+        if (data?.sdp) return data.sdp;
+      } else if (resp.status === 403) {
+        logP2P("poll forbidden");
+        return null;
+      }
+    } catch (err) {
+      logP2P("poll error", err?.message || err);
+    }
+    await new Promise((r) => {
+      timer = setTimeout(r, intervalMs);
+      p2pUiState.signallingPoll = timer;
+    });
+  }
+  logP2P("poll timeout");
+  return null;
+}
+
+async function joinViaSignalling(sessionId, secret) {
+  if (!sessionId || !p2pUiState.signallingUrl) {
+    disableP2P("P2P disabled: missing session or signalling.");
+    return;
+  }
+  p2pUiState.sessionId = sessionId;
+  const safeSecret = secret || readP2PSecretOrDefault();
+  updateP2PStatus("Fetching host invite via signalling…");
+  const hostOfferCompact = await pollSignal("join", safeSecret, { timeoutMs: 60000 });
+  if (!hostOfferCompact) {
+    disableP2P("Signalling failed to deliver host invite.");
+    return;
+  }
+  const hostOffer = await decompressFromBase64Url(hostOfferCompact).catch(() => null);
+  if (!hostOffer) {
+    disableP2P("Invalid host invite from signalling.");
+    return;
+  }
+  const result = await p2p.acceptInvite(hostOffer, safeSecret);
+  if (result?.error) {
+    disableP2P(result.error || "Failed to accept invite.");
+    return;
+  }
+  const answerCode = result?.code || "";
+  const compactAnswer = await compressToBase64Url(answerCode);
+  const sent = await sendSignalBlob("join", compactAnswer, safeSecret);
+  if (!sent.ok) {
+    disableP2P("Signalling unavailable when sending answer.");
+    return;
+  }
+  p2pUiState.signallingActive = true;
+  setP2PMode("connecting");
+  updateP2PStatus("Answer sent via signalling. Waiting for host to connect.");
 }
 
 function rollDice() {
@@ -1758,4 +2290,53 @@ function autoForfeitUnfillable(finalize = false) {
     finalize,
   });
   msgs.forEach((m) => log(m));
+}
+function copyInviteLink() {
+  const link = (p2pCodeEl?.value || "").trim();
+  if (!link) {
+    updateP2PStatus("Nothing to copy yet.");
+    return;
+  }
+  try {
+    const doCopy = async () => {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(link);
+        return true;
+      }
+      if (p2pCodeEl && typeof p2pCodeEl.select === "function") {
+        p2pCodeEl.focus();
+        p2pCodeEl.select();
+        return document.execCommand && document.execCommand("copy");
+      }
+      return false;
+    };
+    Promise.resolve(doCopy())
+      .then((ok) => {
+        if (ok) {
+          updateP2PStatus("Invite copied. Share it in chat.");
+        } else {
+          updateP2PStatus("Could not copy automatically. Copy the invite text manually.");
+        }
+      })
+      .catch(() => {
+        updateP2PStatus("Could not copy automatically. Copy the invite text manually.");
+      });
+  } catch (err) {
+    updateP2PStatus("Could not copy automatically. Copy the invite text manually.");
+  }
+}
+
+function toggleQrModal(show) {
+  if (!p2pQrModal) return;
+  if (show) {
+    if (!p2pUiState.lastInviteLink || !p2pUiState.lastQrDataUrl) {
+      updateP2PStatus("No invite available to show as QR.");
+      return;
+    }
+    p2pQrImg.src = p2pUiState.lastQrDataUrl;
+    p2pQrCaption.textContent = "Scan to open this invite on another device.";
+    p2pQrModal.classList.remove("hidden");
+  } else {
+    p2pQrModal.classList.add("hidden");
+  }
 }
