@@ -58,7 +58,47 @@ const p2pUiState = {
   signallingDisabled: false,
   lastInviteLink: "",
   lastQrDataUrl: "",
+  passcode: "",
+  seatId: 1,
+  seatsTotal: 1,
+  activeSeat: 1,
+  splitLocked: false,
+  buildDone: {},
+  lockedPairSwap: false,
 };
+
+function isMultiplayerActive() {
+  return p2pUiState.signallingActive && p2pUiState.seatsTotal > 1;
+}
+
+function setActiveSeat(nextSeat = 1) {
+  const seat = Math.max(1, Number(nextSeat) || 1);
+  p2pUiState.activeSeat = seat;
+  state.activeTurn = p2pUiState.seatId === seat;
+  updateRollButton();
+  updateActionBanner();
+  updateMultiplayerButtons();
+}
+
+function resetBuildDoneMap() {
+  const entries = {};
+  const total = Math.max(1, Number(p2pUiState.seatsTotal) || 1);
+  for (let i = 1; i <= total; i += 1) entries[i] = false;
+  p2pUiState.buildDone = entries;
+}
+
+function nextSeatId() {
+  const total = Math.max(1, Number(p2pUiState.seatsTotal) || 1);
+  return ((p2pUiState.activeSeat || 1) % total) + 1;
+}
+
+function allBuildsMarkedDone() {
+  const total = Math.max(1, Number(p2pUiState.seatsTotal) || 1);
+  for (let i = 1; i <= total; i += 1) {
+    if (!p2pUiState.buildDone?.[i]) return false;
+  }
+  return true;
+}
 
 function logP2P(...args) {
   if (typeof console !== "undefined" && typeof console.info === "function") {
@@ -68,7 +108,7 @@ function logP2P(...args) {
 
 function resetSecretField() {
   const fresh = randomPasscode();
-  if (p2pSecretEl) p2pSecretEl.value = fresh;
+  p2pUiState.passcode = fresh;
   return fresh;
 }
 
@@ -144,6 +184,9 @@ function prepareNextRoll() {
   state.locationSelection = [];
   state.locationPairs = [];
   state.buildDice = [];
+  p2pUiState.splitLocked = false;
+  p2pUiState.lockedPairSwap = false;
+  resetBuildDoneMap();
   state.lastLocationDice = [];
   state.lastBuildDice = [];
   state.diceLocked = false;
@@ -154,6 +197,7 @@ function prepareNextRoll() {
   if (diceView) diceView.innerHTML = "";
   updateRollButton();
   updateActionBanner();
+  updateMultiplayerButtons();
   refreshDiceVisibility();
   highlightLocations();
 }
@@ -168,11 +212,12 @@ function shouldRerollDoubleWindrose(dice) {
 function updateRollButton() {
   const rollBtn = document.getElementById("rollBtn");
   if (!rollBtn) return;
-  const hidden = state.activationMode || state.activationComplete;
+  const isActiveSeat = p2pUiState.activeSeat === p2pUiState.seatId;
+  const hidden = state.activationMode || state.activationComplete || (!isActiveSeat && p2pUiState.seatsTotal > 1);
   const awaitingRoll = !debugMode && state.rollAvailable;
   const showButton = !hidden && (awaitingRoll || debugMode);
   rollBtn.style.display = showButton ? "inline-block" : "none";
-  const enabled = debugMode || state.rollAvailable;
+  const enabled = (debugMode || state.rollAvailable) && isActiveSeat;
   rollBtn.disabled = !enabled;
   rollBtn.classList.toggle("dice-locked", !enabled && !debugMode);
   rollBtn.title = enabled ? "Roll dice" : "Roll used; complete the turn to roll again.";
@@ -222,6 +267,9 @@ const sectionLabels = {
 };
 const finishActivationBtn = document.getElementById("finishActivation");
 const newGameBtn = document.getElementById("newGameBtn");
+const finishSplitBtn = document.getElementById("finishSplitBtn");
+const swapPairBtn = document.getElementById("swapPairBtn");
+const doneBuildingBtn = document.getElementById("doneBuildingBtn");
 const fullscreenBtn = document.getElementById("fullscreenToggle");
 const themeToggleBtn = document.getElementById("themeToggle");
 const themeToggleIcon = document.getElementById("themeToggleIcon");
@@ -234,7 +282,6 @@ const regionOverlayEl = document.getElementById("regionOverlay");
 const p2pPanel = document.getElementById("p2pPanel");
 const p2pStatusEl = document.getElementById("p2pStatus");
 const p2pCodeEl = document.getElementById("p2pCode");
-const p2pSecretEl = document.getElementById("p2pSecret");
 const p2pCopyBtn = document.getElementById("p2pCopyBtn");
 const p2pApplyBtn = document.getElementById("p2pApplyBtn");
 const p2pHostBtn = document.getElementById("p2pHostBtn");
@@ -373,6 +420,9 @@ function resetState() {
   state.rollAvailable = true;
   state.pendingTurnIndex = null;
   state.pendingActiveTurn = null;
+  p2pUiState.splitLocked = false;
+  p2pUiState.lockedPairSwap = false;
+  resetBuildDoneMap();
   resetTurnState(state);
   if (logEl) logEl.innerHTML = "";
   if (finishActivationBtn) finishActivationBtn.style.display = "none";
@@ -449,6 +499,18 @@ function setupControls() {
     finishActivationBtn.onclick = () => finishActivation();
     finishActivationBtn.style.display = "none";
   }
+  if (finishSplitBtn) {
+    finishSplitBtn.onclick = () => finishDiceSplit();
+    finishSplitBtn.style.display = "none";
+  }
+  if (doneBuildingBtn) {
+    doneBuildingBtn.onclick = () => markBuildDone();
+    doneBuildingBtn.style.display = "none";
+  }
+  if (swapPairBtn) {
+    swapPairBtn.onclick = () => toggleLockedPairChoice();
+    swapPairBtn.style.display = "none";
+  }
   setupP2PControls();
 }
 
@@ -460,15 +522,36 @@ function captureP2PSnapshot() {
     activeTurn: Boolean(state.activeTurn),
     rollAvailable: Boolean(state.rollAvailable),
     score: snapshotScore?.total ?? 0,
+    seatsTotal: p2pUiState.seatsTotal,
+    activeSeat: p2pUiState.activeSeat,
+    splitLocked: p2pUiState.splitLocked,
   };
 }
 
 function handleP2PMessage(message) {
   if (!message || typeof message !== "object") return;
+  if (message.type === "session:seat" && message.payload) {
+    const { seatId, seatsTotal, activeSeat } = message.payload;
+    if (seatId) p2pUiState.seatId = seatId;
+    if (seatsTotal) p2pUiState.seatsTotal = seatsTotal;
+    if (typeof activeSeat === "number") setActiveSeat(activeSeat);
+    updateMultiplayerButtons();
+    updateP2PStatus("Seat assignment received.");
+    return;
+  }
   if (message.type === "hello") {
     p2pUiState.remoteSnapshot = message.payload?.snapshot || null;
     updateP2PStatus("Peer handshake received. Manual state sync only.");
     logP2P("Peer handshake received.");
+  } else if (message.type === "state:request") {
+    const status = typeof p2p?.getStatus === "function" ? p2p.getStatus() : {};
+    if (status.role === "host") {
+      sendStateSnapshot();
+    }
+  } else if (message.type === "state:full" && message.payload?.snapshot) {
+    p2pUiState.remoteSnapshot = message.payload.snapshot;
+    applyFullSnapshot(message.payload.snapshot);
+    updateP2PStatus("Snapshot received from host.");
   }
 }
 
@@ -476,10 +559,28 @@ function handleP2PStatus(status) {
   const channelJustOpened = !p2pUiState.channelOpen && status?.channelOpen;
   p2pUiState.channelOpen = Boolean(status?.channelOpen);
   p2pUiState.lastError = status?.lastError || null;
+  if (p2pUiState.channelOpen) p2pUiState.signallingActive = true;
   if (status?.sessionId) p2pUiState.sessionId = status.sessionId;
   if (p2pUiState.channelOpen && p2pUiState.awaitingAnswer) p2pUiState.awaitingAnswer = false;
   if (channelJustOpened) {
     logP2P("Connected to peer.");
+    if (status?.role === "join") {
+      p2pUiState.seatId = 2;
+      p2pUiState.seatsTotal = Math.max(2, p2pUiState.seatsTotal || 0);
+      setActiveSeat(p2pUiState.activeSeat || 1);
+      sendAppMessage("state:request", {});
+    } else if (status?.role === "host") {
+      p2pUiState.seatId = 1;
+      p2pUiState.seatsTotal = Math.max(2, p2pUiState.seatsTotal || 0);
+      setActiveSeat(p2pUiState.activeSeat || 1);
+      sendAppMessage("session:seat", {
+        seatId: 2,
+        seatsTotal: p2pUiState.seatsTotal,
+        activeSeat: p2pUiState.activeSeat,
+      });
+      sendStateSnapshot();
+    }
+    updateMultiplayerButtons();
   }
   if (status?.lastError) {
     logP2P(status.lastError);
@@ -491,7 +592,10 @@ function updateP2PStatus(hintOverride = null) {
   if (!p2pPanel) return;
   if (p2pUiState.signallingDisabled) {
     if (p2pStatusEl) p2pStatusEl.textContent = "P2P disabled: signalling unavailable.";
-    if (p2pHintEl) p2pHintEl.textContent = "Signalling must be reachable to use P2P.";
+    if (p2pHintEl) {
+      p2pHintEl.textContent = "";
+      p2pHintEl.style.display = "none";
+    }
     if (p2pPanel) p2pPanel.classList.add("disabled");
     updateP2PControlsVisibility({});
     return;
@@ -504,34 +608,27 @@ function updateP2PStatus(hintOverride = null) {
         ? "Connected via manual P2P."
         : p2pUiState.awaitingAnswer
           ? "Hosting: waiting for the peer's answer."
-      : p2pUiState.mode === "answerReady"
-        ? "Answer generated. Send it back to the host."
-        : p2pUiState.mode === "joining"
-          ? "Joining: paste an invite code, then apply to craft your answer."
-          : p2pUiState.mode === "hosting"
-            ? "Preparing an invite…"
-            : "Idle. Host to create an invite or join with one.";
-
-  const defaultHint = !status.supported
-    ? "Use a browser with WebRTC data channels to try manual invites."
-    : status.channelOpen
-      ? "Manual copy/paste only; keep playing locally. Game actions are not auto-synced yet."
-      : p2pUiState.awaitingAnswer
-        ? "Share your invite, then paste their answer code here and apply it."
-        : p2pUiState.mode === "answerReady"
-          ? "Send this answer to the host; the link opens once they apply it."
-          : "Host to generate an invite, or paste an invite to produce an answer.";
+          : p2pUiState.mode === "answerReady"
+            ? "Answer generated. Send it back to the host."
+            : p2pUiState.mode === "joining"
+              ? "Joining: paste an invite code, then apply to craft your answer."
+              : p2pUiState.mode === "hosting"
+                ? "Preparing an invite…"
+                : "Idle. Host to create an invite or join with one.";
 
   const errorText = status.lastError ? ` (${status.lastError})` : "";
   const remoteText =
     status.channelOpen && p2pUiState.remoteSnapshot ? describeRemoteSnapshot(p2pUiState.remoteSnapshot) : "";
   if (p2pStatusEl) p2pStatusEl.textContent = `${main}${remoteText}${errorText}`;
-  if (p2pHintEl) p2pHintEl.textContent = hintOverride || defaultHint;
+  if (p2pHintEl) {
+    p2pHintEl.textContent = "";
+    p2pHintEl.style.display = "none";
+  }
   updateP2PControlsVisibility(status);
 }
 
 function readP2PSecret() {
-  return (p2pSecretEl?.value || "").trim();
+  return (p2pUiState.passcode || "").trim();
 }
 
 function readP2PSecretOrDefault() {
@@ -581,7 +678,7 @@ function maybeLoadInviteFromUrl() {
     const parsed = parseSessionLink(window.location.href);
     if (parsed && p2pCodeEl) {
       if (parsed.sessionId) p2pUiState.sessionId = parsed.sessionId;
-      if (parsed.secret && p2pSecretEl) p2pSecretEl.value = parsed.secret;
+      if (parsed.secret) p2pUiState.passcode = parsed.secret;
       p2pCodeEl.value = buildInviteUrl({
         sessionId: parsed.sessionId,
         secret: parsed.secret,
@@ -609,6 +706,91 @@ function describeRemoteSnapshot(snapshot) {
   return `${name}${turn}${active}`;
 }
 
+function buildFullSnapshot() {
+  return {
+    version: "1",
+    sessionId: p2pUiState.sessionId,
+    turnIndex: state.turnIndex,
+    activeTurn: state.activeTurn,
+    rollAvailable: state.rollAvailable,
+    dice: state.dice,
+    locationSelection: state.locationSelection,
+    locationPairs: state.locationPairs,
+    lockedLocationDice: state.lockedLocationDice,
+    lockedBuildDice: state.lockedBuildDice,
+    lockedLocationPairs: state.lockedLocationPairs,
+    diceLocked: state.diceLocked,
+    lastLocationDice: state.lastLocationDice,
+    lastBuildDice: state.lastBuildDice,
+    forcedLocationDice: state.forcedLocationDice,
+    pendingNextRoll: state.pendingNextRoll,
+    bannerOverride: state.bannerOverride,
+    seatsTotal: p2pUiState.seatsTotal,
+    activeSeat: p2pUiState.activeSeat,
+    splitLocked: p2pUiState.splitLocked,
+    buildDone: p2pUiState.buildDone,
+  };
+}
+
+function applyFullSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== "object") return;
+  state.turnIndex = typeof snapshot.turnIndex === "number" ? snapshot.turnIndex : state.turnIndex;
+  state.activeTurn = typeof snapshot.activeTurn === "boolean" ? snapshot.activeTurn : state.activeTurn;
+  state.rollAvailable = typeof snapshot.rollAvailable === "boolean" ? snapshot.rollAvailable : state.rollAvailable;
+  state.dice = Array.isArray(snapshot.dice) ? snapshot.dice : state.dice;
+  state.locationSelection = Array.isArray(snapshot.locationSelection) ? snapshot.locationSelection : state.locationSelection;
+  state.locationPairs = Array.isArray(snapshot.locationPairs) ? snapshot.locationPairs : state.locationPairs;
+  state.lockedLocationDice = snapshot.lockedLocationDice || null;
+  state.lockedBuildDice = snapshot.lockedBuildDice || null;
+  state.lockedLocationPairs = snapshot.lockedLocationPairs || null;
+  state.diceLocked = Boolean(snapshot.diceLocked);
+  state.lastLocationDice = snapshot.lastLocationDice || state.lastLocationDice;
+  state.lastBuildDice = snapshot.lastBuildDice || state.lastBuildDice;
+  state.forcedLocationDice = snapshot.forcedLocationDice || [];
+  state.pendingNextRoll = Boolean(snapshot.pendingNextRoll);
+  state.bannerOverride = snapshot.bannerOverride || null;
+  if (snapshot.seatsTotal) p2pUiState.seatsTotal = snapshot.seatsTotal;
+  if (snapshot.buildDone) p2pUiState.buildDone = snapshot.buildDone;
+  p2pUiState.splitLocked = Boolean(snapshot.splitLocked);
+  if (typeof snapshot.activeSeat === "number") {
+    setActiveSeat(snapshot.activeSeat);
+  }
+  if (p2pUiState.splitLocked) {
+    state.diceLocked = true;
+    if (snapshot.lockedLocationDice) state.lockedLocationDice = snapshot.lockedLocationDice;
+    if (snapshot.lockedBuildDice) state.lockedBuildDice = snapshot.lockedBuildDice;
+    if (snapshot.lockedLocationPairs) state.lockedLocationPairs = snapshot.lockedLocationPairs;
+  }
+
+  updateDiceAssignments();
+  refreshDiceVisibility();
+  highlightLocations();
+  updateTurnStatusChip();
+  updateMultiplayerButtons();
+  p2pUiState.remoteSnapshot = snapshot;
+}
+
+function sendAppMessage(type, payload = {}) {
+  if (!p2p?.sendMessage) return { ok: false };
+  try {
+    const res = p2p.sendMessage(type, payload);
+    return res;
+  } catch (err) {
+    logP2P("send message failed", err?.message || err);
+    return { ok: false, error: err?.message };
+  }
+}
+
+function sendStateSnapshot() {
+  const snapshot = buildFullSnapshot();
+  sendAppMessage("state:full", { snapshot });
+}
+
+function syncStateToPeer() {
+  if (!isMultiplayerActive()) return;
+  sendStateSnapshot();
+}
+
 async function startP2PHosting() {
   if (!p2p?.supported) {
     updateP2PStatus("Manual P2P is not supported here.");
@@ -618,6 +800,11 @@ async function startP2PHosting() {
     disableP2P("P2P disabled: signalling unavailable.");
     return;
   }
+  p2pUiState.seatId = 1;
+  p2pUiState.seatsTotal = Math.max(1, p2pUiState.seatsTotal || 1);
+  setActiveSeat(p2pUiState.activeSeat || 1);
+  resetBuildDoneMap();
+  updateMultiplayerButtons();
   setP2PMode("hosting", { awaitingAnswer: true });
   updateP2PStatus("Building invite…");
   try {
@@ -674,13 +861,20 @@ function disconnectP2P(reason = "") {
     clearTimeout(p2pUiState.signallingPoll);
     p2pUiState.signallingPoll = null;
   }
+  p2pUiState.signallingActive = false;
+  p2pUiState.channelOpen = false;
   p2pUiState.remoteSnapshot = null;
   setP2PMode("idle");
   p2pUiState.sessionId = freshSessionId();
   p2pUiState.signallingDisabled = false;
+  p2pUiState.seatsTotal = 1;
+  p2pUiState.seatId = 1;
+  setActiveSeat(1);
+  p2pUiState.splitLocked = false;
+  resetBuildDoneMap();
+  resetSecretField();
   if (p2pCodeEl) p2pCodeEl.value = "";
   renderP2PQr("");
-  resetSecretField();
   if (p2pCopyBtn) p2pCopyBtn.disabled = true;
   if (p2pShowQrBtn) p2pShowQrBtn.disabled = true;
   updateP2PStatus(reason || "P2P link reset.");
@@ -688,13 +882,14 @@ function disconnectP2P(reason = "") {
 
 function setupP2PControls() {
   if (!p2pPanel) return;
+  if (p2pHintEl) p2pHintEl.style.display = "none";
   p2pUiState.signallingUrl = resolveSignallingUrl();
   if (!p2pUiState.signallingUrl) {
     disableP2P("P2P disabled: signalling URL unavailable.");
     return;
   }
   const supported = Boolean(p2p?.supported);
-  const controls = [p2pHostBtn, p2pJoinBtn, p2pApplyBtn, p2pCopyBtn, p2pDisconnectBtn, p2pCodeEl, p2pSecretEl];
+  const controls = [p2pHostBtn, p2pJoinBtn, p2pApplyBtn, p2pCopyBtn, p2pDisconnectBtn, p2pCodeEl];
   if (!supported) {
     controls.forEach((el) => {
       if (!el) return;
@@ -723,16 +918,15 @@ function setupP2PControls() {
       if (e.target === p2pQrModal) toggleQrModal(false);
     });
   }
-  if (p2pSecretEl && !p2pSecretEl.value) {
-    resetSecretField();
-  }
+  resetSecretField();
   maybeLoadInviteFromUrl();
   updateP2PStatus();
+  updateMultiplayerButtons();
 }
 
 function updateP2PControlsVisibility(status = {}) {
   if (p2pUiState.signallingDisabled) {
-    const all = [p2pHostBtn, p2pJoinBtn, p2pApplyBtn, p2pCopyBtn, p2pDisconnectBtn, p2pSendAnswerBtn, p2pSecretEl, p2pCodeEl, p2pQrImg, p2pQrCaption];
+    const all = [p2pHostBtn, p2pJoinBtn, p2pApplyBtn, p2pCopyBtn, p2pDisconnectBtn, p2pSendAnswerBtn, p2pCodeEl, p2pQrImg, p2pQrCaption];
     all.forEach((el) => {
       if (!el) return;
       el.style.display = "none";
@@ -740,6 +934,15 @@ function updateP2PControlsVisibility(status = {}) {
     });
     return;
   }
+  if (status && status.supported === false) {
+    const all = [p2pHostBtn, p2pJoinBtn, p2pApplyBtn, p2pCopyBtn, p2pDisconnectBtn, p2pSendAnswerBtn, p2pCodeEl, p2pShowQrBtn];
+    all.forEach((el) => {
+      if (!el) return;
+      el.disabled = true;
+    });
+    return;
+  }
+  const gameStarted = state.turnIndex > 0;
   // Manual code/answer UI hidden; only host button and passcode remain.
   if (p2pHostBtn) p2pHostBtn.style.display = "inline-block";
   if (p2pJoinBtn) p2pJoinBtn.style.display = "none";
@@ -747,8 +950,9 @@ function updateP2PControlsVisibility(status = {}) {
   if (p2pCopyBtn) p2pCopyBtn.style.display = "inline-block";
   if (p2pShowQrBtn) p2pShowQrBtn.style.display = "inline-block";
   if (p2pSendAnswerBtn) p2pSendAnswerBtn.style.display = "none";
-  if (p2pSecretEl) p2pSecretEl.style.display = "inline-block";
   if (p2pCodeEl) p2pCodeEl.style.display = "inline-block";
+  if (p2pHostBtn) p2pHostBtn.disabled = gameStarted;
+  if (p2pDisconnectBtn) p2pDisconnectBtn.disabled = gameStarted;
 }
 
 function resolveSignallingUrl() {
@@ -842,6 +1046,11 @@ async function joinViaSignalling(sessionId, secret) {
     return;
   }
   p2pUiState.sessionId = sessionId;
+  p2pUiState.seatId = 2;
+  p2pUiState.seatsTotal = Math.max(2, p2pUiState.seatsTotal || 0);
+  setActiveSeat(p2pUiState.activeSeat || 1);
+  resetBuildDoneMap();
+  updateMultiplayerButtons();
   const safeSecret = secret || readP2PSecretOrDefault();
   updateP2PStatus("Fetching host invite via signalling…");
   const hostOfferCompact = await pollSignal("join", safeSecret, { timeoutMs: 60000 });
@@ -877,6 +1086,11 @@ function rollDice() {
     log("Roll already used this turn. Finish the turn to roll again.");
     return;
   }
+  if (p2pUiState.seatsTotal > 1 && p2pUiState.activeSeat !== p2pUiState.seatId) {
+    logP2P("Roll ignored: not your turn.");
+    return;
+  }
+  resetBuildDoneMap();
   const n1 = rollNumberedDie("N1");
   const n2 = rollNumberedDie("N2");
   const x1 = rollXDie("X1");
@@ -884,7 +1098,11 @@ function rollDice() {
   const dice = [n1, n2, x1, x2];
   const needsDoubleReroll = shouldRerollDoubleWindrose(dice);
   const turnIndexOverride = typeof state.pendingTurnIndex === "number" ? state.pendingTurnIndex : null;
-  const activeTurnOverride = typeof state.pendingActiveTurn === "boolean" ? state.pendingActiveTurn : null;
+  const baseActiveTurn = typeof state.pendingActiveTurn === "boolean" ? state.pendingActiveTurn : null;
+  const activeTurnOverride = isMultiplayerActive() ? true : baseActiveTurn;
+  p2pUiState.splitLocked = false;
+  p2pUiState.buildDone = { ...p2pUiState.buildDone };
+  updateMultiplayerButtons();
 
   state.bannerOverride = null;
   if (!needsDoubleReroll) {
@@ -936,12 +1154,17 @@ function rollDice() {
     }
     lockDiceSnapshot(state, { uniqueLocationPairs });
   } else if (turnHintEl) {
-    turnHintEl.textContent = state.activeTurn ? "" : "Non-active turn. Dice automatically assigned.";
+    turnHintEl.textContent = state.activeTurn
+      ? ""
+      : isMultiplayerActive()
+        ? "Waiting for the active player to finish the split."
+        : "Non-active turn. Dice automatically assigned.";
   }
   updateTurnStatusChip();
   updateDiceAssignments();
   renderDice();
   updateActionBanner();
+  syncStateToPeer();
 }
 
 function describeDice(dice) {
@@ -997,7 +1220,9 @@ function renderDice() {
     } else if (state.forceForfeit) {
       turnHintEl.textContent = "No valid location pairs; forfeit a plot.";
     } else if (!state.activeTurn) {
-      turnHintEl.textContent = "Non-active turn. Dice automatically assigned.";
+      turnHintEl.textContent = isMultiplayerActive()
+        ? "Waiting for the active player to finish the split."
+        : "Non-active turn. Dice automatically assigned.";
     } else {
       turnHintEl.textContent = "";
     }
@@ -1074,10 +1299,11 @@ function enforceBuildingSelection(options = []) {
 function renderBuildingOverlay(options = [], disabled = false) {
   const overlay = document.getElementById("buildingsOverlay");
   if (!overlay) return;
+  const diceLockedForBuild = state.diceLocked && !p2pUiState.splitLocked;
   const forceDisabled =
     disabled ||
     state.locationSelection.length !== 2 ||
-    state.diceLocked ||
+    diceLockedForBuild ||
     state.activationMode ||
     state.forceForfeit ||
     state.pestilence;
@@ -1350,7 +1576,8 @@ function highlightLocations() {
     });
     return;
   }
-  if (state.pestilence || state.diceLocked) {
+  const lockedAgainstPlacement = state.pestilence || (state.diceLocked && !p2pUiState.splitLocked);
+  if (lockedAgainstPlacement) {
     if (!state.pestilence) return;
     const targetCells = state.pestilenceInfo?.targetCells || [];
     const highlightAny = targetCells.length === 0;
@@ -1578,6 +1805,7 @@ function log(msg) {
 }
 
 function autoAdvance() {
+  if (isMultiplayerActive()) return;
   const { action, message } = autoAdvanceState(state, state.board);
   if (action === "activate") {
     if (message) log(message);
@@ -1800,11 +2028,26 @@ function actionMessage() {
   if (state.pestilence || state.forceForfeit) {
     return "Forfeit an empty plot.";
   }
+  const isMultiplayer = p2pUiState.seatsTotal > 1 && p2pUiState.signallingActive;
   if (state.pendingPopulation?.remaining > 0) {
     return `Place ${state.pendingPopulation.remaining} population on an adjacent intersection.`;
   }
   const awaitingRoll = !debugMode && state.rollAvailable;
-  if (awaitingRoll) return "Press Roll Dice to start your turn.";
+  if (awaitingRoll) {
+    if (isMultiplayer && p2pUiState.activeSeat !== p2pUiState.seatId) {
+      return "Waiting for the active player to roll dice.";
+    }
+    return "Press Roll Dice to start your turn.";
+  }
+  if (isMultiplayer && !p2pUiState.splitLocked && p2pUiState.activeSeat !== p2pUiState.seatId) {
+    return "Waiting for the active player to finish the split.";
+  }
+  if (isMultiplayer && p2pUiState.splitLocked) {
+    if (p2pUiState.buildDone?.[p2pUiState.seatId]) {
+      return "Waiting for other players to finish building.";
+    }
+    return "Build with this split, then click Done building.";
+  }
   if (state.locationSelection.length < 2 && !(state.diceLocked && state.lockedLocationDice?.length === 2)) {
     return "Select two location dice in the Turn panel.";
   }
@@ -1832,13 +2075,45 @@ function updateActionBanner() {
   }
 }
 
+function updateMultiplayerButtons() {
+  if (!finishSplitBtn || !doneBuildingBtn) return;
+  const multiplayer = isMultiplayerActive();
+  const hasDice = Array.isArray(state.dice) && state.dice.length >= 4;
+  const canFinishSplit =
+    multiplayer &&
+    p2pUiState.activeSeat === p2pUiState.seatId &&
+    hasDice &&
+    !p2pUiState.splitLocked &&
+    state.locationSelection.length === 2 &&
+    !state.pestilence &&
+    !state.forceForfeit &&
+    !state.activationMode;
+  finishSplitBtn.style.display = canFinishSplit ? "inline-block" : "none";
+  finishSplitBtn.disabled = !canFinishSplit;
+
+  if (swapPairBtn) {
+    const choice = lockedPairChoice();
+    const showSwap = multiplayer && p2pUiState.splitLocked && choice.swapAllowed;
+    swapPairBtn.style.display = showSwap ? "inline-block" : "none";
+    swapPairBtn.disabled = !showSwap;
+  }
+
+  const showDone = multiplayer && p2pUiState.splitLocked && hasDice;
+  doneBuildingBtn.style.display = showDone ? "inline-block" : "none";
+  const alreadyDone = Boolean(p2pUiState.buildDone?.[p2pUiState.seatId]);
+  doneBuildingBtn.disabled = alreadyDone;
+  doneBuildingBtn.textContent = alreadyDone ? "Done" : "Done building";
+}
+
 function updateTurnStatusChip() {
   if (!turnStatusChip) return;
   const hasDice = Array.isArray(state.dice) && state.dice.length >= 4;
   const awaitingRoll = !debugMode && state.rollAvailable;
   const show = hasDice && !state.activationComplete && !awaitingRoll;
   const active = Boolean(state.activeTurn);
-  const label = active ? "Active turn" : "Non-active turn";
+  const multiplayer = isMultiplayerActive();
+  const isLocalActive = p2pUiState.seatId === p2pUiState.activeSeat;
+  const label = multiplayer ? (isLocalActive ? "Your turn" : "Waiting turn") : active ? "Active turn" : "Non-active turn";
   if (!show) {
     turnStatusChip.classList.add("hidden");
     turnStatusChip.setAttribute("aria-hidden", "true");
@@ -1885,6 +2160,7 @@ function renderRegionOverlay() {
 }
 
 function maybeRollAfterLock() {
+  if (isMultiplayerActive()) return "wait";
   const action = maybeRollAfterLockState(state);
   if (action === "roll") {
     prepareNextRoll();
@@ -2123,6 +2399,10 @@ function renderDicePreview(container, dice, role, emptyText) {
 
 function onDieClick(idx) {
   if (!state.activeTurn) return;
+  if (p2pUiState.seatsTotal > 1 && p2pUiState.activeSeat !== p2pUiState.seatId) {
+    logP2P("Dice click ignored: not active seat.");
+    return;
+  }
   const { message } = selectLocationDie(state, idx, {
     uniqueLocationPairs,
     filterAvailablePairs,
@@ -2133,6 +2413,27 @@ function onDieClick(idx) {
 }
 
 function updateDiceAssignments() {
+  if (!state.dice || !state.dice.length) {
+    state.forceForfeit = false;
+    state.invalidSelection = false;
+    renderSelectionDice([], []);
+    fillBuildings([]);
+    highlightLocations();
+    updateActionBanner();
+    renderDice();
+    updateMultiplayerButtons();
+    return;
+  }
+  if (isMultiplayerActive() && p2pUiState.splitLocked) {
+    const { locDice: lockedLoc, buildDice: lockedBuild } = lockedPairChoice();
+    renderSelectionDice(lockedLoc, lockedBuild);
+    fillBuildings(lockedBuild);
+    highlightLocations();
+    updateActionBanner();
+    renderDice();
+    updateMultiplayerButtons();
+    return;
+  }
   const locationDice = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
   const buildDice = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
   if (locationDice.length === 2) state.lastLocationDice = locationDice;
@@ -2151,7 +2452,9 @@ function updateDiceAssignments() {
     } else if (state.forceForfeit) {
       turnHintEl.textContent = "No valid location pairs; forfeit a plot.";
     } else if (!state.activeTurn) {
-      turnHintEl.textContent = "Non-active turn. Dice automatically assigned.";
+      turnHintEl.textContent = isMultiplayerActive()
+        ? "Waiting for the active player to finish the split."
+        : "Non-active turn. Dice automatically assigned.";
     } else {
       turnHintEl.textContent = "";
     }
@@ -2175,6 +2478,93 @@ function updateDiceAssignments() {
   highlightLocations();
   updateActionBanner();
   renderDice();
+  updateMultiplayerButtons();
+  if (isMultiplayerActive() && p2pUiState.activeSeat === p2pUiState.seatId && !p2pUiState.splitLocked) {
+    syncStateToPeer();
+  }
+}
+
+function lockedPairChoice() {
+  const baseLoc = state.lockedLocationDice || [];
+  const baseBuild = state.lockedBuildDice || state.buildDice || [];
+  const locHasX = baseLoc.some((d) => d?.face === "X");
+  const buildHasX = baseBuild.some((d) => d?.face === "X");
+  const locHasWindrose = baseLoc.some((d) => d?.face === "windrose");
+  const buildHasWindrose = baseBuild.some((d) => d?.face === "windrose");
+
+  let forcedSwap = false;
+  if (locHasX && !buildHasX) forcedSwap = true;
+  if (!locHasWindrose && buildHasWindrose) forcedSwap = true;
+
+  const swapAllowed = !locHasX && !buildHasX && !forcedSwap && !(locHasWindrose && !buildHasWindrose);
+  const doSwap = forcedSwap || (swapAllowed && p2pUiState.lockedPairSwap);
+  return {
+    locDice: doSwap ? baseBuild : baseLoc,
+    buildDice: doSwap ? baseLoc : baseBuild,
+    swapped: doSwap,
+    swapAllowed,
+  };
+}
+
+function toggleLockedPairChoice() {
+  const choice = lockedPairChoice();
+  if (!choice.swapAllowed) return;
+  p2pUiState.lockedPairSwap = !p2pUiState.lockedPairSwap;
+  updateDiceAssignments();
+  updateMultiplayerButtons();
+}
+
+function finishDiceSplit() {
+  if (!isMultiplayerActive()) return;
+  if (p2pUiState.activeSeat !== p2pUiState.seatId) return;
+  if (state.locationSelection.length !== 2) {
+    log("Select two location dice before finishing the split.");
+    return;
+  }
+  const locationDice = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
+  const buildDice = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
+  state.lockedLocationDice = locationDice;
+  state.lockedBuildDice = buildDice;
+  state.lockedLocationPairs = (state.locationPairs || []).map((p) => p.slice());
+  state.diceLocked = true;
+  p2pUiState.splitLocked = true;
+  p2pUiState.lockedPairSwap = false;
+  resetBuildDoneMap();
+  renderSelectionDice(locationDice, buildDice);
+  updateMultiplayerButtons();
+  highlightLocations();
+  updateActionBanner();
+  syncStateToPeer();
+}
+
+function markBuildDone() {
+  if (!isMultiplayerActive()) return;
+  if (!p2pUiState.splitLocked) return;
+  p2pUiState.buildDone = {
+    ...(p2pUiState.buildDone || {}),
+    [p2pUiState.seatId]: true,
+  };
+  updateMultiplayerButtons();
+  if (allBuildsMarkedDone()) {
+    completeMultiplayerTurn();
+  } else {
+    syncStateToPeer();
+  }
+}
+
+function completeMultiplayerTurn() {
+  if (!isMultiplayerActive()) return;
+  p2pUiState.splitLocked = false;
+  p2pUiState.lockedPairSwap = false;
+  resetTurnState(state);
+  state.rollAvailable = true;
+  state.pendingTurnIndex = null;
+  state.pendingActiveTurn = null;
+  resetBuildDoneMap();
+  setActiveSeat(nextSeatId());
+  prepareNextRoll();
+  updateMultiplayerButtons();
+  syncStateToPeer();
 }
 
 function currentWorkerAllocationsForScore() {
