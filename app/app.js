@@ -195,9 +195,6 @@ function readStoredTheme() {
   } catch (err) {
     console.warn("Could not read theme preference", err);
   }
-  if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-    return "dark";
-  }
   return "light";
 }
 
