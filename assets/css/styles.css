@@ -970,7 +970,8 @@ body.theme-dark .die-badge {
   gap: 8px;
   flex-wrap: wrap;
   font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
-  height: 42px;
+  min-height: 42px;
+  row-gap: 6px;
 }
 
 .die-pips {
