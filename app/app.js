@@ -133,7 +133,7 @@ const themeToggleText = document.getElementById("themeToggleText");
 const actionBannerEl = document.getElementById("actionBanner");
 const turnStatusChip = document.getElementById("turnStatusChip");
 const loadingOverlay = document.getElementById("loadingOverlay");
-const sheetEl = document.getElementById("sheet");
+const sheetBaseImage = document.getElementById("sheetBaseImage");
 const regionOverlayEl = document.getElementById("regionOverlay");
 const SHEET_VERSION = "v1.3";
 const POP_CAPACITY = 5;
@@ -272,10 +272,22 @@ function resetState() {
 
 function preloadSheet() {
   return new Promise((resolve) => {
+    const imgEl = sheetBaseImage;
+    const src = sheetImageUrl();
+    if (imgEl) {
+      imgEl.src = src;
+      if (imgEl.complete) {
+        resolve(true);
+        return;
+      }
+      imgEl.onload = () => resolve(true);
+      imgEl.onerror = () => resolve(false);
+      return;
+    }
     const img = new Image();
     img.onload = () => resolve(true);
     img.onerror = () => resolve(false);
-    img.src = sheetImageUrl();
+    img.src = src;
   });
 }
 
@@ -288,9 +300,6 @@ setupThemeToggle();
 preloadSheet().then(() => {
   document.body.classList.remove("loading");
   if (loadingOverlay) loadingOverlay.remove();
-  if (sheetEl) {
-    sheetEl.style.setProperty("--sheet-image", `url("${sheetImageUrl()}")`);
-  }
   init();
 });
 

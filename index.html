@@ -9,10 +9,11 @@
   <link rel="preload" href="assets/fonts/Shadows_Into_Light/ShadowsIntoLight-Regular.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="assets/fonts/Lobster_Two/LobsterTwo-Regular.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="assets/fonts/QT_Black_Forest/QTBlackForest.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="modulepreload" href="app/app.js?v=v1" />
   <link rel="icon" type="image/svg+xml" href="assets/img/forfeit.svg" />
   <link rel="preload" href="assets/css/fonts.css" as="style" />
   <link rel="preload" href="assets/css/styles.css" as="style" />
-  <link rel="preload" href="resources/rolling-fiefdoms-player-sheet.webp?v=v1.3" as="image" />
+  <link rel="preload" href="resources/rolling-fiefdoms-player-sheet.webp?v=v1.3" as="image" fetchpriority="high" />
   <link rel="preload" href="assets/img/rules.webp" as="image" />
   <link rel="preload" href="assets/img/playersheet.webp" as="image" />
   <link rel="preload" href="assets/img/github.webp" as="image" />
@@ -69,6 +70,14 @@
   <main>
     <section class="board-panel">
       <div class="sheet" id="sheet">
+        <img
+          id="sheetBaseImage"
+          class="sheet-base"
+          src="resources/rolling-fiefdoms-player-sheet.webp?v=v1.3"
+          alt=""
+          fetchpriority="high"
+          decoding="async"
+        />
         <div class="fiefdom-overlay">
           <input id="fiefdomInput" type="text" maxlength="20" placeholder="Fiefdom name" />
         </div>
