@@ -7,7 +7,7 @@ const { build } = require("esbuild");
 
 const root = path.resolve(__dirname, "..");
 const outDir = path.join(root, "dist");
-const staticEntries = ["index.html", "assets", "resources", "robots.txt", "manifest.webmanifest", "sw.js"];
+const staticEntries = ["index.html", "assets", "resources", "robots.txt", "manifest.webmanifest"];
 
 async function copyStatic(entry) {
   const src = path.join(root, entry);
@@ -33,6 +33,16 @@ async function run() {
     target: "es2020",
     outdir: path.join(outDir, "app"),
     entryNames: "[name]",
+    logLevel: "info",
+  });
+
+  await build({
+    entryPoints: [path.join(root, "sw.js")],
+    minify: true,
+    sourcemap: false,
+    target: "es2020",
+    format: "iife",
+    outfile: path.join(outDir, "sw.js"),
     logLevel: "info",
   });
 
