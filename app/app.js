@@ -135,7 +135,7 @@ const turnStatusChip = document.getElementById("turnStatusChip");
 const loadingOverlay = document.getElementById("loadingOverlay");
 const sheetEl = document.getElementById("sheet");
 const regionOverlayEl = document.getElementById("regionOverlay");
-const SHEET_VERSION = "v1.2";
+const SHEET_VERSION = "v1.3";
 const POP_CAPACITY = 5;
 const POP_LAYOUT = { cols: 7, rows: 2, pipsPerCell: 4 };
 const debugMode = new URLSearchParams(window.location.search).has("debug");
@@ -280,7 +280,7 @@ function preloadSheet() {
 }
 
 function sheetImageUrl() {
-  return new URL(`resources/rolling-fiefdoms-player-sheet.jpg?v=${SHEET_VERSION}`, window.location.href).toString();
+  return new URL(`resources/rolling-fiefdoms-player-sheet.webp?v=${SHEET_VERSION}`, window.location.href).toString();
 }
 
 setupThemeToggle();
