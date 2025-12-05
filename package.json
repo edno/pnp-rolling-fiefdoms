@@ -7,9 +7,11 @@
   "scripts": {
     "lint": "eslint . --ext .js",
     "test": "npm run lint && vitest run",
-    "serve": "node scripts/serve.js"
+    "serve": "node scripts/serve.js",
+    "build": "node scripts/build.js"
   },
   "devDependencies": {
+    "esbuild": "^0.25.12",
     "eslint": "^8.56.0",
     "jsdom": "^27.2.0",
     "vitest": "^4.0.14"

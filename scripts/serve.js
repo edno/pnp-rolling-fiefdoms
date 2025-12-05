@@ -5,7 +5,9 @@ const { createServer } = require("node:http");
 const { readFile, stat } = require("node:fs/promises");
 const path = require("node:path");
 
-const root = path.resolve(__dirname, "..");
+const args = new Set(process.argv.slice(2));
+const useDist = args.has("--dist");
+const root = path.resolve(__dirname, useDist ? "../dist" : "..");
 const port = Number(process.env.PORT) || 4173;
 
 const mime = {
@@ -20,6 +22,17 @@ const mime = {
   ".svg": "image/svg+xml",
   ".ico": "image/x-icon",
 };
+
+async function ensureRootExists() {
+  try {
+    const stats = await stat(root);
+    if (!stats.isDirectory()) throw new Error("serve root is not a directory");
+  } catch (err) {
+    const hint = useDist ? "Run `npm run build` or drop the flag to serve source." : "Check your project path.";
+    console.error(`Cannot serve from ${root}: ${err.message || err}. ${hint}`);
+    process.exit(1);
+  }
+}
 
 const server = createServer(async (req, res) => {
   try {
@@ -43,6 +56,8 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(port, () => {
-  console.log(`Serving ${root} at http://localhost:${port}`);
+ensureRootExists().then(() => {
+  server.listen(port, () => {
+    console.log(`Serving ${root} at http://localhost:${port}`);
+  });
 });
