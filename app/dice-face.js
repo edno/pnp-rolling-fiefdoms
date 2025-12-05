@@ -56,7 +56,7 @@ function addCross(svg) {
     y: 5,
     width: 54,
     height: 54,
-    class: "die-icon",
+    class: "die-icon die-icon-forfeit",
     role: "presentation",
   });
   svg.appendChild(img);
@@ -69,7 +69,7 @@ function addWindrose(svg) {
     y: 5,
     width: 54,
     height: 54,
-    class: "die-icon",
+    class: "die-icon die-icon-windrose",
     role: "presentation",
   });
   svg.appendChild(img);

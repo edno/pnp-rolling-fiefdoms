@@ -1542,8 +1542,11 @@ function makeDieBadge(
   if (forcedLocation) badge.title = "Windrose stays in the location pair (acts as 1–5).";
   if (locked) badge.classList.add("dice-locked");
   badge.dataset.idx = idx;
+  const wrap = document.createElement("div");
+  wrap.className = "face-wrap";
   const face = createDieFaceSVG(die);
-  badge.appendChild(face);
+  wrap.append(face);
+  badge.appendChild(wrap);
   if (clickable && !locked && die.face !== "X") {
     badge.addEventListener("click", () => onDieClick(idx));
   }
