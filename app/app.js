@@ -29,6 +29,7 @@ import {
 } from "./game-state.js";
 import { rollNumberedDie, rollXDie } from "./dice.js";
 import { splitForcedDice } from "./dice-display.js";
+import { createDieFaceSVG } from "./dice-face.js";
 
 const terrainLayout = [
   ["Mt", "Fo", "Fo", "Fo", "Se"],
@@ -1520,47 +1521,6 @@ function renderSelectionDice(locationDice = [], buildDice = []) {
   }
 }
 
-function pipGrid(val) {
-  const pipPositions = {
-    1: [5],
-    2: [1, 9],
-    3: [1, 5, 9],
-    4: [1, 3, 7, 9],
-    5: [1, 3, 5, 7, 9],
-    6: [1, 3, 4, 6, 7, 9],
-  };
-  const filled = pipPositions[val] || [];
-  const cells = Array.from({ length: 9 }, (_, i) =>
-    filled.includes(i + 1) ? '<div class="pip"></div>' : "<div></div>",
-  ).join("");
-  return `<div class="die-pips">${cells}</div>`;
-}
-
-function addDieContent(el, die) {
-  const faceLabel = document.createElement("span");
-  faceLabel.className = "die-face-label";
-  faceLabel.textContent = die.label;
-  el.appendChild(faceLabel);
-  if (die.face === "X") {
-    const img = document.createElement("img");
-    img.src = "assets/img/forfeit.svg";
-    img.alt = "Forfeit";
-    img.className = "die-forfeit-icon";
-    el.appendChild(img);
-    return;
-  }
-  if (die.face === "windrose") {
-    const img = document.createElement("img");
-    img.src = "assets/img/windrose.svg";
-    img.alt = "Windrose";
-    img.className = "die-windrose-icon";
-    el.appendChild(img);
-    return;
-  }
-  const val = typeof die.resolved === "number" ? die.resolved : Number(die.face);
-  el.insertAdjacentHTML("beforeend", pipGrid(val || 0));
-}
-
 function makeDieBadge(
   die,
   idx,
@@ -1582,7 +1542,8 @@ function makeDieBadge(
   if (forcedLocation) badge.title = "Windrose stays in the location pair (acts as 1–5).";
   if (locked) badge.classList.add("dice-locked");
   badge.dataset.idx = idx;
-  addDieContent(badge, die);
+  const face = createDieFaceSVG(die);
+  badge.appendChild(face);
   if (clickable && !locked && die.face !== "X") {
     badge.addEventListener("click", () => onDieClick(idx));
   }

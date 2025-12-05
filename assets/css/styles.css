@@ -920,6 +920,41 @@ select {
   cursor: pointer;
 }
 
+.die-face {
+  width: 80%;
+  height: 80%;
+  color: var(--die-pip-color);
+}
+
+.pip-svg {
+  fill: var(--die-pip-color);
+}
+
+.die-x line {
+  stroke: currentColor;
+}
+
+.die-windrose .windrose-outer {
+  fill: currentColor;
+  opacity: 0.3;
+}
+
+.die-windrose .windrose-inner {
+  fill: currentColor;
+  opacity: 0.7;
+}
+
+.die-icon {
+  filter: drop-shadow(0 0 0 var(--die-pip-color));
+}
+
+.die-fallback {
+  fill: var(--die-pip-color);
+  font-weight: 800;
+  font-size: 20px;
+  dominant-baseline: middle;
+}
+
 body.theme-dark .die-badge {
   background: #1c2431;
   border-color: var(--border);
@@ -1066,6 +1101,11 @@ body.theme-dark .die-badge {
   font-size: 10px;
   color: var(--muted);
   visibility: hidden;
+}
+
+.die-face text.die-face-label {
+  position: static;
+  fill: var(--muted);
 }
 
 .die-number {
