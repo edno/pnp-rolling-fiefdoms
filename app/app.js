@@ -140,6 +140,16 @@ const POP_CAPACITY = 5;
 const POP_LAYOUT = { cols: 7, rows: 2, pipsPerCell: 4 };
 const debugMode = new URLSearchParams(window.location.search).has("debug");
 const THEME_STORAGE_KEY = "rolling-fiefdoms-theme";
+
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  const isLocalhost = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+  if (!window.isSecureContext && !isLocalhost) return;
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch((err) => console.warn("SW registration failed", err));
+  });
+}
+
 // Hitboxes relative to printed sheet regions (percent of Buildings/Guilds box)
 const buildingHitboxes = [
   { code: "C", col: 1, row: 1 },
@@ -296,6 +306,7 @@ function sheetImageUrl() {
 }
 
 setupThemeToggle();
+registerServiceWorker();
 
 preloadSheet().then(() => {
   document.body.classList.remove("loading");

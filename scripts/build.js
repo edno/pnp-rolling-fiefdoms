@@ -7,7 +7,7 @@ const { build } = require("esbuild");
 
 const root = path.resolve(__dirname, "..");
 const outDir = path.join(root, "dist");
-const staticEntries = ["index.html", "assets", "resources", "robots.txt"];
+const staticEntries = ["index.html", "assets", "resources", "robots.txt", "manifest.webmanifest", "sw.js"];
 
 async function copyStatic(entry) {
   const src = path.join(root, entry);

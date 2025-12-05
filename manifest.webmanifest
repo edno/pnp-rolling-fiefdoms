@@ -1,0 +1,12 @@
+{
+  "name": "Rolling Fiefdoms Helper",
+  "short_name": "Fiefdoms",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#e67e22",
+  "icons": [
+    { "src": "assets/img/forfeit.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
