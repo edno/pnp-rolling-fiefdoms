@@ -743,15 +743,6 @@ body.theme-dark .sheet-base {
   display: none;
 }
 
-.status-chip::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: currentColor;
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.08);
-}
-
 .p2p-status {
   font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
   font-size: 14px;
