@@ -10,6 +10,7 @@ npm test     # eslint + vitest
 npm run serve # start a static server at http://localhost:4173
 npm run build # bundle + minify JS into dist/ for deployment
 # tip: npm run serve -- --dist will serve the built dist/ output instead of source files
+# clean: npm run clean will remove dist/ if you need a fresh build
 ```
 
 Open `index.html` directly or serve the folder with your preferred static server. The app is plain JS/DOM; no bundler required for basic usage.
