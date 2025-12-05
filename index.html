@@ -3,34 +3,38 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Rolling Fiefdoms online version." />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#e67e22" />
   <title>Rolling Fiefdoms Web Prototype</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Shadows+Into+Light&display=swap"
-    rel="stylesheet"
-  />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap"
-    rel="stylesheet"
-  />
-  <link rel="preload" href="assets/fonts/Shadows_Into_Light/ShadowsIntoLight-Regular.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="assets/fonts/Lobster_Two/LobsterTwo-Regular.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="assets/fonts/QT_Black_Forest/QTBlackForest.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="modulepreload" href="app/app.js?v=v1" />
   <link rel="icon" type="image/svg+xml" href="assets/img/forfeit.svg" />
-  <link rel="stylesheet" href="assets/css/fonts.css" />
-  <link rel="stylesheet" href="assets/css/styles.css" />
+  <link rel="preload" href="assets/css/fonts.css" as="style" />
+  <link rel="preload" href="assets/css/styles.css" as="style" />
+  <link rel="preload" href="resources/rolling-fiefdoms-player-sheet.webp?v=v1.3" as="image" fetchpriority="high" />
+  <link rel="preload" href="assets/img/rules.webp" as="image" />
+  <link rel="preload" href="assets/img/playersheet.webp" as="image" />
+  <link rel="preload" href="assets/img/github.webp" as="image" />
+  <link rel="preload" href="assets/img/fullscreen.webp" as="image" />
+  <link rel="preload" href="assets/img/bgg.webp" as="image" />
+  <link rel="stylesheet" href="assets/css/fonts.css" media="print" onload="this.media='all'" />
+  <link rel="stylesheet" href="assets/css/styles.css" media="print" onload="this.media='all'" />
+  <noscript>
+    <link rel="stylesheet" href="assets/css/fonts.css" />
+    <link rel="stylesheet" href="assets/css/styles.css" />
+  </noscript>
 </head>
 <body class="loading">
   <header>
     <h1>Rolling Fiefdoms</h1>
     <nav class="top-menu" aria-label="Quick links">
       <a class="menu-item" href="resources/rolling-fiefdoms-rulebook.pdf" target="_blank" rel="noopener">
-        <span class="menu-icon"><img src="assets/img/rules.png" alt="" /></span>
+        <span class="menu-icon"><img src="assets/img/rules.webp" alt="" loading="lazy" decoding="async" width="32" height="32" /></span>
         <span class="menu-text">Rules</span>
       </a>
       <a class="menu-item" href="https://drive.google.com/drive/folders/1LZZwRlzmxAoZXZu0cfslqcEjHGrQazP7" target="_blank" rel="noopener">
-        <span class="menu-icon"><img src="assets/img/playersheet.png" alt="" /></span>
+        <span class="menu-icon"><img src="assets/img/playersheet.webp" alt="" loading="lazy" decoding="async" width="32" height="32" /></span>
         <span class="menu-text">Download</span>
       </a>
       <a
@@ -39,19 +43,19 @@
         target="_blank"
         rel="noopener"
       >
-        <span class="menu-icon"><img src="assets/img/bgg.webp" alt="" /></span>
+        <span class="menu-icon"><img src="assets/img/bgg.webp" alt="" loading="lazy" decoding="async" width="32" height="32" /></span>
         <span class="menu-text">BGG</span>
       </a>
       <a class="menu-item" href="https://github.com/edno/pnp-rolling-fiefdoms" target="_blank" rel="noopener">
-        <span class="menu-icon"><img src="assets/img/github.png" alt="" /></span>
+        <span class="menu-icon"><img src="assets/img/github.webp" alt="" loading="lazy" decoding="async" width="32" height="32" /></span>
         <span class="menu-text">Github</span>
       </a>
       <button class="menu-item" id="fullscreenToggle" type="button">
-        <span class="menu-icon"><img src="assets/img/fullscreen.png" alt="" /></span>
+        <span class="menu-icon"><img src="assets/img/fullscreen.webp" alt="" loading="lazy" decoding="async" width="32" height="32" /></span>
         <span class="menu-text">Fullscreen</span>
       </button>
       <button class="menu-item" id="themeToggle" type="button" aria-pressed="false">
-        <span class="menu-icon"><img id="themeToggleIcon" src="assets/img/sun.svg" alt="" /></span>
+        <span class="menu-icon"><img id="themeToggleIcon" src="assets/img/sun.svg" alt="" decoding="async" width="32" height="32" /></span>
         <span class="menu-text" id="themeToggleText">Light</span>
       </button>
     </nav>
@@ -65,6 +69,16 @@
   <main>
     <section class="board-panel">
       <div class="sheet" id="sheet">
+        <img
+          id="sheetBaseImage"
+          class="sheet-base"
+          src="resources/rolling-fiefdoms-player-sheet.webp?v=v1.3"
+          alt=""
+          fetchpriority="high"
+          decoding="async"
+          width="1086"
+          height="767"
+        />
         <div class="fiefdom-overlay">
           <input id="fiefdomInput" type="text" maxlength="20" placeholder="Fiefdom name" />
         </div>

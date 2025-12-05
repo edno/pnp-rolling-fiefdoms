@@ -8,6 +8,11 @@ This is a lightweight helper for the Rolling Fiefdoms roll-and-write game. It tr
 npm install
 npm test     # eslint + vitest
 npm run serve # start a static server at http://localhost:4173
+npm run build # bundle + minify JS into dist/ for deployment
+# tip: npm run serve -- --dist will serve the built dist/ output instead of source files
+# clean: npm run clean will remove dist/ if you need a fresh build
+
+The app now includes a service worker + manifest for install/offline use. When served over HTTPS or localhost, the core assets cache for offline play.
 ```
 
 Open `index.html` directly or serve the folder with your preferred static server. The app is plain JS/DOM; no bundler required for basic usage.

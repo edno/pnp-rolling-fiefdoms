@@ -26,6 +26,7 @@
 - Dice locking: after selecting a building or resolving pestilence/forfeit, dice are locked and should remain visible/grey until the next roll; location/build previews must persist during the lock.
 - Mid-game scoring: zero-requirement buildings (Cottage, Springhouse) and vagrants can score during play; worker-requiring buildings only score after activation at game end.
 - Adjacency is cardinal-only, matching the printed square grid.
+- PWA behavior: a cache-first service worker (cache name `rf-cache-v1`) precaches the core shell (HTML, JS, CSS, fonts, images including `assets/img/forfeit.svg`) and serves navigations offline. Bump the cache version when changing core assets. Manifest icon uses `assets/img/forfeit.svg`.
 
 ## Appendix: TODO / Known Gaps
 

@@ -277,7 +277,7 @@ const themeToggleText = document.getElementById("themeToggleText");
 const actionBannerEl = document.getElementById("actionBanner");
 const turnStatusChip = document.getElementById("turnStatusChip");
 const loadingOverlay = document.getElementById("loadingOverlay");
-const sheetEl = document.getElementById("sheet");
+const sheetBaseImage = document.getElementById("sheetBaseImage");
 const regionOverlayEl = document.getElementById("regionOverlay");
 const p2pPanel = document.getElementById("p2pPanel");
 const p2pStatusEl = document.getElementById("p2pStatus");
@@ -294,11 +294,21 @@ const p2pQrCaption = document.getElementById("p2pQrCaption");
 const p2pQrModal = document.getElementById("p2pQrModal");
 const p2pQrClose = document.getElementById("p2pQrClose");
 const p2pShowQrBtn = document.getElementById("p2pShowQrBtn");
-const SHEET_VERSION = "v1.2";
+const SHEET_VERSION = "v1.3";
 const POP_CAPACITY = 5;
 const POP_LAYOUT = { cols: 7, rows: 2, pipsPerCell: 4 };
 const debugMode = new URLSearchParams(window.location.search).has("debug");
 const THEME_STORAGE_KEY = "rolling-fiefdoms-theme";
+
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  const isLocalhost = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+  if (!window.isSecureContext && !isLocalhost) return;
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch((err) => console.warn("SW registration failed", err));
+  });
+}
+
 // Hitboxes relative to printed sheet regions (percent of Buildings/Guilds box)
 const buildingHitboxes = [
   { code: "C", col: 1, row: 1 },
@@ -434,25 +444,35 @@ function resetState() {
 
 function preloadSheet() {
   return new Promise((resolve) => {
+    const imgEl = sheetBaseImage;
+    const src = sheetImageUrl();
+    if (imgEl) {
+      imgEl.src = src;
+      if (imgEl.complete) {
+        resolve(true);
+        return;
+      }
+      imgEl.onload = () => resolve(true);
+      imgEl.onerror = () => resolve(false);
+      return;
+    }
     const img = new Image();
     img.onload = () => resolve(true);
     img.onerror = () => resolve(false);
-    img.src = sheetImageUrl();
+    img.src = src;
   });
 }
 
 function sheetImageUrl() {
-  return new URL(`resources/rolling-fiefdoms-player-sheet.jpg?v=${SHEET_VERSION}`, window.location.href).toString();
+  return new URL(`resources/rolling-fiefdoms-player-sheet.webp?v=${SHEET_VERSION}`, window.location.href).toString();
 }
 
 setupThemeToggle();
+registerServiceWorker();
 
 preloadSheet().then(() => {
   document.body.classList.remove("loading");
   if (loadingOverlay) loadingOverlay.remove();
-  if (sheetEl) {
-    sheetEl.style.setProperty("--sheet-image", `url("${sheetImageUrl()}")`);
-  }
   init();
 });
 

@@ -7,9 +7,12 @@
   "scripts": {
     "lint": "eslint . --ext .js",
     "test": "npm run lint && vitest run",
-    "serve": "node scripts/serve.js"
+    "serve": "node scripts/serve.js",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && node scripts/build.js"
   },
   "devDependencies": {
+    "esbuild": "^0.25.12",
     "eslint": "^8.56.0",
     "jsdom": "^27.2.0",
     "vitest": "^4.0.14"
