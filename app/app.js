@@ -442,7 +442,7 @@ function preloadSheet() {
 }
 
 function sheetImageUrl() {
-  return new URL(`resources/rolling-fiefdoms-player-sheet.png?v=${SHEET_VERSION}`, window.location.href).toString();
+  return new URL(`resources/rolling-fiefdoms-player-sheet.jpg?v=${SHEET_VERSION}`, window.location.href).toString();
 }
 
 setupThemeToggle();
