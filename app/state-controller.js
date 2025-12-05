@@ -39,6 +39,7 @@ const baseState = {
   pendingTurnIndex: null,
   pendingActiveTurn: null,
   lastStatusTurnIndex: 0,
+  splitUsedForBuild: false,
 };
 
 export function createState() {
@@ -68,6 +69,7 @@ export function resetTurnState(state) {
   state.pestilenceInfo = null;
   state.dice = [];
   state.forcedLocationDice = [];
+  state.splitUsedForBuild = false;
   // rollAvailable intentionally not reset here to preserve per-turn lock until explicitly re-enabled
 }
 

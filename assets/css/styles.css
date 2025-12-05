@@ -690,6 +690,42 @@ body.theme-dark .sheet-base {
   gap: 8px;
 }
 
+.panel-title-with-action {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.icon-btn {
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+}
+
+.icon-btn svg {
+  display: none;
+}
+
+.icon-btn .swap-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.icon-btn:hover {
+  background: var(--accent);
+  filter: brightness(0.95);
+}
+
 .status-chip {
   display: inline-flex;
   align-items: center;
@@ -724,6 +760,14 @@ body.theme-dark .sheet-base {
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.02);
   color: var(--text);
+  width: 100%;
+}
+
+.p2p-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   margin-bottom: 8px;
 }
 
@@ -745,6 +789,11 @@ body.theme-dark .sheet-base {
 .p2p-row-actions {
   display: flex;
   gap: 6px;
+}
+
+.p2p-row-actions .copied {
+  background-color: var(--accent, #4caf50);
+  color: #fff;
 }
 
 .p2p-actions .only-answer {
@@ -1349,7 +1398,6 @@ body.theme-dark .die-badge {
   pointer-events: none !important;
   filter: grayscale(0.75) saturate(0.8) !important;
   opacity: 0.72 !important;
-  box-shadow: inset 0 0 0 1px var(--border), 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
 .split-preview .die-badge {

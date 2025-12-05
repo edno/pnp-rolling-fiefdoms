@@ -130,6 +130,15 @@ describe("computeScore", () => {
     expect(result.breakdown.cottages).toBe(2);
   });
 
+  it("scores cottage when any population is available mid-game", () => {
+    const board = emptyBoard();
+    board[0][0].building = "C";
+    const pop = emptyPop();
+    pop[0][0] = 1; // some population available
+    const result = computeScore(board, pop, null, { allowPopulationActivation: false });
+    expect(result.breakdown.cottages).toBe(2);
+  });
+
   it("applies vagrant penalty and Almshouse cancel", () => {
     const board = emptyBoard();
     board[0][0].building = "A";

@@ -31,6 +31,17 @@ const emptyBoard = () =>
     Array.from({ length: 5 }, () => ({ building: null, forfeited: false, springBoost: 0 })),
   );
 
+const filledCentreBoard = () => {
+  const board = emptyBoard();
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < 5; c++) {
+      const inCentre = r >= 1 && r <= 3 && c >= 1 && c <= 3;
+      if (inCentre) board[r][c].building = "X";
+    }
+  }
+  return board;
+};
+
 const nodesForCell = (r, c) => {
   const coords = [];
   [
@@ -208,6 +219,48 @@ describe("die selection and location evaluation", () => {
     const buildDice = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
     expect(buildDice).toHaveLength(2);
     expect(buildDice.map((d) => d.label)).toEqual(["X1", "X2"]);
+  });
+
+  it("computes forceForfeit per player based on their own board", () => {
+    const dice = [
+      { face: 1, resolved: 1, label: "N1" },
+      { face: 2, resolved: 2, label: "N2" },
+      { face: 3, resolved: 3, label: "X1" },
+      { face: 4, resolved: 4, label: "X2" },
+    ];
+    const fullBoard = Array.from({ length: 5 }, () =>
+      Array.from({ length: 5 }, () => ({ building: "Q", forfeited: false, springBoost: 0 })),
+    );
+    const openBoard = emptyBoard();
+
+    const stateA = createState();
+    beginTurn(stateA, dice, fullBoard, helpers);
+    evaluateLocationSelection(stateA, { ...helpers, board: fullBoard });
+    expect(stateA.forceForfeit).toBe(true);
+
+    const stateB = createState();
+    beginTurn(stateB, dice, openBoard, helpers);
+    evaluateLocationSelection(stateB, { ...helpers, board: openBoard });
+    expect(stateB.forceForfeit).toBe(false);
+  });
+
+  it("keeps pestilence targets per player board (targetCells differ)", () => {
+    const dice = [
+      { face: "X", resolved: null, label: "X1" },
+      { face: "X", resolved: null, label: "X2" },
+      { face: 3, resolved: 3, label: "N1" },
+      { face: 3, resolved: 3, label: "N2" },
+    ];
+    const stateA = createState();
+    const stateB = createState();
+
+    beginTurn(stateA, dice, filledCentreBoard(), helpers);
+    beginTurn(stateB, dice, emptyBoard(), helpers);
+
+    expect(stateA.pestilenceInfo.section).toBe("centre");
+    expect(stateB.pestilenceInfo.section).toBe("centre");
+    expect(stateA.pestilenceInfo.targetCells.length).toBe(0);
+    expect(stateB.pestilenceInfo.targetCells.length).toBeGreaterThan(0);
   });
 });
 

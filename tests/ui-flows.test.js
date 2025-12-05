@@ -37,6 +37,8 @@ const baseHtml = `
   <div id="scoreOverlay"></div>
   <div id="popHousingOverlay"></div>
   <button id="finishActivation"></button>
+  <button id="finishSplitBtn"></button>
+  <button id="swapPairBtn"></button>
   <button id="newGameBtn"></button>
   <button id="fullscreenToggle"></button>
   <button id="themeToggle"><span id="themeToggleIcon"></span><span id="themeToggleText"></span></button>
@@ -82,15 +84,18 @@ function stubEnvironment() {
   Image = InstantImage;
 }
 
-async function setupApp({ numbered = [], x = [], debug = false } = {}) {
+async function setupApp({ numbered = [], x = [], debug = false, enableHooks = false, p2p = true } = {}) {
   vi.resetModules();
   numberedQueue.length = 0;
   xQueue.length = 0;
   stubEnvironment();
-  if (debug) {
-    const url = new URL("http://localhost/?debug");
-    // eslint-disable-next-line no-global-assign
-    location = url;
+  const url = new URL("http://localhost/");
+  if (debug) url.searchParams.set("debug", "");
+  if (p2p) url.searchParams.set("p2p", "");
+  // eslint-disable-next-line no-global-assign
+  location = url;
+  if (enableHooks) {
+    window.__RF_ENABLE_TEST_HOOKS__ = true;
   }
   const dice = await import("../app/dice.js");
   dice.__queues.numberedQueue.push(...numbered);
@@ -139,6 +144,15 @@ function selectGuildType(code) {
 function latestLogs() {
   return Array.from(document.querySelectorAll("#log li")).map((li) => li.textContent);
 }
+
+describe("p2p feature flag (jsdom)", () => {
+  it("hides the manual P2P panel unless ?p2p is present", async () => {
+    await setupApp({ p2p: false });
+    const panel = document.getElementById("p2pPanel");
+    expect(panel).toBeTruthy();
+    expect(panel.style.display).toBe("none");
+  });
+});
 
 describe("pestilence UI flow (jsdom)", () => {
   it("advances after forfeiting during pestilence", async () => {
@@ -227,6 +241,595 @@ describe("pestilence windrose reroll (jsdom)", () => {
     clickRoll(); // second roll should proceed
     logs = latestLogs();
     expect(logs.some((m) => m.includes("Rolled N1:4") && m.includes("N2:5"))).toBe(true);
+  });
+});
+
+describe("pestilence sync (jsdom)", () => {
+  it("non-active player sees pestilence forfeit instead of waiting for split", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = true;
+    hooks.p2pUiState.seatsTotal = 2;
+    hooks.p2pUiState.seatId = 2;
+    hooks.p2pUiState.activeSeat = 1;
+    hooks.state.activeTurn = false;
+    const dice = [
+      { face: "windrose", resolved: 1, label: "N1", choices: [1, 2, 3, 4, 5] },
+      { face: 4, resolved: 4, label: "N2" },
+      { face: "X", resolved: null, label: "X1" },
+      { face: "X", resolved: null, label: "X2" },
+    ];
+    hooks.applyFullSnapshot({
+      version: "1",
+      turnIndex: 1,
+      activeTurn: true,
+      rollAvailable: false,
+      dice,
+      locationSelection: [],
+      locationPairs: [],
+      lockedLocationDice: null,
+      lockedBuildDice: null,
+      lockedLocationPairs: null,
+      diceLocked: true,
+      lastLocationDice: [],
+      lastBuildDice: [],
+      forcedLocationDice: [0],
+      pestilence: true,
+      forceForfeit: true,
+      pendingNextRoll: false,
+      bannerOverride: null,
+      seatsTotal: 2,
+      activeSeat: 1,
+      splitLocked: false,
+      buildDone: {},
+    });
+    await flushMicrotasks();
+    const banner = document.getElementById("actionBanner").textContent;
+    expect(banner.toLowerCase()).not.toContain("waiting for the active player to finish the split");
+    expect(banner.toLowerCase()).toContain("forfeit");
+  });
+});
+
+describe("p2p split preview isolation (jsdom)", () => {
+  it("non-active sees only forced faces (windrose/X) before split lock", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = true;
+    hooks.p2pUiState.seatsTotal = 2;
+    hooks.p2pUiState.seatId = 2; // non-active viewer
+    hooks.p2pUiState.activeSeat = 1;
+    hooks.state.activeTurn = false;
+    const dice = [
+      { face: 1, resolved: 1, label: "N1" },
+      { face: 2, resolved: 2, label: "N2" },
+      { face: "X", resolved: null, label: "X1" },
+      { face: "X", resolved: null, label: "X2" },
+    ];
+    hooks.applyFullSnapshot({
+      version: "1",
+      turnIndex: 1,
+      activeTurn: true,
+      rollAvailable: false,
+      dice,
+      locationSelection: [0, 1], // active picked both location dice
+      locationPairs: [[1, 2]],
+      lockedLocationDice: null,
+      lockedBuildDice: null,
+      lockedLocationPairs: null,
+      diceLocked: false,
+      lastLocationDice: [],
+      lastBuildDice: [],
+      forcedLocationDice: [],
+      pestilence: false,
+      forceForfeit: false,
+      pendingNextRoll: false,
+      bannerOverride: null,
+      seatsTotal: 2,
+      activeSeat: 1,
+      splitLocked: false,
+      buildDone: {},
+    });
+    await flushMicrotasks();
+    expect(document.querySelectorAll("#locDicePreview .die-badge").length).toBe(0);
+    expect(document.querySelectorAll("#buildDicePreview .die-badge").length).toBe(2); // X dice visible
+  });
+
+  it("active sees X dice in build preview before split lock", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = true;
+    hooks.p2pUiState.seatsTotal = 2;
+    hooks.p2pUiState.seatId = 1; // active viewer
+    hooks.p2pUiState.activeSeat = 1;
+    hooks.state.activeTurn = true;
+    const dice = [
+      { face: 2, resolved: 2, label: "N1" },
+      { face: 4, resolved: 4, label: "N2" },
+      { face: "X", resolved: null, label: "X1" },
+      { face: 3, resolved: 3, label: "X2" },
+    ];
+    hooks.applyFullSnapshot({
+      version: "1",
+      turnIndex: 1,
+      activeTurn: true,
+      rollAvailable: false,
+      dice,
+      locationSelection: [],
+      locationPairs: [],
+      lockedLocationDice: null,
+      lockedBuildDice: null,
+      lockedLocationPairs: null,
+      diceLocked: false,
+      lastLocationDice: [],
+      lastBuildDice: [],
+      forcedLocationDice: [],
+      pestilence: false,
+      forceForfeit: false,
+      pendingNextRoll: false,
+      bannerOverride: null,
+      seatsTotal: 2,
+      activeSeat: 1,
+      splitLocked: false,
+      buildDone: {},
+    });
+    await flushMicrotasks();
+    expect(document.querySelectorAll("#locDicePreview .die-badge").length).toBe(0);
+    expect(document.querySelectorAll("#buildDicePreview .die-badge").length).toBe(1);
+  });
+
+  it("honors swapped location pairs when placing a building", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = true;
+    hooks.p2pUiState.seatsTotal = 2;
+    hooks.p2pUiState.seatId = 1;
+    hooks.p2pUiState.activeSeat = 1;
+    hooks.state.activeTurn = true;
+    const dice = [
+      { face: 1, resolved: 1, label: "N1" },
+      { face: 2, resolved: 2, label: "N2" },
+      { face: 3, resolved: 3, label: "X1" },
+      { face: 4, resolved: 4, label: "X2" },
+    ];
+    // Lock a split with dice in one order, then swap and place
+    hooks.applyFullSnapshot({
+      version: "1",
+      turnIndex: 1,
+      activeTurn: true,
+      rollAvailable: false,
+      dice,
+      locationSelection: [0, 1],
+      locationPairs: [[1, 2]],
+      lockedLocationDice: [dice[0], dice[1]],
+      lockedBuildDice: [dice[2], dice[3]],
+      lockedLocationPairs: [[1, 2]],
+      diceLocked: true,
+      lastLocationDice: [],
+      lastBuildDice: [],
+      forcedLocationDice: [],
+      pestilence: false,
+      forceForfeit: false,
+      pendingNextRoll: false,
+      bannerOverride: null,
+      seatsTotal: 2,
+      activeSeat: 1,
+      splitLocked: true,
+      buildDone: {},
+    });
+    hooks.p2pUiState.lockedPairSwap = true;
+    hooks.updateDiceAssignments();
+    selectBuilding("Q");
+    // Swap makes build dice become location and vice-versa; location pair now 3+4 (die labels X1/X2)
+    const highlight = document.querySelector(".cell.highlight");
+    expect(highlight).toBeTruthy();
+    highlight.click();
+    await flushMicrotasks();
+    const logs = latestLogs();
+    expect(logs.some((m) => m.toLowerCase().includes("placed"))).toBe(true);
+  });
+
+  it("keeps the swap button visible if swapping forces a forfeit", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = true;
+    hooks.p2pUiState.seatsTotal = 2;
+    hooks.p2pUiState.seatId = 1;
+    hooks.p2pUiState.activeSeat = 1;
+    hooks.state.activeTurn = true;
+    const dice = [
+      { face: 5, resolved: 5, label: "N1" },
+      { face: 3, resolved: 3, label: "N2" },
+      { face: 5, resolved: 5, label: "X1" },
+      { face: 2, resolved: 2, label: "X2" },
+    ];
+    hooks.applyFullSnapshot({
+      version: "1",
+      turnIndex: 1,
+      activeTurn: true,
+      rollAvailable: false,
+      dice,
+      locationSelection: [1, 3],
+      locationPairs: [[2, 3]],
+      lockedLocationDice: [dice[1], dice[3]],
+      lockedBuildDice: [dice[0], dice[2]],
+      lockedLocationPairs: [[2, 3]],
+      diceLocked: true,
+      lastLocationDice: [],
+      lastBuildDice: [],
+      forcedLocationDice: [],
+      pestilence: false,
+      forceForfeit: false,
+      pendingNextRoll: false,
+      bannerOverride: null,
+      seatsTotal: 2,
+      activeSeat: 1,
+      splitLocked: true,
+      buildDone: {},
+    });
+    // Block the only plot for a swapped 5,5 pair to force a forfeit after swapping.
+    hooks.state.board[4][4].building = "C";
+    hooks.p2pUiState.lockedPairSwap = true;
+    hooks.updateDiceAssignments();
+    const swapBtn = document.getElementById("swapPairBtn");
+    expect(hooks.state.forceForfeit).toBe(true);
+    expect(swapBtn.style.display).toBe("inline-block");
+    expect(swapBtn.disabled).toBe(false);
+  });
+
+  it("allows guild type selection after locking a split", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = true;
+    hooks.p2pUiState.seatsTotal = 2;
+    hooks.p2pUiState.seatId = 1;
+    hooks.p2pUiState.activeSeat = 1;
+    hooks.state.activeTurn = true;
+    hooks.p2pUiState.buildDone = { 1: false, 2: false };
+    const dice = [
+      { face: 4, resolved: 4, label: "N1" },
+      { face: 6, resolved: 6, label: "N2" }, // 4+6 sum -> Guild (10)
+      { face: 5, resolved: 5, label: "X1" },
+      { face: 5, resolved: 5, label: "X2" },
+    ];
+    hooks.applyFullSnapshot({
+      version: "1",
+      turnIndex: 1,
+      activeTurn: true,
+      rollAvailable: false,
+      dice,
+      locationSelection: [0, 1],
+      locationPairs: [[4, 6]],
+      lockedLocationDice: [dice[0], dice[1]],
+      lockedBuildDice: [dice[2], dice[3]],
+      lockedLocationPairs: [[4, 6]],
+      diceLocked: true,
+      lastLocationDice: [],
+      lastBuildDice: [],
+      forcedLocationDice: [],
+      pestilence: false,
+      forceForfeit: false,
+      pendingNextRoll: false,
+      bannerOverride: null,
+      seatsTotal: 2,
+      activeSeat: 1,
+      splitLocked: true,
+      buildDone: hooks.p2pUiState.buildDone,
+    });
+    hooks.p2pUiState.lockedPairSwap = true;
+    hooks.updateDiceAssignments();
+    selectBuilding("G", "sum");
+    const guildHit = document.querySelector(".guild-hit.available");
+    expect(guildHit).toBeTruthy();
+    guildHit.click();
+    expect(guildHit.classList.contains("selected")).toBe(true);
+    const logs = latestLogs();
+    expect(logs.some((m) => m.toLowerCase().includes("guild"))).toBe(true);
+  });
+});
+
+describe("population placement gating (jsdom)", () => {
+  it("does not auto-complete build until population is placed", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = true;
+    hooks.p2pUiState.seatsTotal = 2;
+    hooks.p2pUiState.seatId = 1;
+    hooks.p2pUiState.activeSeat = 1;
+    hooks.p2pUiState.buildDone = { 1: false, 2: false };
+    hooks.state.activeTurn = true;
+    const dice = [
+      { face: 2, resolved: 2, label: "N1" },
+      { face: 3, resolved: 3, label: "N2" },
+      { face: 5, resolved: 5, label: "X1" },
+      { face: 3, resolved: 3, label: "X2" },
+    ];
+    hooks.applyFullSnapshot({
+      version: "1",
+      turnIndex: 1,
+      activeTurn: true,
+      rollAvailable: false,
+      dice,
+      locationSelection: [0, 1],
+      locationPairs: [[2, 3]],
+      lockedLocationDice: [dice[0], dice[1]],
+      lockedBuildDice: [dice[2], dice[3]],
+      lockedLocationPairs: [[2, 3]],
+      diceLocked: true,
+      lastLocationDice: [],
+      lastBuildDice: [],
+      forcedLocationDice: [],
+      pestilence: false,
+      forceForfeit: false,
+      pendingNextRoll: false,
+      bannerOverride: null,
+      seatsTotal: 2,
+      activeSeat: 1,
+      splitLocked: true,
+      buildDone: hooks.p2pUiState.buildDone,
+    });
+    hooks.updateDiceAssignments();
+    selectBuilding("M", "die1"); // Market via X1(5) yields popGain 3 (die2 value)
+    clickBoardCell(1, 2); // matches location pair [2,3] (row 2, col 3)
+    await flushMicrotasks();
+    expect(hooks.p2pUiState.buildDone[1]).toBe(false);
+    clickPopNode(0, 1);
+    await flushMicrotasks();
+    expect(hooks.p2pUiState.buildDone[1]).toBe(true);
+    hooks.updateDiceAssignments();
+    expect(hooks.p2pUiState.buildDone[1]).toBe(true);
+  });
+});
+
+describe("build completion state sync (jsdom)", () => {
+  it("keeps local buildDone when snapshot omits the map", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = true;
+    hooks.p2pUiState.seatsTotal = 2;
+    hooks.p2pUiState.seatId = 1;
+    hooks.p2pUiState.activeSeat = 1;
+    hooks.p2pUiState.buildDone = { 1: true, 2: false };
+    hooks.applyFullSnapshot({
+      version: "1",
+      turnIndex: 1,
+      activeTurn: true,
+      rollAvailable: false,
+      dice: [],
+      locationSelection: [],
+      locationPairs: [],
+      lockedLocationDice: null,
+      lockedBuildDice: null,
+      lockedLocationPairs: null,
+      diceLocked: true,
+      lastLocationDice: [],
+      lastBuildDice: [],
+      forcedLocationDice: [],
+      pestilence: false,
+      forceForfeit: false,
+      pendingNextRoll: false,
+      bannerOverride: null,
+      seatsTotal: 2,
+      activeSeat: 1,
+      splitLocked: false,
+    });
+    hooks.updateDiceAssignments();
+    expect(hooks.p2pUiState.buildDone[1]).toBe(true);
+    expect(hooks.p2pUiState.buildDone[2]).toBe(false);
+  });
+});
+
+describe("turn phase derivation (jsdom)", () => {
+  it("derives phases for roll, split, build, population, pestilence, activation", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.state.rollAvailable = true;
+    expect(hooks.currentTurnPhase()).toBe(hooks.TURN_PHASE.AWAIT_ROLL);
+
+    hooks.state.rollAvailable = false;
+    hooks.state.dice = [{ label: "N1" }, { label: "N2" }];
+    expect(hooks.currentTurnPhase()).toBe(hooks.TURN_PHASE.SPLITTING);
+
+    hooks.state.locationSelection = [0, 1];
+    hooks.state.diceLocked = true;
+    hooks.state.lockedLocationDice = hooks.state.dice;
+    expect(hooks.currentTurnPhase()).toBe(hooks.TURN_PHASE.BUILDING);
+
+    hooks.state.pendingPopulation = { remaining: 2, cell: [0, 0] };
+    expect(hooks.currentTurnPhase()).toBe(hooks.TURN_PHASE.POPULATION);
+
+    hooks.state.pendingPopulation = null;
+    hooks.state.pestilence = true;
+    expect(hooks.currentTurnPhase()).toBe(hooks.TURN_PHASE.PESTILENCE);
+
+    hooks.state.pestilence = false;
+    hooks.state.activationMode = true;
+    expect(hooks.currentTurnPhase()).toBe(hooks.TURN_PHASE.ACTIVATION);
+
+    hooks.state.activationMode = false;
+    hooks.state.activationComplete = true;
+    expect(hooks.currentTurnPhase()).toBe(hooks.TURN_PHASE.ACTIVATION_DONE);
+  });
+});
+
+describe("forfeit timing in multiplayer (jsdom)", () => {
+  it("does not force forfeit on non-active before split is locked, but does after if no valid pair", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = true;
+    hooks.p2pUiState.seatsTotal = 2;
+    hooks.p2pUiState.seatId = 2; // non-active
+    hooks.p2pUiState.activeSeat = 1;
+    const dice = [
+      { face: 1, resolved: 1, label: "N1" },
+      { face: 1, resolved: 1, label: "N2" },
+      { face: 2, resolved: 2, label: "X1" },
+      { face: 2, resolved: 2, label: "X2" },
+    ];
+    // Snapshot before split lock: should not force forfeit
+    hooks.applyFullSnapshot({
+      version: "1",
+      turnIndex: 1,
+      activeTurn: true,
+      rollAvailable: false,
+      dice,
+      locationSelection: [],
+      locationPairs: [],
+      lockedLocationDice: null,
+      lockedBuildDice: null,
+      lockedLocationPairs: null,
+      diceLocked: false,
+      lastLocationDice: [],
+      lastBuildDice: [],
+      forcedLocationDice: [],
+      pestilence: false,
+      forceForfeit: false,
+      pendingNextRoll: false,
+      bannerOverride: null,
+      seatsTotal: 2,
+      activeSeat: 1,
+      splitLocked: false,
+    });
+    hooks.updateDiceAssignments();
+    expect(hooks.state.forceForfeit).toBe(false);
+
+    // Now lock a split that has no valid pairs for this player's board (board empty but dice both 1 -> only pair (1,1) valid? still valid)
+    hooks.p2pUiState.splitLocked = true;
+    hooks.state.lockedLocationDice = [dice[0], dice[1]];
+    hooks.state.lockedBuildDice = [dice[2], dice[3]];
+    hooks.updateDiceAssignments();
+    expect(hooks.state.forceForfeit).toBe(false); // empty board still has valid (1,1) plots
+
+    // Block all plots for pair (1,1) by forfeiting them to force no valid pairs
+    hooks.state.board[0][0].forfeited = true;
+    hooks.state.board[0][4].forfeited = true;
+    hooks.state.board[4][0].forfeited = true;
+    hooks.state.board[4][4].forfeited = true;
+    hooks.updateDiceAssignments();
+    expect(hooks.state.forceForfeit).toBe(true);
+  });
+});
+
+describe("forfeit timing in solo (jsdom)", () => {
+  it("still forces forfeit when no valid plots even without a locked split", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = false;
+    hooks.p2pUiState.seatsTotal = 1;
+    hooks.state.activeTurn = true;
+    hooks.state.rollAvailable = false;
+    hooks.state.dice = [
+      { face: 1, resolved: 1, label: "N1" },
+      { face: 1, resolved: 1, label: "N2" },
+      { face: 2, resolved: 2, label: "X1" },
+      { face: 2, resolved: 2, label: "X2" },
+    ];
+    hooks.state.locationSelection = [0, 1];
+    // Forfeit all plots that match pair (1,1)
+    hooks.state.board[0][0].forfeited = true;
+    hooks.state.board[0][4].forfeited = true;
+    hooks.state.board[4][0].forfeited = true;
+    hooks.state.board[4][4].forfeited = true;
+    hooks.updateDiceAssignments();
+    expect(hooks.state.forceForfeit).toBe(true);
+  });
+});
+
+describe("pestilence forfeit auto-complete (jsdom)", () => {
+  it("marks build done and advances after forfeiting during pestilence", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = true;
+    hooks.p2pUiState.seatsTotal = 2;
+    hooks.p2pUiState.seatId = 1;
+    hooks.p2pUiState.activeSeat = 1;
+    hooks.p2pUiState.buildDone = { 1: false, 2: true }; // simulate peer already resolved
+    hooks.state.activeTurn = true;
+    hooks.state.board = hooks.state.board.map((row) => row.map(() => ({ building: null, forfeited: false, springBoost: 0 })));
+    const dice = [
+      { face: "windrose", resolved: 0, label: "N1", choices: [1, 2, 3, 4, 5] },
+      { face: 4, resolved: 4, label: "N2" },
+      { face: "X", resolved: null, label: "X1" },
+      { face: "X", resolved: null, label: "X2" },
+    ];
+    hooks.applyFullSnapshot({
+      version: "1",
+      turnIndex: 1,
+      activeTurn: true,
+      rollAvailable: false,
+      dice,
+      locationSelection: [],
+      locationPairs: [],
+      lockedLocationDice: null,
+      lockedBuildDice: null,
+      lockedLocationPairs: null,
+      diceLocked: true,
+      lastLocationDice: [],
+      lastBuildDice: [],
+      forcedLocationDice: [0],
+      pestilence: true,
+      forceForfeit: true,
+      pendingNextRoll: false,
+      bannerOverride: null,
+      seatsTotal: 2,
+      activeSeat: 1,
+      splitLocked: false,
+      buildDone: hooks.p2pUiState.buildDone,
+    });
+    hooks.updateDiceAssignments();
+    const highlight = document.querySelector(".cell.highlight");
+    expect(highlight).toBeTruthy();
+    highlight.click();
+    await flushMicrotasks();
+    expect(hooks.state.rollAvailable).toBe(true);
+    expect(hooks.p2pUiState.splitLocked).toBe(false);
+  });
+});
+
+describe("pestilence auto split (jsdom)", () => {
+  it("auto-assigns location/build dice and locks split during pestilence", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = true;
+    hooks.p2pUiState.seatsTotal = 2;
+    hooks.p2pUiState.seatId = 1;
+    hooks.p2pUiState.activeSeat = 1;
+    hooks.state.activeTurn = true;
+    const dice = [
+      { face: "windrose", resolved: 0, label: "N1", choices: [1, 2, 3, 4, 5] },
+      { face: 4, resolved: 4, label: "N2" },
+      { face: "X", resolved: null, label: "X1" },
+      { face: "X", resolved: null, label: "X2" },
+    ];
+    hooks.applyFullSnapshot({
+      version: "1",
+      turnIndex: 1,
+      activeTurn: true,
+      rollAvailable: false,
+      dice,
+      locationSelection: [],
+      locationPairs: [],
+      lockedLocationDice: null,
+      lockedBuildDice: null,
+      lockedLocationPairs: null,
+      diceLocked: true,
+      lastLocationDice: [],
+      lastBuildDice: [],
+      forcedLocationDice: [0],
+      pestilence: true,
+      forceForfeit: true,
+      pendingNextRoll: false,
+      bannerOverride: null,
+      seatsTotal: 2,
+      activeSeat: 1,
+      splitLocked: false,
+      buildDone: { 1: false, 2: false },
+    });
+    hooks.updateDiceAssignments();
+    const locDice = document.querySelectorAll("#locDicePreview .die-badge");
+    const buildDice = document.querySelectorAll("#buildDicePreview .die-badge");
+    expect(locDice.length).toBe(2);
+    expect(buildDice.length).toBe(2);
+    expect(hooks.p2pUiState.splitLocked).toBe(true);
   });
 });
 
@@ -721,6 +1324,42 @@ describe("score overlay display (jsdom)", () => {
     const reputationChip = document.getElementById("score-chip-reputation");
     expect(reputationChip).toBeTruthy();
     expect(reputationChip.textContent.trim()).toBe("-3");
+  });
+});
+
+describe("building after split lock (jsdom)", () => {
+  it("allows selecting and placing a building when split is locked in multiplayer", async () => {
+    await setupApp({ numbered: [1, 2, 3, 4], x: [2, 5], enableHooks: true });
+    clickRoll();
+    clickDie(0);
+    clickDie(1);
+
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = true;
+    hooks.p2pUiState.seatsTotal = 2;
+    hooks.p2pUiState.activeSeat = 1;
+    hooks.state.activeTurn = true;
+    hooks.p2pUiState.splitLocked = true;
+    hooks.state.lockedLocationDice = hooks.state.locationSelection.map((i) => hooks.state.dice[i]);
+    hooks.state.lockedBuildDice = hooks.state.dice.filter((_, idx) => !hooks.state.locationSelection.includes(idx));
+    hooks.state.lockedLocationPairs = (hooks.state.locationPairs || []).slice();
+    hooks.state.diceLocked = true;
+    hooks.updateDiceAssignments();
+    expect(hooks.state.locationSelection.length).toBe(2);
+    expect((hooks.state.locationPairs || []).length).toBeGreaterThan(0);
+
+    const available = document.querySelector(".building-hit.available");
+    expect(available).toBeTruthy();
+    available.click();
+    expect(hooks.state.buildChoice).toBeTruthy();
+    const highlight = document.querySelector(".cell.highlight");
+    expect(highlight).toBeTruthy();
+    highlight.click();
+    await flushMicrotasks();
+    const built = hooks.state.board.flat().some((cell) => cell.building);
+    expect(built).toBe(true);
+    const logs = latestLogs();
+    expect(logs.some((m) => m.includes("Placed"))).toBe(true);
   });
 });
 

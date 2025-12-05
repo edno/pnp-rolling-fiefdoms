@@ -107,10 +107,12 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
   mergeForcedLocationDice(state);
   const prevForce = state.forceForfeit;
   const locationDice = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
-  const buildDice = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
+  const buildDice =
+    state.locationSelection.length === 2 ? state.dice.filter((_, idx) => !state.locationSelection.includes(idx)) : [];
   state.buildDice = buildDice;
 
-  const allPairs = filterAvailablePairs(uniqueLocationPairs(state.dice), board);
+  const numberedDice = state.dice.filter((d) => d && isNumberedDie(d));
+  const allPairs = filterAvailablePairs(uniqueLocationPairs(numberedDice), board);
   let locationPairs = [];
   let forceForfeit = state.diceLocked ? state.forceForfeit : allPairs.length === 0;
   let invalidSelection = false;

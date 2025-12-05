@@ -360,7 +360,8 @@ export function computeScore(board, populationNodes, workerAllocations = null, o
 function scoreCottages(board, populationNodes) {
   const pop = populationNodes.flat().reduce((a, b) => a + b, 0);
   const cottages = board.flat().filter((c) => c.building === "C").length;
-  const occupied = Math.min(cottages, Math.floor(pop / 4));
+  // Each cottage is worth 2 VP if at least one population exists to occupy it; limit by population count.
+  const occupied = Math.min(cottages, pop);
   return occupied * 2;
 }
 

@@ -100,12 +100,22 @@
         <button id="finishActivation" style="display:none;">Finish Activation</button>
         <button id="newGameBtn" style="display:none;">Play again</button>
         <button id="finishSplitBtn" style="display:none;">Finish dice split</button>
-        <button id="swapPairBtn" style="display:none;">Use other pair for location</button>
-        <button id="doneBuildingBtn" style="display:none;">Done building</button>
       </div>
 
       <div class="panel">
-        <h2>Split & Build</h2>
+        <h2 class="panel-title-with-action">
+          <span>Split &amp; Build</span>
+          <button
+            id="swapPairBtn"
+            class="icon-btn"
+            type="button"
+            title="Click to swap dice pairs allocation"
+            aria-label="Swap location/build dice pairs"
+            style="display:none;"
+          >
+            <img src="assets/img/swap.svg" alt="" class="swap-icon" />
+          </button>
+        </h2>
         <div class="field">
           <label>Location Dice</label>
           <div class="dice-row" id="locDicePreview"></div>
@@ -118,10 +128,12 @@
 
       <div class="panel p2p-panel" id="p2pPanel">
         <h2>Manual P2P</h2>
-        <div class="p2p-status" id="p2pStatus">Checking browser support…</div>
+        <div class="p2p-status-row">
+          <div class="p2p-status" id="p2pStatus">Checking browser support…</div>
+          <button id="p2pDisconnectBtn" class="link-btn" type="button">Reset</button>
+        </div>
         <div class="p2p-actions">
           <button id="p2pHostBtn" type="button">Create invite</button>
-          <button id="p2pDisconnectBtn" class="link-btn" type="button">Reset</button>
         </div>
         <label for="p2pCode">Invite</label>
         <div class="p2p-row">

@@ -45,6 +45,9 @@ const terrainLayout = [
 const state = createState();
 
 let controlsReady = false;
+const urlParams = new URLSearchParams(window.location.search);
+const debugMode = urlParams.has("debug");
+const p2pFeatureEnabled = urlParams.has("p2p");
 const p2pUiState = {
   mode: "idle",
   lastError: null,
@@ -66,10 +69,59 @@ const p2pUiState = {
   splitLocked: false,
   buildDone: {},
   lockedPairSwap: false,
+  splitUsed: {},
 };
+if (!p2pFeatureEnabled) {
+  p2pUiState.signallingDisabled = true;
+}
 
 function isMultiplayerActive() {
   return p2pUiState.signallingActive && p2pUiState.seatsTotal > 1;
+}
+
+function awaitingSplitNonActive(snapshotActiveSeat = null) {
+  const activeSeat = snapshotActiveSeat ?? p2pUiState.activeSeat;
+  const nonActive = isMultiplayerActive() && activeSeat !== p2pUiState.seatId;
+  return nonActive && !p2pUiState.splitLocked && !state.pestilence && !state.forceForfeit;
+}
+
+function ensureBuildDoneMap(total = null, seed = null) {
+  const seats = Math.max(1, Number(total || p2pUiState.seatsTotal) || 1);
+  const merged = {};
+  const source = seed || p2pUiState.buildDone || {};
+  for (let i = 1; i <= seats; i += 1) {
+    merged[i] = Boolean(source[i]);
+  }
+  return merged;
+}
+
+function ensureSplitUsedMap(total = null, seed = null) {
+  const seats = Math.max(1, Number(total || p2pUiState.seatsTotal) || 1);
+  const merged = {};
+  const source = seed || p2pUiState.splitUsed || {};
+  for (let i = 1; i <= seats; i += 1) {
+    merged[i] = Boolean(source[i]);
+  }
+  return merged;
+}
+
+function currentTurnPhase() {
+  if (state.activationComplete) return TURN_PHASE.ACTIVATION_DONE;
+  if (state.activationMode) return TURN_PHASE.ACTIVATION;
+  if (state.pendingPopulation?.remaining > 0) return TURN_PHASE.POPULATION;
+  if (state.pestilence) return TURN_PHASE.PESTILENCE;
+  if (state.forceForfeit) return TURN_PHASE.FORFEIT;
+  if (state.rollAvailable && !debugMode) return TURN_PHASE.AWAIT_ROLL;
+  if (state.diceLocked || state.locationSelection.length === 2) return TURN_PHASE.BUILDING;
+  if (state.dice?.length) return TURN_PHASE.SPLITTING;
+  return TURN_PHASE.AWAIT_ROLL;
+}
+
+function effectiveLockedLocationPairs() {
+  if (!p2pUiState.splitLocked || !state.lockedLocationDice || state.lockedLocationDice.length !== 2) return [];
+  const choice = lockedPairChoice();
+  const locDice = choice.locDice || state.lockedLocationDice;
+  return uniqueLocationPairs(locDice);
 }
 
 function setActiveSeat(nextSeat = 1) {
@@ -82,8 +134,8 @@ function setActiveSeat(nextSeat = 1) {
 }
 
 function resetBuildDoneMap() {
-  const entries = {};
   const total = Math.max(1, Number(p2pUiState.seatsTotal) || 1);
+  const entries = {};
   for (let i = 1; i <= total; i += 1) entries[i] = false;
   p2pUiState.buildDone = entries;
 }
@@ -94,9 +146,10 @@ function nextSeatId() {
 }
 
 function allBuildsMarkedDone() {
+  const map = ensureBuildDoneMap();
   const total = Math.max(1, Number(p2pUiState.seatsTotal) || 1);
   for (let i = 1; i <= total; i += 1) {
-    if (!p2pUiState.buildDone?.[i]) return false;
+    if (!map[i]) return false;
   }
   return true;
 }
@@ -187,7 +240,15 @@ function prepareNextRoll() {
   state.buildDice = [];
   p2pUiState.splitLocked = false;
   p2pUiState.lockedPairSwap = false;
+  p2pUiState.splitUsed = ensureSplitUsedMap();
+  Object.keys(p2pUiState.splitUsed).forEach((k) => {
+    p2pUiState.splitUsed[k] = false;
+  });
   resetBuildDoneMap();
+  state.forceForfeit = false;
+  state.pestilence = false;
+  state.pestilenceInfo = null;
+  state.invalidSelection = false;
   state.lastLocationDice = [];
   state.lastBuildDice = [];
   state.diceLocked = false;
@@ -270,7 +331,7 @@ const finishActivationBtn = document.getElementById("finishActivation");
 const newGameBtn = document.getElementById("newGameBtn");
 const finishSplitBtn = document.getElementById("finishSplitBtn");
 const swapPairBtn = document.getElementById("swapPairBtn");
-const doneBuildingBtn = document.getElementById("doneBuildingBtn");
+// Done building button removed from UI.
 const fullscreenBtn = document.getElementById("fullscreenToggle");
 const themeToggleBtn = document.getElementById("themeToggle");
 const themeToggleIcon = document.getElementById("themeToggleIcon");
@@ -283,6 +344,7 @@ const regionOverlayEl = document.getElementById("regionOverlay");
 const p2pPanel = document.getElementById("p2pPanel");
 const p2pStatusEl = document.getElementById("p2pStatus");
 const p2pCodeEl = document.getElementById("p2pCode");
+const p2pCodeLabel = document.querySelector('label[for="p2pCode"]');
 const p2pCopyBtn = document.getElementById("p2pCopyBtn");
 const p2pApplyBtn = document.getElementById("p2pApplyBtn");
 const p2pHostBtn = document.getElementById("p2pHostBtn");
@@ -298,12 +360,30 @@ const p2pShowQrBtn = document.getElementById("p2pShowQrBtn");
 const SHEET_VERSION = "v1.3";
 const POP_CAPACITY = 5;
 const POP_LAYOUT = { cols: 7, rows: 2, pipsPerCell: 4 };
-const debugMode = new URLSearchParams(window.location.search).has("debug");
 const THEME_STORAGE_KEY = "rolling-fiefdoms-theme";
+const TURN_PHASE = {
+  AWAIT_ROLL: "awaiting-roll",
+  SPLITTING: "splitting",
+  BUILDING: "building",
+  POPULATION: "population",
+  FORFEIT: "forfeit",
+  PESTILENCE: "pestilence",
+  ACTIVATION: "activation",
+  ACTIVATION_DONE: "activation-complete",
+};
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
   const isLocalhost = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+  const isLocalDev = isLocalhost && !location.pathname.includes("/dist");
+  if (isLocalDev) {
+    // Disable SW caching when developing locally outside of the dist build.
+    navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((reg) => reg.unregister()));
+    if (window.caches && caches.keys) {
+      caches.keys().then((keys) => keys.forEach((k) => caches.delete(k))).catch(() => {});
+    }
+    return;
+  }
   if (!window.isSecureContext && !isLocalhost) return;
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js").catch((err) => console.warn("SW registration failed", err));
@@ -524,15 +604,16 @@ function setupControls() {
     finishSplitBtn.onclick = () => finishDiceSplit();
     finishSplitBtn.style.display = "none";
   }
-  if (doneBuildingBtn) {
-    doneBuildingBtn.onclick = () => markBuildDone();
-    doneBuildingBtn.style.display = "none";
-  }
+  // Done building button removed; completion is automatic after placement/population.
   if (swapPairBtn) {
     swapPairBtn.onclick = () => toggleLockedPairChoice();
     swapPairBtn.style.display = "none";
   }
-  setupP2PControls();
+  if (p2pFeatureEnabled) {
+    setupP2PControls();
+  } else if (p2pPanel) {
+    p2pPanel.style.display = "none";
+  }
 }
 
 function captureP2PSnapshot() {
@@ -546,6 +627,7 @@ function captureP2PSnapshot() {
     seatsTotal: p2pUiState.seatsTotal,
     activeSeat: p2pUiState.activeSeat,
     splitLocked: p2pUiState.splitLocked,
+    buildDone: ensureBuildDoneMap(),
   };
 }
 
@@ -577,6 +659,7 @@ function handleP2PMessage(message) {
 }
 
 function handleP2PStatus(status) {
+  if (!p2pFeatureEnabled) return;
   const channelJustOpened = !p2pUiState.channelOpen && status?.channelOpen;
   p2pUiState.channelOpen = Boolean(status?.channelOpen);
   p2pUiState.lastError = status?.lastError || null;
@@ -610,6 +693,7 @@ function handleP2PStatus(status) {
 }
 
 function updateP2PStatus(hintOverride = null) {
+  if (!p2pFeatureEnabled) return;
   if (!p2pPanel) return;
   if (p2pUiState.signallingDisabled) {
     if (p2pStatusEl) p2pStatusEl.textContent = "P2P disabled: signalling unavailable.";
@@ -695,6 +779,7 @@ function renderP2PQr(link) {
 }
 
 function maybeLoadInviteFromUrl() {
+  if (!p2pFeatureEnabled) return;
   try {
     const parsed = parseSessionLink(window.location.href);
     if (parsed && p2pCodeEl) {
@@ -721,14 +806,12 @@ function maybeLoadInviteFromUrl() {
 function describeRemoteSnapshot(snapshot) {
   if (!snapshot || typeof snapshot !== "object") return "";
   const name = snapshot.fiefdomName ? ` ${snapshot.fiefdomName}` : "";
-  const turn =
-    typeof snapshot.turnIndex === "number" ? ` · Turn ${Math.max(1, Number(snapshot.turnIndex) + 1)}` : "";
-  const active = snapshot.activeTurn ? " (Active)" : "";
-  return `${name}${turn}${active}`;
+  const turn = typeof snapshot.turnIndex === "number" ? ` · Turn ${Math.max(1, Number(snapshot.turnIndex))}` : "";
+  return `${name}${turn}`;
 }
 
 function buildFullSnapshot() {
-  return {
+  const base = {
     version: "1",
     sessionId: p2pUiState.sessionId,
     turnIndex: state.turnIndex,
@@ -749,12 +832,16 @@ function buildFullSnapshot() {
     seatsTotal: p2pUiState.seatsTotal,
     activeSeat: p2pUiState.activeSeat,
     splitLocked: p2pUiState.splitLocked,
-    buildDone: p2pUiState.buildDone,
+    buildDone: ensureBuildDoneMap(),
   };
+  return base;
 }
 
 function applyFullSnapshot(snapshot) {
   if (!snapshot || typeof snapshot !== "object") return;
+  const incomingSeats = snapshot.seatsTotal || p2pUiState.seatsTotal;
+  const seatsTotal = Math.max(1, Number(incomingSeats) || 1);
+  p2pUiState.splitUsed = ensureSplitUsedMap(seatsTotal, p2pUiState.splitUsed);
   state.turnIndex = typeof snapshot.turnIndex === "number" ? snapshot.turnIndex : state.turnIndex;
   state.activeTurn = typeof snapshot.activeTurn === "boolean" ? snapshot.activeTurn : state.activeTurn;
   state.rollAvailable = typeof snapshot.rollAvailable === "boolean" ? snapshot.rollAvailable : state.rollAvailable;
@@ -768,19 +855,66 @@ function applyFullSnapshot(snapshot) {
   state.lastLocationDice = snapshot.lastLocationDice || state.lastLocationDice;
   state.lastBuildDice = snapshot.lastBuildDice || state.lastBuildDice;
   state.forcedLocationDice = snapshot.forcedLocationDice || [];
+  state.pestilence = Boolean(snapshot.pestilence);
+  state.forceForfeit = Boolean(snapshot.forceForfeit);
+  if (state.pestilence) {
+    state.pestilenceInfo = computePestilenceInfo(state.dice, state.board);
+    const locIdx = [];
+    const buildIdx = [];
+    (state.dice || []).forEach((die, idx) => {
+      if (die?.label?.startsWith("N") || die?.face === "windrose") locIdx.push(idx);
+      else buildIdx.push(idx);
+    });
+    state.locationSelection = locIdx.slice(0, 2);
+    const forcedSplit = splitForcedDice(state.dice || []);
+    state.locationPairs = uniqueLocationPairs(forcedSplit.locationDice);
+    state.lockedLocationDice = forcedSplit.locationDice;
+    state.lockedBuildDice = forcedSplit.buildDice;
+    state.lockedLocationPairs = state.locationPairs;
+    p2pUiState.splitLocked = true;
+    state.diceLocked = true;
+  } else if (snapshot.pestilenceInfo) {
+    state.pestilenceInfo = snapshot.pestilenceInfo;
+  }
   state.pendingNextRoll = Boolean(snapshot.pendingNextRoll);
   state.bannerOverride = snapshot.bannerOverride || null;
   if (snapshot.seatsTotal) p2pUiState.seatsTotal = snapshot.seatsTotal;
-  if (snapshot.buildDone) p2pUiState.buildDone = snapshot.buildDone;
+  const incomingBuildDone = snapshot.buildDone ? ensureBuildDoneMap(seatsTotal, snapshot.buildDone) : ensureBuildDoneMap(seatsTotal);
+  p2pUiState.buildDone = incomingBuildDone;
   p2pUiState.splitLocked = Boolean(snapshot.splitLocked);
   if (typeof snapshot.activeSeat === "number") {
     setActiveSeat(snapshot.activeSeat);
   }
+  const waitingNonActive = awaitingSplitNonActive(snapshot.activeSeat);
   if (p2pUiState.splitLocked) {
     state.diceLocked = true;
     if (snapshot.lockedLocationDice) state.lockedLocationDice = snapshot.lockedLocationDice;
     if (snapshot.lockedBuildDice) state.lockedBuildDice = snapshot.lockedBuildDice;
     if (snapshot.lockedLocationPairs) state.lockedLocationPairs = snapshot.lockedLocationPairs;
+  } else {
+    const doubleX = Array.isArray(state.dice) && state.dice.filter((d) => d?.face === "X").length === 2;
+    if (doubleX) {
+      state.pestilence = true;
+      state.pestilenceInfo = computePestilenceInfo(state.dice, state.board);
+    }
+    const inPestilence = state.pestilence || doubleX;
+    if (state.pestilence && state.lockedLocationDice?.length === 2 && state.lockedBuildDice?.length === 2) {
+      p2pUiState.splitLocked = true;
+      state.diceLocked = true;
+    } else if (waitingNonActive && !state.diceLocked && !inPestilence) {
+      // Active player has not locked the split; show only forced windrose, keep everything else unallocated for this player.
+      const windroseIdx = (snapshot.forcedLocationDice || []).filter((idx) => snapshot.dice?.[idx]?.face === "windrose");
+      state.locationSelection = windroseIdx.slice();
+      state.forceForfeit = false;
+      state.locationPairs = [];
+      state.buildDice = [];
+      state.lastBuildDice = [];
+      state.lockedLocationDice = null;
+      state.lockedBuildDice = null;
+      state.lockedLocationPairs = null;
+      p2pUiState.splitLocked = false;
+      state.diceLocked = false;
+    }
   }
 
   updateDiceAssignments();
@@ -902,6 +1036,7 @@ function disconnectP2P(reason = "") {
 }
 
 function setupP2PControls() {
+  if (!p2pFeatureEnabled) return;
   if (!p2pPanel) return;
   if (p2pHintEl) p2pHintEl.style.display = "none";
   p2pUiState.signallingUrl = resolveSignallingUrl();
@@ -929,6 +1064,7 @@ function setupP2PControls() {
   if (p2pDisconnectBtn) p2pDisconnectBtn.onclick = () => disconnectP2P("P2P link reset.");
   if (p2pSendAnswerBtn) p2pSendAnswerBtn.style.display = "none";
   if (p2pCodeEl) p2pCodeEl.style.display = "none";
+  if (p2pCodeLabel) p2pCodeLabel.style.display = "none";
   if (p2pShowQrBtn) {
     p2pShowQrBtn.onclick = () => toggleQrModal(true);
     p2pShowQrBtn.disabled = true;
@@ -946,8 +1082,9 @@ function setupP2PControls() {
 }
 
 function updateP2PControlsVisibility(status = {}) {
+  if (!p2pFeatureEnabled) return;
   if (p2pUiState.signallingDisabled) {
-    const all = [p2pHostBtn, p2pJoinBtn, p2pApplyBtn, p2pCopyBtn, p2pDisconnectBtn, p2pSendAnswerBtn, p2pCodeEl, p2pQrImg, p2pQrCaption];
+    const all = [p2pHostBtn, p2pJoinBtn, p2pApplyBtn, p2pCopyBtn, p2pDisconnectBtn, p2pSendAnswerBtn, p2pCodeEl, p2pCodeLabel, p2pQrImg, p2pQrCaption];
     all.forEach((el) => {
       if (!el) return;
       el.style.display = "none";
@@ -956,7 +1093,7 @@ function updateP2PControlsVisibility(status = {}) {
     return;
   }
   if (status && status.supported === false) {
-    const all = [p2pHostBtn, p2pJoinBtn, p2pApplyBtn, p2pCopyBtn, p2pDisconnectBtn, p2pSendAnswerBtn, p2pCodeEl, p2pShowQrBtn];
+    const all = [p2pHostBtn, p2pJoinBtn, p2pApplyBtn, p2pCopyBtn, p2pDisconnectBtn, p2pSendAnswerBtn, p2pCodeEl, p2pCodeLabel, p2pShowQrBtn];
     all.forEach((el) => {
       if (!el) return;
       el.disabled = true;
@@ -964,15 +1101,19 @@ function updateP2PControlsVisibility(status = {}) {
     return;
   }
   const gameStarted = state.turnIndex > 0;
-  // Manual code/answer UI hidden; only host button and passcode remain.
-  if (p2pHostBtn) p2pHostBtn.style.display = "inline-block";
+  const isJoiner = p2pUiState.seatId && p2pUiState.seatId > 1;
+  const hideInvites = gameStarted || isJoiner;
+
+  // Manual code/answer UI hidden; only host button and passcode remain (when allowed).
+  if (p2pHostBtn) p2pHostBtn.style.display = hideInvites ? "none" : "inline-block";
   if (p2pJoinBtn) p2pJoinBtn.style.display = "none";
   if (p2pApplyBtn) p2pApplyBtn.style.display = "none";
-  if (p2pCopyBtn) p2pCopyBtn.style.display = "inline-block";
-  if (p2pShowQrBtn) p2pShowQrBtn.style.display = "inline-block";
+  if (p2pCopyBtn) p2pCopyBtn.style.display = hideInvites ? "none" : "inline-block";
+  if (p2pShowQrBtn) p2pShowQrBtn.style.display = hideInvites ? "none" : "inline-block";
   if (p2pSendAnswerBtn) p2pSendAnswerBtn.style.display = "none";
-  if (p2pCodeEl) p2pCodeEl.style.display = "inline-block";
-  if (p2pHostBtn) p2pHostBtn.disabled = gameStarted;
+  if (p2pCodeEl) p2pCodeEl.style.display = hideInvites ? "none" : "inline-block";
+  if (p2pCodeLabel) p2pCodeLabel.style.display = hideInvites ? "none" : "inline-block";
+  if (p2pHostBtn) p2pHostBtn.disabled = gameStarted || hideInvites;
   if (p2pDisconnectBtn) p2pDisconnectBtn.disabled = gameStarted;
 }
 
@@ -1139,6 +1280,9 @@ function rollDice() {
     turnIndexOverride,
     activeTurnOverride,
   });
+  if (isMultiplayerActive()) {
+    syncStateToPeer();
+  }
   state.pendingTurnIndex = null;
   state.pendingActiveTurn = null;
   const rollMsg = `Rolled ${describeDice(dice)}`;
@@ -1173,7 +1317,22 @@ function rollDice() {
     if (state.pestilenceInfo?.sectionLabel && state.pestilenceInfo.targetCells.length === 0) {
       log("Target section is full; forfeit any empty plot.");
     }
-    lockDiceSnapshot(state, { uniqueLocationPairs });
+    // Auto-assign the split for pestilence: numbered/windrose stay in location, X dice in build.
+    const forcedSplit = splitForcedDice(state.dice || []);
+    const locIdx = [];
+    const buildIdx = [];
+    (state.dice || []).forEach((die, idx) => {
+      if (die?.label?.startsWith("N") || die?.face === "windrose") locIdx.push(idx);
+      else buildIdx.push(idx);
+    });
+    state.locationSelection = locIdx.slice(0, 2);
+    state.locationPairs = uniqueLocationPairs(forcedSplit.locationDice);
+    state.lockedLocationDice = forcedSplit.locationDice;
+    state.lockedBuildDice = forcedSplit.buildDice;
+    state.lockedLocationPairs = state.locationPairs;
+    p2pUiState.splitLocked = true;
+    state.forceForfeit = true;
+    state.diceLocked = true;
   } else if (turnHintEl) {
     turnHintEl.textContent = state.activeTurn
       ? ""
@@ -1182,6 +1341,17 @@ function rollDice() {
         : "Non-active turn. Dice automatically assigned.";
   }
   updateTurnStatusChip();
+  const nonActiveMultiplayer = isMultiplayerActive() && p2pUiState.activeSeat !== p2pUiState.seatId;
+  if (nonActiveMultiplayer && !state.pestilence && !state.forceForfeit) {
+    state.locationSelection = [];
+    state.locationPairs = [];
+    state.buildDice = [];
+    state.lockedLocationDice = null;
+    state.lockedBuildDice = null;
+    state.lockedLocationPairs = null;
+    p2pUiState.splitLocked = false;
+    state.diceLocked = false;
+  }
   updateDiceAssignments();
   renderDice();
   updateActionBanner();
@@ -1241,9 +1411,16 @@ function renderDice() {
     } else if (state.forceForfeit) {
       turnHintEl.textContent = "No valid location pairs; forfeit a plot.";
     } else if (!state.activeTurn) {
-      turnHintEl.textContent = isMultiplayerActive()
-        ? "Waiting for the active player to finish the split."
-        : "Non-active turn. Dice automatically assigned.";
+      const waitingSplit = awaitingSplitNonActive();
+      if (waitingSplit && (state.pestilence || state.forceForfeit)) {
+        turnHintEl.textContent = "Forfeit a plot.";
+      } else if (p2pUiState.splitLocked) {
+        turnHintEl.textContent = "";
+      } else {
+        turnHintEl.textContent = isMultiplayerActive()
+          ? "Waiting for the active player to finish the split."
+          : "Non-active turn. Dice automatically assigned.";
+      }
     } else {
       turnHintEl.textContent = "";
     }
@@ -1273,7 +1450,17 @@ function renderDice() {
 }
 
 function fillBuildings(buildDice) {
-  if (state.locationSelection.length !== 2 || state.diceLocked) {
+  const hasLockedLocation = p2pUiState.splitLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
+  const diceLockedForBuild = state.diceLocked && !p2pUiState.splitLocked;
+  let effectiveBuildDice = hasLockedLocation && state.lockedBuildDice?.length === 2 ? state.lockedBuildDice : buildDice;
+  if (hasLockedLocation) {
+    const choice = lockedPairChoice();
+    effectiveBuildDice = choice.buildDice || effectiveBuildDice;
+    // keep state in sync so downstream pop calculation has the swapped build dice
+    state.buildDice = effectiveBuildDice;
+  }
+
+  if ((!hasLockedLocation && state.locationSelection.length !== 2) || diceLockedForBuild) {
     state.buildChoice = null;
     state.selectedGuildType = null;
     renderBuildingOverlay([], true);
@@ -1283,7 +1470,7 @@ function fillBuildings(buildDice) {
     renderBuildingOverlay([], true);
     return;
   }
-  const allowed = restrictBuildOptionsForBoard(buildingOptionsFromDice(buildDice), state.board);
+  const allowed = restrictBuildOptionsForBoard(buildingOptionsFromDice(effectiveBuildDice), state.board);
   const availableGuildTypes = guildTypes.filter((t) => !builtGuildTypes(state.board).has(t));
   const options = allowed.filter((opt) => {
     if (opt.code !== "G") return true;
@@ -1320,16 +1507,21 @@ function enforceBuildingSelection(options = []) {
 function renderBuildingOverlay(options = [], disabled = false) {
   const overlay = document.getElementById("buildingsOverlay");
   if (!overlay) return;
+  const hasLockedLocation = p2pUiState.splitLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
   const diceLockedForBuild = state.diceLocked && !p2pUiState.splitLocked;
   const forceDisabled =
     disabled ||
-    state.locationSelection.length !== 2 ||
+    (!hasLockedLocation && state.locationSelection.length !== 2) ||
     diceLockedForBuild ||
     state.activationMode ||
     state.forceForfeit ||
     state.pestilence;
-  if ((!options || !options.length) && state.buildDice?.length && !forceDisabled) {
-    const fallback = restrictBuildOptionsForBoard(buildingOptionsFromDice(state.buildDice), state.board);
+  const buildDice =
+    hasLockedLocation && state.lockedBuildDice?.length === 2
+      ? (lockedPairChoice().buildDice || state.lockedBuildDice)
+      : state.buildDice;
+  if ((!options || !options.length) && buildDice?.length && !forceDisabled) {
+    const fallback = restrictBuildOptionsForBoard(buildingOptionsFromDice(buildDice), state.board);
     options = fallback;
   }
   overlay.innerHTML = "";
@@ -1357,7 +1549,9 @@ function renderBuildingOverlay(options = [], disabled = false) {
     div.addEventListener("click", (e) => {
       e.stopPropagation();
       if (div.classList.contains("disabled")) return;
-      if (state.locationSelection.length !== 2 || state.diceLocked) return;
+      const hasLockedLocation = p2pUiState.splitLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
+      const diceLockedForBuild = state.diceLocked && !p2pUiState.splitLocked;
+      if ((!hasLockedLocation && state.locationSelection.length !== 2) || diceLockedForBuild) return;
       document.querySelectorAll(".building-hit.selected").forEach((el) => el.classList.remove("selected"));
       div.classList.add("selected");
       handleBuildingChoice();
@@ -1469,6 +1663,17 @@ function renderBoard() {
 }
 
 function onCellClick(r, c) {
+  const hasLockedLocation = state.diceLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
+  const awaitingSplit = isMultiplayerActive() && !p2pUiState.splitLocked && !state.pestilence && !state.forceForfeit;
+  const phase = currentTurnPhase();
+  if (state.locationSelection.length < 2 && !hasLockedLocation && !state.pestilence && !state.forceForfeit && !state.activationMode) {
+    log("Split the dice first, then pick a plot.");
+    return;
+  }
+  if (awaitingSplit) {
+    log("Wait for the active player to finish the split.");
+    return;
+  }
   if (state.pendingPopulation?.remaining > 0) {
     log("Place pending population first.");
     return;
@@ -1505,7 +1710,15 @@ function onCellClick(r, c) {
     log("Select two dice for Location first.");
     return;
   }
-  const matches = state.locationPairs.some(([a, b]) => {
+  const locPairs =
+    p2pUiState.splitLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2
+      ? effectiveLockedLocationPairs()
+      : state.locationPairs;
+  if (!locPairs?.length) {
+    log("Select two dice for Location first.");
+    return;
+  }
+  const matches = locPairs.some(([a, b]) => {
     const r1 = a - 1;
     const c1 = b - 1;
     const r2 = b - 1;
@@ -1518,6 +1731,10 @@ function onCellClick(r, c) {
   }
   if (!state.buildChoice) {
     log("Choose a building first.");
+    return;
+  }
+  if (phase !== TURN_PHASE.BUILDING && phase !== TURN_PHASE.SPLITTING) {
+    log("Finish the current step before building.");
     return;
   }
   placeBuilding(r, c, state.buildChoice.code);
@@ -1637,12 +1854,15 @@ function highlightLocations() {
     return;
   }
   if (state.pestilence || state.pendingPopulation?.remaining > 0) return;
-  if (state.locationSelection.length !== 2 || !state.locationPairs.length) return;
+  const showLockedHighlight =
+    p2pUiState.splitLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
+  const locPairs = showLockedHighlight ? effectiveLockedLocationPairs() : state.locationPairs;
+  if ((state.locationSelection.length !== 2 && !showLockedHighlight) || !locPairs?.length) return;
   boardEl.querySelectorAll(".cell").forEach((cell) => {
     const r = parseInt(cell.dataset.row, 10);
     const c = parseInt(cell.dataset.col, 10);
     const data = state.board[r][c];
-    const match = state.locationPairs.some(([a, b]) => {
+    const match = locPairs.some(([a, b]) => {
       const r1 = a - 1;
       const c1 = b - 1;
       const r2 = b - 1;
@@ -1700,11 +1920,15 @@ function placeBuilding(r, c, code) {
   cell.building = code;
   cell.buildingLabel = buildingLabel;
   if (code === "C") state.tracks.housing += 4;
+  const buildPool =
+    p2pUiState.splitLocked && Array.isArray(state.lockedBuildDice) && state.lockedBuildDice.length === 2
+      ? (lockedPairChoice().buildDice || state.lockedBuildDice)
+      : state.buildDice;
   const popGain =
     state.buildChoice?.source === "die1"
-      ? dieMaxValue(state.buildDice[1])
+      ? dieMaxValue(buildPool[1])
       : state.buildChoice?.source === "die2"
-        ? dieMaxValue(state.buildDice[0])
+        ? dieMaxValue(buildPool[0])
         : 0;
   lockDiceSnapshot(state, { markPendingNextRoll: true, uniqueLocationPairs });
   renderBoard();
@@ -1718,6 +1942,14 @@ function placeBuilding(r, c, code) {
         })()
       : code;
   log(`Placed ${displayLabel} at row ${r + 1}, col ${c + 1}`);
+  if (isMultiplayerActive()) {
+    const map = ensureSplitUsedMap();
+    map[p2pUiState.seatId] = true;
+    p2pUiState.splitUsed = map;
+  } else {
+    state.splitUsedForBuild = true;
+  }
+  p2pUiState.lockedPairSwap = false;
   updateDiceAssignments();
   // Reset guild selection after placement
   if (code !== "G") {
@@ -1737,6 +1969,7 @@ function placeBuilding(r, c, code) {
   if (popGain > 0) {
     beginPopulationPlacement(r, c, popGain);
   } else if (!springResolved) {
+    autoMarkBuildDoneIfReady({ force: true });
     autoAdvance();
     maybeRollAfterLock();
   }
@@ -1780,6 +2013,7 @@ function applySpringhouseBoost(target) {
   state.pendingSpringhouseTarget = null;
   autoAdvance();
   maybeRollAfterLock();
+  autoMarkBuildDoneIfReady();
   updateActionBanner();
 }
 
@@ -1794,6 +2028,7 @@ function forfeitCell(r, c) {
     log("Cell occupied or forfeited.");
     return;
   }
+  const forcedFlow = state.pestilence || state.forceForfeit;
   cell.forfeited = true;
   lockDiceSnapshot(state, { markPendingNextRoll: true, uniqueLocationPairs });
   updateDiceAssignments();
@@ -1809,6 +2044,7 @@ function forfeitCell(r, c) {
   refreshScoreOverlay();
   autoAdvance();
   maybeRollAfterLock();
+  autoMarkBuildDoneIfReady({ force: forcedFlow });
 }
 
 function updateTracks() {
@@ -1891,7 +2127,10 @@ function newGame() {
 
 function handleBuildingChoice() {
   const selected = document.querySelector(".building-hit.selected");
-  if (state.locationSelection.length !== 2 || state.diceLocked) {
+  const hasLockedLocation = p2pUiState.splitLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
+  const diceLockedForBuild = state.diceLocked && !p2pUiState.splitLocked;
+  const hasLocationReady = hasLockedLocation || state.locationSelection.length === 2;
+  if (!hasLocationReady || diceLockedForBuild) {
     state.buildChoice = null;
     state.selectedGuildType = null;
     return;
@@ -1928,7 +2167,14 @@ function handleBuildingChoice() {
 function renderGuildOverlay(available = []) {
   const overlay = document.getElementById("guildsOverlay");
   if (!overlay) return;
-  const locked = state.locationSelection.length !== 2 || state.diceLocked || state.activationMode || state.forceForfeit || state.pestilence;
+  const hasLockedLocation = p2pUiState.splitLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
+  const locationReady = hasLockedLocation || state.locationSelection.length === 2;
+  const locked =
+    !locationReady ||
+    (state.diceLocked && !p2pUiState.splitLocked) ||
+    state.activationMode ||
+    state.forceForfeit ||
+    state.pestilence;
   overlay.style.pointerEvents = available.length && !locked ? "auto" : "none";
   overlay.innerHTML = "";
   const availableSet = new Set(available);
@@ -2011,6 +2257,7 @@ function onPopulationNodeClick(nr, nc) {
   updateTracks();
   refreshScoreOverlay();
   renderBoard();
+  autoMarkBuildDoneIfReady();
   autoAdvance();
   maybeRollAfterLock();
   updateActionBanner();
@@ -2022,13 +2269,16 @@ function renderTopTracks() {
 
 function actionMessage() {
   if (state.bannerOverride) return state.bannerOverride;
-  if (state.activationComplete) {
+  const isMultiplayer = p2pUiState.seatsTotal > 1 && p2pUiState.signallingActive;
+  const phase = currentTurnPhase();
+
+  if (phase === TURN_PHASE.ACTIVATION_DONE) {
     const score = typeof state.finalScore === "number"
       ? state.finalScore
       : currentScore({ allowPopulationActivation: true }).total;
     return `Game over. Final score ${score}.`;
   }
-  if (state.activationMode) {
+  if (phase === TURN_PHASE.ACTIVATION) {
     const anyRemaining = state.board.some((row, r) =>
       row.some((cell, c) => {
         if (!cell.building || cell.forfeited || cell.activationForfeit) return false;
@@ -2046,15 +2296,13 @@ function actionMessage() {
   if (state.pendingSpringhouseTarget) {
     return "Select an adjacent building for Springhouse to reduce worker requirement by 1.";
   }
-  if (state.pestilence || state.forceForfeit) {
+  if (phase === TURN_PHASE.PESTILENCE || phase === TURN_PHASE.FORFEIT) {
     return "Forfeit an empty plot.";
   }
-  const isMultiplayer = p2pUiState.seatsTotal > 1 && p2pUiState.signallingActive;
-  if (state.pendingPopulation?.remaining > 0) {
+  if (phase === TURN_PHASE.POPULATION) {
     return `Place ${state.pendingPopulation.remaining} population on an adjacent intersection.`;
   }
-  const awaitingRoll = !debugMode && state.rollAvailable;
-  if (awaitingRoll) {
+  if (phase === TURN_PHASE.AWAIT_ROLL) {
     if (isMultiplayer && p2pUiState.activeSeat !== p2pUiState.seatId) {
       return "Waiting for the active player to roll dice.";
     }
@@ -2067,15 +2315,22 @@ function actionMessage() {
     if (p2pUiState.buildDone?.[p2pUiState.seatId]) {
       return "Waiting for other players to finish building.";
     }
-    return "Build with this split, then click Done building.";
+    return "Build with this split.";
   }
-  if (state.locationSelection.length < 2 && !(state.diceLocked && state.lockedLocationDice?.length === 2)) {
-    return "Select two location dice in the Turn panel.";
+  if (phase === TURN_PHASE.SPLITTING) {
+    if (state.locationSelection.length < 2 && !(state.diceLocked && state.lockedLocationDice?.length === 2)) {
+      return "Select two location dice in the Turn panel.";
+    }
+    return "Lock the split to continue building.";
   }
-  if (!state.buildChoice) {
-    return "Select a building from the Buildings overlay.";
+  if (phase === TURN_PHASE.BUILDING) {
+    if (!state.buildChoice) {
+      return "Select a building from the Buildings overlay.";
+    }
+    return "Click a highlighted plot to place the chosen building.";
   }
-  return "Click a highlighted plot to place the chosen building.";
+  if (!state.activeTurn) return "Waiting for the active player.";
+  return "Roll dice to begin.";
 }
 
 function updateActionBanner() {
@@ -2097,7 +2352,7 @@ function updateActionBanner() {
 }
 
 function updateMultiplayerButtons() {
-  if (!finishSplitBtn || !doneBuildingBtn) return;
+  if (!finishSplitBtn) return;
   const multiplayer = isMultiplayerActive();
   const hasDice = Array.isArray(state.dice) && state.dice.length >= 4;
   const canFinishSplit =
@@ -2114,16 +2369,16 @@ function updateMultiplayerButtons() {
 
   if (swapPairBtn) {
     const choice = lockedPairChoice();
-    const showSwap = multiplayer && p2pUiState.splitLocked && choice.swapAllowed;
+    const showSwap =
+      multiplayer &&
+      p2pUiState.splitLocked &&
+      choice.swapAllowed &&
+      !state.pestilence;
     swapPairBtn.style.display = showSwap ? "inline-block" : "none";
     swapPairBtn.disabled = !showSwap;
   }
 
-  const showDone = multiplayer && p2pUiState.splitLocked && hasDice;
-  doneBuildingBtn.style.display = showDone ? "inline-block" : "none";
-  const alreadyDone = Boolean(p2pUiState.buildDone?.[p2pUiState.seatId]);
-  doneBuildingBtn.disabled = alreadyDone;
-  doneBuildingBtn.textContent = alreadyDone ? "Done" : "Done building";
+  // Done-building button removed; completion is automatic after placement/population.
 }
 
 function updateTurnStatusChip() {
@@ -2288,16 +2543,29 @@ function renderPopulationNodes() {
   boardEl.appendChild(grid);
 }
 
-function renderSelectionDice(locationDice = [], buildDice = []) {
+function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPreview = false, ignoreState = false } = {}) {
+  if (ignoreState) {
+    const loc = locationDice || [];
+    const build = forceBuildPreview ? buildDice || [] : buildDice || [];
+    if (locDicePreview) renderDicePreview(locDicePreview, loc, "location", "Select 2 dice for location");
+    if (buildDicePreview) renderDicePreview(buildDicePreview, build, "build", "Remaining dice used for build");
+    return;
+  }
+  const respectSwap = () => {
+    if (!(p2pUiState.splitLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2)) {
+      return { loc: locationDice, build: buildDice };
+    }
+    const choice = lockedPairChoice();
+    return { loc: choice.locDice || locationDice, build: choice.buildDice || buildDice };
+  };
+
   const currentLocFromState = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
-  const forcedMode =
-    state.pestilence ||
-    state.forceForfeit ||
-    (!state.activeTurn && (!state.locationPairs || state.locationPairs.length === 0));
+  const forcedMode = state.pestilence || state.forceForfeit;
   const forcedSplit = forcedMode ? splitForcedDice(state.dice || []) : null;
   const doubleWindrose = shouldRerollDoubleWindrose(state.dice || []);
+  const xDice = (state.dice || []).filter((d) => d && d.face === "X");
 
-  const effectiveLoc =
+  let effectiveLoc =
     (doubleWindrose
       ? []
       : (forcedSplit && forcedSplit.locationDice.length && forcedSplit.locationDice) ||
@@ -2307,19 +2575,22 @@ function renderSelectionDice(locationDice = [], buildDice = []) {
         []);
 
   const currentBuildFromState = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
-  const forcedXs = state.dice.filter((d) => d.face === "X"); // normal flow: only X faces show in build before selection
-  const effectiveBuild =
+  let effectiveBuild =
     doubleWindrose
       ? []
       : (forcedSplit && forcedSplit.buildDice.length)
         ? forcedSplit.buildDice
-        : state.locationSelection.length === 2
+        : state.locationSelection.length === 2 || forceBuildPreview
           ? (buildDice && buildDice.length && buildDice) ||
             (currentBuildFromState.length && currentBuildFromState) ||
             (state.lockedBuildDice && state.lockedBuildDice.length && state.lockedBuildDice) ||
             (state.lastBuildDice && state.lastBuildDice.length && state.lastBuildDice) ||
             []
-          : forcedXs;
+          : xDice;
+
+  const swapped = respectSwap();
+  effectiveLoc = swapped.loc && swapped.loc.length ? swapped.loc : effectiveLoc;
+  effectiveBuild = swapped.build && swapped.build.length ? swapped.build : effectiveBuild;
 
   if (locDicePreview) {
     renderDicePreview(locDicePreview, effectiveLoc, "location", "Select 2 dice for location");
@@ -2409,7 +2680,12 @@ function updateDiceAssignments() {
     return;
   }
   if (isMultiplayerActive() && p2pUiState.splitLocked) {
-    const { locDice: lockedLoc, buildDice: lockedBuild } = lockedPairChoice();
+    const choice = lockedPairChoice();
+    const lockedLoc = choice.locDice;
+    const lockedBuild = choice.buildDice;
+    const pairsForBoard = filterAvailablePairs(uniqueLocationPairs(lockedLoc || []), state.board);
+    state.forceForfeit = pairsForBoard.length === 0;
+    state.buildDice = lockedBuild;
     renderSelectionDice(lockedLoc, lockedBuild);
     fillBuildings(lockedBuild);
     highlightLocations();
@@ -2418,10 +2694,46 @@ function updateDiceAssignments() {
     updateMultiplayerButtons();
     return;
   }
+  if (isMultiplayerActive() && p2pUiState.activeSeat !== p2pUiState.seatId && !p2pUiState.splitLocked) {
+    const windroseOnly = (state.forcedLocationDice || [])
+      .map((idx) => state.dice[idx])
+      .filter((d) => d && d.face === "windrose");
+    const xDice = (state.dice || []).filter((d) => d && d.face === "X");
+    state.locationSelection = (state.forcedLocationDice || []).filter((idx) => state.dice[idx]?.face === "windrose");
+    state.locationPairs = [];
+    state.buildDice = xDice;
+    state.forceForfeit = false;
+    renderSelectionDice(windroseOnly, xDice, { forceBuildPreview: true, ignoreState: true });
+    fillBuildings([]);
+    highlightLocations();
+    updateActionBanner();
+    renderDice();
+    updateMultiplayerButtons();
+    return;
+  }
+  const waitingSplit = awaitingSplitNonActive();
+  if (waitingSplit) {
+    const windroseOnly = (state.forcedLocationDice || [])
+      .map((idx) => state.dice[idx])
+      .filter((d) => d && d.face === "windrose");
+    const xDice = (state.dice || []).filter((d) => d && d.face === "X");
+    state.locationSelection = (state.forcedLocationDice || []).filter((idx) => state.dice[idx]?.face === "windrose");
+    state.locationPairs = [];
+    state.buildDice = xDice;
+    renderSelectionDice(windroseOnly, xDice, { forceBuildPreview: true, ignoreState: true });
+    fillBuildings([]);
+    highlightLocations();
+    updateActionBanner();
+    renderDice();
+    updateMultiplayerButtons();
+    return;
+  }
   const locationDice = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
-  const buildDice = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
-  if (locationDice.length === 2) state.lastLocationDice = locationDice;
-  if (buildDice.length) state.lastBuildDice = buildDice;
+  const buildDice = state.locationSelection.length === 2 ? state.dice.filter((_, idx) => !state.locationSelection.includes(idx)) : [];
+  if (locationDice.length === 2) {
+    state.lastLocationDice = locationDice;
+    state.lastBuildDice = buildDice;
+  }
 
   const { message } = evaluateLocationSelection(state, {
     uniqueLocationPairs,
@@ -2523,16 +2835,28 @@ function finishDiceSplit() {
 
 function markBuildDone() {
   if (!isMultiplayerActive()) return;
-  if (!p2pUiState.splitLocked) return;
-  p2pUiState.buildDone = {
-    ...(p2pUiState.buildDone || {}),
-    [p2pUiState.seatId]: true,
-  };
+  const allowForced = state.pestilence || state.forceForfeit;
+  if (!p2pUiState.splitLocked && !allowForced) return;
+  const merged = ensureBuildDoneMap();
+  merged[p2pUiState.seatId] = true;
+  p2pUiState.buildDone = merged;
   updateMultiplayerButtons();
   if (allBuildsMarkedDone()) {
     completeMultiplayerTurn();
   } else {
     syncStateToPeer();
+  }
+}
+
+function autoMarkBuildDoneIfReady({ force = false } = {}) {
+  const ready =
+    isMultiplayerActive() &&
+    ((p2pUiState.splitLocked || state.pestilence || state.forceForfeit) || force) &&
+    !p2pUiState.buildDone?.[p2pUiState.seatId] &&
+    !state.pendingPopulation?.remaining &&
+    !state.pendingSpringhouseTarget;
+  if (ready) {
+    markBuildDone();
   }
 }
 
@@ -2687,6 +3011,15 @@ function copyInviteLink() {
     Promise.resolve(doCopy())
       .then((ok) => {
         if (ok) {
+          if (p2pCopyBtn) {
+            const original = p2pCopyBtn.textContent || "Copy";
+            p2pCopyBtn.textContent = "Copied";
+            p2pCopyBtn.classList.add("copied");
+            setTimeout(() => {
+              p2pCopyBtn.textContent = original;
+              p2pCopyBtn.classList.remove("copied");
+            }, 1500);
+          }
           updateP2PStatus("Invite copied. Share it in chat.");
         } else {
           updateP2PStatus("Could not copy automatically. Copy the invite text manually.");
@@ -2713,4 +3046,18 @@ function toggleQrModal(show) {
   } else {
     p2pQrModal.classList.add("hidden");
   }
+}
+
+// Test-only hooks to inspect internal state in jsdom. Enabled by setting window.__RF_ENABLE_TEST_HOOKS__ before loading.
+if (typeof window !== "undefined" && window.__RF_ENABLE_TEST_HOOKS__) {
+  window.__rfTestHooks = {
+    state,
+    p2pUiState,
+    updateDiceAssignments,
+    renderSelectionDice,
+    handleBuildingChoice,
+    applyFullSnapshot,
+    currentTurnPhase,
+    TURN_PHASE,
+  };
 }
