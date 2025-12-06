@@ -2308,8 +2308,12 @@ function forfeitCell(r, c) {
   state.pestilenceInfo = null;
   state.forceForfeit = false;
   refreshScoreOverlay();
-  autoAdvance();
-  maybeRollAfterLock();
+  const next = maybeRollAfterLock();
+  if (next === "roll") {
+    prepareNextRoll();
+  } else {
+    autoAdvance();
+  }
   autoMarkBuildDoneIfReady({ force: forcedFlow });
 }
 

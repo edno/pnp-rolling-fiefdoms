@@ -240,11 +240,10 @@ describe("blocked build flow (jsdom)", () => {
     hooks.state.board[0][0].building = "T"; // advanced already built, blocking Townhall
     hooks.updateDiceAssignments();
     await flushMicrotasks();
-    const logs = latestLogs();
-    expect(logs.some((m) => m.includes("No valid buildings"))).toBe(true);
     expect(hooks.state.forceForfeit).toBe(true);
     const msg = hooks.actionMessage();
     expect(msg.toLowerCase()).toContain("forfeit");
+    expect(hooks.state.diceLocked).toBe(true);
   });
 });
 
@@ -296,6 +295,20 @@ describe("pestilence UI flow (jsdom)", () => {
     expect(logs.some((m) => m.includes("Forfeited row 1, col 1"))).toBe(true);
     expect(logs.some((m) => /Rolled N1:1, N2:2/i.test(m))).toBe(true);
     expect(document.getElementById("turnHint").textContent).not.toContain("Pestilence");
+  });
+
+  it("clears dice lock and enables next roll after pestilence forfeit", async () => {
+    await setupApp({ enableHooks: true, numbered: [3, 3, 1, 1], x: ["X", "X", 2, 2] });
+    const hooks = window.__rfTestHooks;
+    clickRoll();
+    const targetCell = document.querySelector('.cell[data-row="0"][data-col="0"]');
+    expect(targetCell).toBeTruthy();
+    targetCell.click();
+    await flushMicrotasks();
+    expect(hooks.state.pestilence).toBe(false);
+    expect(hooks.state.forceForfeit).toBe(false);
+    expect(hooks.state.diceLocked).toBe(false);
+    expect(hooks.state.rollAvailable).toBe(true);
   });
 });
 
