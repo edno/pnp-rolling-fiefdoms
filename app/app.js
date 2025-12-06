@@ -860,6 +860,101 @@ function describeRemoteSnapshot(snapshot) {
   return `${name}${turn}`;
 }
 
+function deepClone(data) {
+  try {
+    if (typeof structuredClone === "function") return structuredClone(data);
+  } catch (err) {
+    // fall through to JSON copy
+  }
+  try {
+    return JSON.parse(JSON.stringify(data));
+  } catch (err) {
+    return null;
+  }
+}
+
+function isFiniteNumber(val) {
+  return typeof val === "number" && Number.isFinite(val);
+}
+
+function sanitizeDie(die) {
+  if (!die || typeof die !== "object") return null;
+  const face = isFiniteNumber(die.face) || die.face === "X" || die.face === "windrose" ? die.face : null;
+  const resolved = isFiniteNumber(die.resolved) ? die.resolved : null;
+  const choices = Array.isArray(die.choices) ? die.choices.filter(isFiniteNumber) : [];
+  const clean = { face, choices, resolved };
+  if (typeof die.label === "string") clean.label = die.label;
+  return clean;
+}
+
+function sanitizeDice(dice, limit = 4) {
+  if (!Array.isArray(dice)) return null;
+  const clean = dice.slice(0, limit).map((d) => sanitizeDie(d)).filter(Boolean);
+  return clean.length ? clean : null;
+}
+
+function sanitizeNumberArray(arr, limit = 4) {
+  if (!Array.isArray(arr)) return [];
+  return arr.filter(isFiniteNumber).slice(0, limit);
+}
+
+function sanitizeLocationPairs(pairs) {
+  if (!Array.isArray(pairs)) return [];
+  return pairs
+    .filter((p) => Array.isArray(p) && p.length === 2 && isFiniteNumber(p[0]) && isFiniteNumber(p[1]))
+    .map((p) => [p[0], p[1]]);
+}
+
+function sanitizeBuildDoneMap(map, seats = 1) {
+  const total = Math.max(1, Number(seats) || 1);
+  const clean = {};
+  for (let i = 1; i <= total; i += 1) {
+    clean[i] = Boolean(map?.[i]);
+  }
+  return clean;
+}
+
+function sanitizeSnapshot(raw) {
+  const clone = deepClone(raw);
+  if (!clone || typeof clone !== "object") return { ok: false, reason: "invalid object" };
+  if (clone.version && clone.version !== "1") return { ok: false, reason: "unsupported snapshot version" };
+
+  const seatsTotal = Math.max(1, Number(clone.seatsTotal || 1) || 1);
+  const dice = sanitizeDice(clone.dice);
+  if (!dice) return { ok: false, reason: "invalid dice array" };
+
+  return {
+    ok: true,
+    snapshot: {
+      version: clone.version || "1",
+      sessionId: clone.sessionId || null,
+      turnIndex: isFiniteNumber(clone.turnIndex) ? clone.turnIndex : 0,
+      activeTurn: typeof clone.activeTurn === "boolean" ? clone.activeTurn : true,
+      rollAvailable: typeof clone.rollAvailable === "boolean" ? clone.rollAvailable : true,
+      dice,
+      locationSelection: sanitizeNumberArray(clone.locationSelection, 2),
+      locationPairs: sanitizeLocationPairs(clone.locationPairs),
+      lockedLocationDice: sanitizeDice(clone.lockedLocationDice, 2),
+      lockedBuildDice: sanitizeDice(clone.lockedBuildDice, 2),
+      lockedLocationPairs: sanitizeLocationPairs(clone.lockedLocationPairs),
+      diceLocked: Boolean(clone.diceLocked),
+      lastLocationDice: sanitizeDice(clone.lastLocationDice) || [],
+      lastBuildDice: sanitizeDice(clone.lastBuildDice) || [],
+      forcedLocationDice: sanitizeNumberArray(clone.forcedLocationDice, 2),
+      pestilence: Boolean(clone.pestilence),
+      pestilenceInfo: clone.pestilenceInfo && typeof clone.pestilenceInfo === "object" ? clone.pestilenceInfo : null,
+      forceForfeit: Boolean(clone.forceForfeit),
+      pendingNextRoll: Boolean(clone.pendingNextRoll),
+      bannerOverride: typeof clone.bannerOverride === "string" ? clone.bannerOverride : null,
+      seatsTotal,
+      activeSeat: isFiniteNumber(clone.activeSeat) ? clone.activeSeat : null,
+      splitLocked: Boolean(clone.splitLocked),
+      buildDone: sanitizeBuildDoneMap(clone.buildDone, seatsTotal),
+      fiefdomName: typeof clone.fiefdomName === "string" ? clone.fiefdomName : "",
+    },
+  };
+}
+
 function buildFullSnapshot() {
   const base = {
     version: "1",
@@ -888,25 +983,29 @@ function buildFullSnapshot() {
 }
 
 function applyFullSnapshot(snapshot) {
-  if (!snapshot || typeof snapshot !== "object") return;
-  const incomingSeats = snapshot.seatsTotal || p2pUiState.seatsTotal;
-  const seatsTotal = Math.max(1, Number(incomingSeats) || 1);
+  const validation = sanitizeSnapshot(snapshot);
+  if (!validation.ok) {
+    logP2P(`Snapshot rejected: ${validation.reason || "invalid"}.`);
+    return;
+  }
+  const snap = validation.snapshot;
+  const seatsTotal = snap.seatsTotal || p2pUiState.seatsTotal;
   p2pUiState.splitUsed = ensureSplitUsedMap(seatsTotal, p2pUiState.splitUsed);
-  state.turnIndex = typeof snapshot.turnIndex === "number" ? snapshot.turnIndex : state.turnIndex;
-  state.activeTurn = typeof snapshot.activeTurn === "boolean" ? snapshot.activeTurn : state.activeTurn;
-  state.rollAvailable = typeof snapshot.rollAvailable === "boolean" ? snapshot.rollAvailable : state.rollAvailable;
-  state.dice = Array.isArray(snapshot.dice) ? snapshot.dice : state.dice;
-  state.locationSelection = Array.isArray(snapshot.locationSelection) ? snapshot.locationSelection : state.locationSelection;
-  state.locationPairs = Array.isArray(snapshot.locationPairs) ? snapshot.locationPairs : state.locationPairs;
-  state.lockedLocationDice = snapshot.lockedLocationDice || null;
-  state.lockedBuildDice = snapshot.lockedBuildDice || null;
-  state.lockedLocationPairs = snapshot.lockedLocationPairs || null;
-  state.diceLocked = Boolean(snapshot.diceLocked);
-  state.lastLocationDice = snapshot.lastLocationDice || state.lastLocationDice;
-  state.lastBuildDice = snapshot.lastBuildDice || state.lastBuildDice;
-  state.forcedLocationDice = snapshot.forcedLocationDice || [];
-  state.pestilence = Boolean(snapshot.pestilence);
-  state.forceForfeit = Boolean(snapshot.forceForfeit);
+  state.turnIndex = typeof snap.turnIndex === "number" ? snap.turnIndex : state.turnIndex;
+  state.activeTurn = typeof snap.activeTurn === "boolean" ? snap.activeTurn : state.activeTurn;
+  state.rollAvailable = typeof snap.rollAvailable === "boolean" ? snap.rollAvailable : state.rollAvailable;
+  state.dice = snap.dice || state.dice;
+  state.locationSelection = snap.locationSelection || state.locationSelection;
+  state.locationPairs = snap.locationPairs || state.locationPairs;
+  state.lockedLocationDice = snap.lockedLocationDice || null;
+  state.lockedBuildDice = snap.lockedBuildDice || null;
+  state.lockedLocationPairs = snap.lockedLocationPairs || null;
+  state.diceLocked = Boolean(snap.diceLocked);
+  state.lastLocationDice = snap.lastLocationDice || state.lastLocationDice;
+  state.lastBuildDice = snap.lastBuildDice || state.lastBuildDice;
+  state.forcedLocationDice = snap.forcedLocationDice || [];
+  state.pestilence = Boolean(snap.pestilence);
+  state.forceForfeit = Boolean(snap.forceForfeit);
   if (state.pestilence) {
     state.pestilenceInfo = computePestilenceInfo(state.dice, state.board);
     const locIdx = [];
@@ -923,24 +1022,24 @@ function applyFullSnapshot(snapshot) {
     state.lockedLocationPairs = state.locationPairs;
     p2pUiState.splitLocked = true;
     state.diceLocked = true;
-  } else if (snapshot.pestilenceInfo) {
-    state.pestilenceInfo = snapshot.pestilenceInfo;
+  } else if (snap.pestilenceInfo) {
+    state.pestilenceInfo = snap.pestilenceInfo;
   }
-  state.pendingNextRoll = Boolean(snapshot.pendingNextRoll);
-  state.bannerOverride = snapshot.bannerOverride || null;
-  if (snapshot.seatsTotal) p2pUiState.seatsTotal = snapshot.seatsTotal;
-  const incomingBuildDone = snapshot.buildDone ? ensureBuildDoneMap(seatsTotal, snapshot.buildDone) : ensureBuildDoneMap(seatsTotal);
+  state.pendingNextRoll = Boolean(snap.pendingNextRoll);
+  state.bannerOverride = snap.bannerOverride || null;
+  if (snap.seatsTotal) p2pUiState.seatsTotal = snap.seatsTotal;
+  const incomingBuildDone = snap.buildDone ? ensureBuildDoneMap(seatsTotal, snap.buildDone) : ensureBuildDoneMap(seatsTotal);
   p2pUiState.buildDone = incomingBuildDone;
-  p2pUiState.splitLocked = Boolean(snapshot.splitLocked);
-  if (typeof snapshot.activeSeat === "number") {
-    setActiveSeat(snapshot.activeSeat);
+  p2pUiState.splitLocked = Boolean(snap.splitLocked);
+  if (typeof snap.activeSeat === "number") {
+    setActiveSeat(snap.activeSeat);
   }
-  const waitingNonActive = awaitingSplitNonActive(snapshot.activeSeat);
+  const waitingNonActive = awaitingSplitNonActive(snap.activeSeat);
   if (p2pUiState.splitLocked) {
     state.diceLocked = true;
-    if (snapshot.lockedLocationDice) state.lockedLocationDice = snapshot.lockedLocationDice;
-    if (snapshot.lockedBuildDice) state.lockedBuildDice = snapshot.lockedBuildDice;
-    if (snapshot.lockedLocationPairs) state.lockedLocationPairs = snapshot.lockedLocationPairs;
+    if (snap.lockedLocationDice) state.lockedLocationDice = snap.lockedLocationDice;
+    if (snap.lockedBuildDice) state.lockedBuildDice = snap.lockedBuildDice;
+    if (snap.lockedLocationPairs) state.lockedLocationPairs = snap.lockedLocationPairs;
   } else {
     const doubleX = Array.isArray(state.dice) && state.dice.filter((d) => d?.face === "X").length === 2;
     if (doubleX) {
@@ -972,7 +1071,7 @@ function applyFullSnapshot(snapshot) {
   highlightLocations();
   updateTurnStatusChip();
   updateMultiplayerButtons();
-  p2pUiState.remoteSnapshot = snapshot;
+  p2pUiState.remoteSnapshot = snap;
 }
 
 function sendAppMessage(type, payload = {}) {
