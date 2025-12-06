@@ -753,6 +753,7 @@ function buildInviteUrl({ sessionId, secret, signallingUrl }) {
     const url = new URL(window.location.href);
     url.search = "";
     const params = new URLSearchParams();
+    params.set("p2p", "");
     if (signallingUrl) params.set("signal", signallingUrl);
     url.search = params.toString();
     const hashParams = new URLSearchParams();
@@ -3059,5 +3060,6 @@ if (typeof window !== "undefined" && window.__RF_ENABLE_TEST_HOOKS__) {
     applyFullSnapshot,
     currentTurnPhase,
     TURN_PHASE,
+    buildInviteUrl,
   };
 }

@@ -154,6 +154,25 @@ describe("p2p feature flag (jsdom)", () => {
   });
 });
 
+describe("p2p invite links (jsdom)", () => {
+  it("include the p2p flag when generating a share link", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    expect(hooks).toBeTruthy();
+    const link = hooks.buildInviteUrl({
+      sessionId: "session-abc",
+      secret: "pass-123",
+      signallingUrl: "https://signal.test",
+    });
+    const url = new URL(link);
+    expect(url.searchParams.has("p2p")).toBe(true);
+    expect(url.searchParams.get("signal")).toBe("https://signal.test");
+    const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""));
+    expect(hashParams.get("s")).toBe("session-abc");
+    expect(hashParams.get("k")).toBe("pass-123");
+  });
+});
+
 describe("pestilence UI flow (jsdom)", () => {
   it("advances after forfeiting during pestilence", async () => {
     await setupApp({
