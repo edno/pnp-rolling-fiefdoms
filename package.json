@@ -9,7 +9,8 @@
     "test": "npm run lint && vitest run",
     "serve": "node scripts/serve.js",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "npm run clean && node scripts/build.js"
+    "build": "npm run clean && node scripts/build.js",
+    "wrangler:dev": "npx wrangler dev cloudflare/worker.js --ip 0.0.0.0 --persist-to=.wrangler-state --config cloudflare/wrangler.toml"
   },
   "devDependencies": {
     "esbuild": "^0.25.12",
