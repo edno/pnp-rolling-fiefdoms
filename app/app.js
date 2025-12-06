@@ -403,7 +403,10 @@ function registerServiceWorker() {
     // Disable SW caching when developing locally outside of the dist build.
     navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((reg) => reg.unregister()));
     if (window.caches && caches.keys) {
-      caches.keys().then((keys) => keys.forEach((k) => caches.delete(k))).catch(() => {});
+      caches
+        .keys()
+        .then((keys) => Promise.all(keys.filter((k) => k.startsWith("rf-cache-")).map((k) => caches.delete(k))))
+        .catch(() => {});
     }
     return;
   }
