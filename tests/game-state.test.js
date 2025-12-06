@@ -98,6 +98,43 @@ describe("beginTurn", () => {
   });
 });
 
+describe("activation worker assignment", () => {
+  const buildingRules = BUILDING_RULES;
+  const nodesForCell = (r, c) => [[r, c]];
+
+  it("blocks worker assignment outside activation mode", () => {
+    const state = createState();
+    state.board = [[{ building: "T", forfeited: false, springBoost: 0 }]];
+    const result = allocateWorker(
+      state,
+      [0, 0],
+      [0, 0],
+      { nodesForCell, buildingRules },
+    );
+    expect(result.updated).toBe(false);
+    expect(result.message).toMatch(/activation/i);
+  });
+
+  it("consumes population one pip at a time and stops when empty", () => {
+    const state = createState();
+    state.activationMode = true;
+    state.board = [[{ building: "T", forfeited: false, springBoost: 0 }]];
+    state.populationAvailable = [[2]];
+    state.workerAllocations = [[0]];
+    const first = allocateWorker(state, [0, 0], [0, 0], { nodesForCell, buildingRules });
+    expect(first.updated).toBe(true);
+    expect(state.workerAllocations[0][0]).toBe(1);
+    expect(state.populationAvailable[0][0]).toBe(1);
+    const second = allocateWorker(state, [0, 0], [0, 0], { nodesForCell, buildingRules });
+    expect(second.updated).toBe(true);
+    expect(state.workerAllocations[0][0]).toBe(2);
+    expect(state.populationAvailable[0][0]).toBe(0);
+    const third = allocateWorker(state, [0, 0], [0, 0], { nodesForCell, buildingRules });
+    expect(third.updated).toBe(false);
+    expect(third.message).toMatch(/No available population/i);
+  });
+});
+
 describe("lockDiceSnapshot", () => {
   it("can mark a pending next roll even if dice are already locked", () => {
     const state = createState();
@@ -306,6 +343,7 @@ describe("population placement", () => {
 describe("activation worker allocation", () => {
   it("allocates workers and marks activation when filled", () => {
     const state = createState();
+    state.activationMode = true;
     state.board = emptyBoard();
     state.board[1][1].building = "W";
     state.populationAvailable = Array.from({ length: 4 }, () => Array(4).fill(0));

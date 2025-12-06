@@ -281,6 +281,12 @@ export function placePopulationNode(state, nr, nc, { nodesForCell, allocatePopul
 }
 
 export function allocateWorker(state, popSel, buildingSel, { nodesForCell, buildingRules }) {
+  if (!state.activationMode) {
+    return { updated: false, message: "Workers can only be assigned during activation." };
+  }
+  if (!state.populationAvailable || !state.workerAllocations) {
+    return { updated: false, message: "Activation not initialized." };
+  }
   const [pr, pc] = popSel;
   const [br, bc] = buildingSel;
   const cell = state.board[br]?.[bc];

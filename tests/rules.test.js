@@ -846,3 +846,30 @@ describe("activation scoring with worker allocations", () => {
     expect(result.breakdown.farm).toBe(0);
   });
 });
+
+describe("activation scoring with workers", () => {
+  const emptyPop = () => Array.from({ length: 4 }, () => Array(4).fill(0));
+
+  it("does not activate worker buildings mid-game when population is nearby", () => {
+    const board = Array.from({ length: 5 }, () =>
+      Array.from({ length: 5 }, () => ({ building: null, forfeited: false, springBoost: 0 })),
+    );
+    board[1][1].building = "F"; // requires workers
+    const pop = emptyPop();
+    pop[0][0] = 4; // adjacent population, but should not activate without workers
+    const result = computeScore(board, pop, null, { allowPopulationActivation: false });
+    expect(result.breakdown.farm).toBe(0);
+  });
+
+  it("activates worker buildings only when worker allocations meet the requirement", () => {
+    const board = Array.from({ length: 5 }, () =>
+      Array.from({ length: 5 }, () => ({ building: null, forfeited: false, springBoost: 0 })),
+    );
+    board[1][1].building = "F";
+    const pop = emptyPop();
+    const workers = Array.from({ length: 5 }, () => Array(5).fill(0));
+    workers[1][1] = 2;
+    const result = computeScore(board, pop, workers, { allowPopulationActivation: true });
+    expect(result.breakdown.farm).toBeGreaterThan(0);
+  });
+});
