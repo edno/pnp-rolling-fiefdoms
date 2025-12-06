@@ -1,10 +1,12 @@
 /* eslint-env serviceworker */
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v1.3";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
+const APP_VERSION = "v1";
+const SHEET_VERSION = "v1.3";
 const ASSETS = [
   "/",
   "/index.html",
-  "/app/app.js?v=v1",
+  `/app/app.js?v=${APP_VERSION}`,
   "/assets/css/styles.css",
   "/assets/css/fonts.css",
   "/assets/fonts/Shadows_Into_Light/ShadowsIntoLight-Regular.woff2",
@@ -24,9 +26,9 @@ const ASSETS = [
   "/assets/img/bgg.webp",
   "/assets/img/sun.svg",
   "/assets/img/moon.svg",
-  "/resources/rolling-fiefdoms-player-sheet.webp?v=v1.3",
+  `/resources/rolling-fiefdoms-player-sheet.webp?v=${SHEET_VERSION}`,
   "/robots.txt",
-  "/manifest.webmanifest"
+  "/manifest.webmanifest",
 ];
 
 self.addEventListener("install", (event) => {
