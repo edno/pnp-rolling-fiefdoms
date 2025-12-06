@@ -2820,9 +2820,10 @@ function renderPopulationNodes() {
 }
 
 function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPreview = false, ignoreState = false } = {}) {
+  const clampDice = (arr) => (Array.isArray(arr) ? arr.slice(0, 2) : []);
   if (ignoreState) {
-    const loc = locationDice || [];
-    const build = forceBuildPreview ? buildDice || [] : buildDice || [];
+    const loc = clampDice(locationDice || []);
+    const build = clampDice(forceBuildPreview ? buildDice || [] : buildDice || []);
     if (locDicePreview) renderDicePreview(locDicePreview, loc, "location", "Select 2 dice for location");
     if (buildDicePreview) renderDicePreview(buildDicePreview, build, "build", "Remaining dice used for build");
     return;
@@ -2869,10 +2870,10 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
   effectiveBuild = swapped.build && swapped.build.length ? swapped.build : effectiveBuild;
 
   if (locDicePreview) {
-    renderDicePreview(locDicePreview, effectiveLoc, "location", "Select 2 dice for location");
+    renderDicePreview(locDicePreview, clampDice(effectiveLoc), "location", "Select 2 dice for location");
   }
   if (buildDicePreview) {
-    renderDicePreview(buildDicePreview, effectiveBuild, "build", "Remaining dice used for build");
+    renderDicePreview(buildDicePreview, clampDice(effectiveBuild), "build", "Remaining dice used for build");
   }
 }
 
@@ -3057,8 +3058,8 @@ function updateDiceAssignments() {
 }
 
 function lockedPairChoice() {
-  const baseLoc = state.lockedLocationDice || [];
-  const baseBuild = state.lockedBuildDice || state.buildDice || [];
+  const baseLoc = (state.lockedLocationDice || []).slice(0, 2);
+  const baseBuild = (state.lockedBuildDice || state.buildDice || []).slice(0, 2);
   const locHasX = baseLoc.some((d) => d?.face === "X");
   const buildHasX = baseBuild.some((d) => d?.face === "X");
   const locHasWindrose = baseLoc.some((d) => d?.face === "windrose");

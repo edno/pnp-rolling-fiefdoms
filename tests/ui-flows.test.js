@@ -1489,8 +1489,8 @@ describe("split previews and build gating (jsdom)", () => {
     hooks.updateDiceAssignments();
     const locPreview = document.getElementById("locDicePreview");
     const buildPreview = document.getElementById("buildDicePreview");
-    expect(locPreview.querySelectorAll(".die-badge").length).toBeGreaterThan(0);
-    expect(buildPreview.querySelectorAll(".die-badge").length).toBeGreaterThan(0);
+    expect(locPreview.querySelectorAll(".die-badge").length).toBe(2);
+    expect(buildPreview.querySelectorAll(".die-badge").length).toBe(2);
   });
 });
 
