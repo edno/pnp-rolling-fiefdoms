@@ -223,6 +223,31 @@ describe("activation prompts (jsdom)", () => {
   });
 });
 
+describe("blocked build flow (jsdom)", () => {
+  it("logs and advances when no valid buildings are available for the split", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.state.dice = [
+      { label: "N1", face: 1, resolved: 1 },
+      { label: "N2", face: 2, resolved: 2 },
+      { label: "B1", face: 7, resolved: 7 },
+      { label: "B2", face: 7, resolved: 7 },
+    ];
+    hooks.state.locationSelection = [0, 1]; // sum/build die produce only advanced options, block by existing T
+    hooks.state.board = Array.from({ length: 5 }, () =>
+      Array.from({ length: 5 }, () => ({ building: null, forfeited: false, springBoost: 0 })),
+    );
+    hooks.state.board[0][0].building = "T"; // advanced already built, blocking Townhall
+    hooks.updateDiceAssignments();
+    await flushMicrotasks();
+    const logs = latestLogs();
+    expect(logs.some((m) => m.includes("No valid buildings"))).toBe(true);
+    expect(hooks.state.forceForfeit).toBe(true);
+    const msg = hooks.actionMessage();
+    expect(msg.toLowerCase()).toContain("forfeit");
+  });
+});
+
 describe("p2p meeple display (jsdom)", () => {
   it("shows five meeples and marks connected seats with colors", async () => {
     await setupApp({ enableHooks: true });

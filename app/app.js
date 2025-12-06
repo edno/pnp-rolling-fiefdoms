@@ -1722,6 +1722,22 @@ function fillBuildings(buildDice) {
     if (opt.code !== "G") return true;
     return availableGuildTypes.length > 0;
   });
+  if (!options.length && !state.forceForfeit && !state.pestilence) {
+    if (!state.noBuildOptionsLogged) {
+      log("No valid buildings for this split; forfeit a plot.");
+      state.noBuildOptionsLogged = true;
+    }
+    state.buildChoice = null;
+    state.selectedGuildType = null;
+    state.forceForfeit = true;
+    lockDiceSnapshot(state, { uniqueLocationPairs });
+    state.bannerOverride = "No valid builds; forfeit an empty plot.";
+    updateActionBanner();
+    renderSelectionDice(state.lockedLocationDice || [], state.lockedBuildDice || []);
+    highlightLocations();
+    renderBoard();
+    return;
+  }
   enforceBuildingSelection(options);
   if (state.pendingPopulation?.remaining > 0) {
     // Lock building selection while placing population
