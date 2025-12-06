@@ -1402,6 +1402,39 @@ describe("score overlay display (jsdom)", () => {
   });
 });
 
+describe("split previews and build gating (jsdom)", () => {
+  it("does not show build options until a valid location pair exists", async () => {
+    await setupApp({ numbered: [1, 2, 3, 4], x: [2, 5], enableHooks: true });
+    clickRoll();
+    await flushMicrotasks();
+    let available = document.querySelector(".building-hit.available");
+    expect(available).toBeFalsy();
+    clickDie(0);
+    await flushMicrotasks();
+    available = document.querySelector(".building-hit.available");
+    expect(available).toBeFalsy();
+  });
+
+  it("keeps dice previews visible after dice are locked", async () => {
+    await setupApp({ numbered: [1, 2, 3, 4], x: [2, 5], enableHooks: true });
+    clickRoll();
+    clickDie(0);
+    clickDie(1);
+    await flushMicrotasks();
+    const hooks = window.__rfTestHooks;
+    hooks.state.lockedLocationDice = hooks.state.locationSelection.map((i) => hooks.state.dice[i]);
+    hooks.state.lockedBuildDice = hooks.state.dice.filter((_, idx) => !hooks.state.locationSelection.includes(idx));
+    hooks.state.lockedLocationPairs = (hooks.state.locationPairs || []).slice();
+    hooks.state.diceLocked = true;
+    hooks.state.locationSelection = [];
+    hooks.updateDiceAssignments();
+    const locPreview = document.getElementById("locDicePreview");
+    const buildPreview = document.getElementById("buildDicePreview");
+    expect(locPreview.querySelectorAll(".die-badge").length).toBeGreaterThan(0);
+    expect(buildPreview.querySelectorAll(".die-badge").length).toBeGreaterThan(0);
+  });
+});
+
 describe("building after split lock (jsdom)", () => {
   it("allows selecting and placing a building when split is locked in multiplayer", async () => {
     await setupApp({ numbered: [1, 2, 3, 4], x: [2, 5], enableHooks: true });

@@ -1694,7 +1694,10 @@ function renderDice() {
 
 function fillBuildings(buildDice) {
   const hasLockedLocation = p2pUiState.splitLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
-  const diceLockedForBuild = state.diceLocked && !p2pUiState.splitLocked;
+  const lockedPairs = Array.isArray(state.lockedLocationPairs) ? state.lockedLocationPairs : [];
+  const availablePairs = hasLockedLocation ? lockedPairs : state.locationPairs || [];
+  const readyForBuild =
+    (hasLockedLocation && lockedPairs.length > 0) || (state.locationSelection.length === 2 && availablePairs.length > 0);
   let effectiveBuildDice = hasLockedLocation && state.lockedBuildDice?.length === 2 ? state.lockedBuildDice : buildDice;
   if (hasLockedLocation) {
     const choice = lockedPairChoice();
@@ -1703,7 +1706,7 @@ function fillBuildings(buildDice) {
     state.buildDice = effectiveBuildDice;
   }
 
-  if ((!hasLockedLocation && state.locationSelection.length !== 2) || diceLockedForBuild) {
+  if (!readyForBuild) {
     state.buildChoice = null;
     state.selectedGuildType = null;
     renderBuildingOverlay([], true);
