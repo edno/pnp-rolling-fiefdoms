@@ -791,13 +791,45 @@ function updateInviteVisibility(show = false) {
   });
 }
 
+function encodeSignalParam(url) {
+  if (!url) return "";
+  try {
+    const b64 =
+      typeof btoa === "function"
+        ? btoa(url)
+        : typeof globalThis !== "undefined" && globalThis.Buffer
+          ? globalThis.Buffer.from(url, "utf-8").toString("base64")
+          : "";
+    if (!b64) return url;
+    return `~${b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "")}`;
+  } catch (err) {
+    return url;
+  }
+}
+
+function decodeSignalParam(param) {
+  if (!param) return null;
+  if (!param.startsWith("~")) return param;
+  const payload = param.slice(1);
+  const padded = payload.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((payload.length + 3) % 4);
+  try {
+    if (typeof atob === "function") return atob(padded);
+    if (typeof globalThis !== "undefined" && globalThis.Buffer) {
+      return globalThis.Buffer.from(padded, "base64").toString("utf-8");
+    }
+    return null;
+  } catch (err) {
+    return null;
+  }
+}
+
 function buildInviteUrl({ sessionId, secret, signallingUrl }) {
   try {
     const url = new URL(window.location.href);
     url.search = "";
     const params = new URLSearchParams();
     params.set("p2p", "");
-    if (signallingUrl) params.set("signal", signallingUrl);
+    if (signallingUrl) params.set("signal", encodeSignalParam(signallingUrl));
     url.search = params.toString();
     const hashParams = new URLSearchParams();
     if (sessionId) hashParams.set("s", sessionId);
@@ -1284,7 +1316,10 @@ function updateP2PControlsVisibility(status = {}) {
 
 function resolveSignallingUrl() {
   const paramUrl = new URLSearchParams(window.location.search).get("signal");
-  if (paramUrl) return paramUrl;
+  if (paramUrl) {
+    const decoded = decodeSignalParam(paramUrl);
+    return decoded || paramUrl;
+  }
   const dataUrl = document.body?.dataset?.signallingUrl;
   if (dataUrl) return dataUrl;
   const host = window.location.hostname || "";

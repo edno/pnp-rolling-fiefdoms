@@ -156,6 +156,17 @@ describe("p2p feature flag (jsdom)", () => {
 });
 
 describe("p2p invite links (jsdom)", () => {
+  const decodeSignalParam = (param) => {
+    if (!param) return null;
+    if (!param.startsWith("~")) return param;
+    const payload = param.slice(1);
+    const padded = payload.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((payload.length + 3) % 4);
+    if (typeof globalThis !== "undefined" && globalThis.Buffer) {
+      return globalThis.Buffer.from(padded, "base64").toString("utf-8");
+    }
+    return null;
+  };
+
   it("include the p2p flag when generating a share link", async () => {
     await setupApp({ enableHooks: true });
     const hooks = window.__rfTestHooks;
@@ -167,7 +178,9 @@ describe("p2p invite links (jsdom)", () => {
     });
     const url = new URL(link);
     expect(url.searchParams.has("p2p")).toBe(true);
-    expect(url.searchParams.get("signal")).toBe("https://signal.test");
+    const signalParam = url.searchParams.get("signal");
+    expect(signalParam.startsWith("~")).toBe(true);
+    expect(decodeSignalParam(signalParam)).toBe("https://signal.test");
     const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""));
     expect(hashParams.get("s")).toBe("session-abc");
     expect(hashParams.get("k")).toBe("pass-123");
