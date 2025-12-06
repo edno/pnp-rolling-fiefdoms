@@ -74,6 +74,7 @@ const p2pUiState = {
   seatId: 1,
   seatsTotal: 1,
   activeSeat: 1,
+  inviteVisible: false,
   connectedSeats: {},
   hostCreated: false,
   splitLocked: false,
@@ -373,6 +374,7 @@ const p2pDisconnectBtn = document.getElementById("p2pDisconnectBtn");
 const p2pSendAnswerBtn = document.getElementById("p2pSendAnswerBtn");
 const p2pHintEl = document.getElementById("p2pHint");
 const p2pMeeplesEl = document.getElementById("p2pMeeples");
+const p2pInviteRow = p2pCodeEl ? p2pCodeEl.closest(".p2p-row") : null;
 const p2pQrImg = document.getElementById("p2pQrImg");
 const p2pQrCaption = document.getElementById("p2pQrCaption");
 const p2pQrModal = document.getElementById("p2pQrModal");
@@ -511,6 +513,7 @@ function init() {
   updateActionBanner();
   refreshDiceVisibility();
   renderMeeples();
+  updateInviteVisibility(p2pUiState.inviteVisible);
   if (!controlsReady) {
     setupControls();
     controlsReady = true;
@@ -535,6 +538,7 @@ function resetState() {
   state.pendingActiveTurn = null;
   p2pUiState.splitLocked = false;
   p2pUiState.lockedPairSwap = false;
+  p2pUiState.inviteVisible = false;
   resetBuildDoneMap();
   resetTurnState(state);
   if (logEl) logEl.innerHTML = "";
@@ -776,6 +780,14 @@ function setP2PMode(mode, { awaitingAnswer = false } = {}) {
   p2pUiState.awaitingAnswer = awaitingAnswer;
 }
 
+function updateInviteVisibility(show = false) {
+  const display = show ? "" : "none";
+  [p2pCodeEl, p2pCodeLabel, p2pInviteRow, p2pCopyBtn, p2pShowQrBtn, p2pHintEl].forEach((el) => {
+    if (!el) return;
+    el.style.display = display;
+  });
+}
+
 function buildInviteUrl({ sessionId, secret, signallingUrl }) {
   try {
     const url = new URL(window.location.href);
@@ -815,6 +827,7 @@ function maybeLoadInviteFromUrl() {
       if (parsed.sessionId) p2pUiState.sessionId = parsed.sessionId;
       if (parsed.secret) p2pUiState.passcode = parsed.secret;
       p2pUiState.hostCreated = true;
+      p2pUiState.inviteVisible = true;
       p2pUiState.connectedSeats = ensureConnectedSeats(p2pUiState.connectedSeats);
       p2pUiState.connectedSeats[1] = true;
       p2pCodeEl.value = buildInviteUrl({
@@ -826,6 +839,7 @@ function maybeLoadInviteFromUrl() {
       setP2PMode("joining");
       updateP2PStatus("Invite loaded from link. Generating your answer…");
       renderP2PQr(p2pCodeEl.value);
+      updateInviteVisibility(true);
       renderMeeples();
       setTimeout(() => {
         joinViaSignalling(parsed.sessionId, parsed.secret);
@@ -1006,6 +1020,7 @@ async function startP2PHosting() {
     const compact = await compressToBase64Url(code || "");
     if (!p2pUiState.sessionId) p2pUiState.sessionId = freshSessionId();
     p2pUiState.hostCreated = true;
+    p2pUiState.inviteVisible = true;
     p2pUiState.connectedSeats = ensureConnectedSeats(p2pUiState.connectedSeats);
     p2pUiState.connectedSeats[1] = true;
     const secret = readP2PSecretOrDefault();
@@ -1018,6 +1033,7 @@ async function startP2PHosting() {
     if (sessionId) p2pUiState.sessionId = sessionId;
     if (p2pCodeEl) p2pCodeEl.value = shareLink || "";
     renderP2PQr(shareLink);
+    updateInviteVisibility(true);
     renderMeeples();
     if (p2pCopyBtn) p2pCopyBtn.disabled = false;
     const sent = await sendSignalBlob("host", compact, secret);
@@ -1062,6 +1078,7 @@ function disconnectP2P(reason = "") {
   p2pUiState.seatsTotal = 1;
   p2pUiState.seatId = 1;
   p2pUiState.hostCreated = false;
+  p2pUiState.inviteVisible = false;
   p2pUiState.connectedSeats = ensureConnectedSeats();
   setActiveSeat(1);
   p2pUiState.splitLocked = false;
@@ -1072,6 +1089,7 @@ function disconnectP2P(reason = "") {
   if (p2pCopyBtn) p2pCopyBtn.disabled = true;
   if (p2pShowQrBtn) p2pShowQrBtn.disabled = true;
   updateP2PStatus(reason || "P2P link reset.");
+  updateInviteVisibility(false);
   renderMeeples();
 }
 
@@ -1079,6 +1097,7 @@ function setupP2PControls() {
   if (!p2pFeatureEnabled) return;
   if (!p2pPanel) return;
   if (p2pHintEl) p2pHintEl.style.display = "none";
+  updateInviteVisibility(false);
   p2pUiState.signallingUrl = resolveSignallingUrl();
   if (!p2pUiState.signallingUrl) {
     disableP2P("P2P disabled: signalling URL unavailable.");
@@ -1138,6 +1157,7 @@ function updateP2PControlsVisibility(status = {}) {
       if (!el) return;
       el.disabled = true;
     });
+    updateInviteVisibility(false);
     return;
   }
   const gameStarted = state.turnIndex > 0;
@@ -1148,11 +1168,14 @@ function updateP2PControlsVisibility(status = {}) {
   if (p2pHostBtn) p2pHostBtn.style.display = hideInvites ? "none" : "inline-block";
   if (p2pJoinBtn) p2pJoinBtn.style.display = "none";
   if (p2pApplyBtn) p2pApplyBtn.style.display = "none";
-  if (p2pCopyBtn) p2pCopyBtn.style.display = hideInvites ? "none" : "inline-block";
-  if (p2pShowQrBtn) p2pShowQrBtn.style.display = hideInvites ? "none" : "inline-block";
+  const showInviteFields = p2pUiState.inviteVisible && !hideInvites;
+  if (p2pCopyBtn) p2pCopyBtn.style.display = showInviteFields ? "inline-block" : "none";
+  if (p2pShowQrBtn) p2pShowQrBtn.style.display = showInviteFields ? "inline-block" : "none";
   if (p2pSendAnswerBtn) p2pSendAnswerBtn.style.display = "none";
-  if (p2pCodeEl) p2pCodeEl.style.display = hideInvites ? "none" : "inline-block";
-  if (p2pCodeLabel) p2pCodeLabel.style.display = hideInvites ? "none" : "inline-block";
+  if (p2pCodeEl) p2pCodeEl.style.display = showInviteFields ? "inline-block" : "none";
+  if (p2pCodeLabel) p2pCodeLabel.style.display = showInviteFields ? "inline-block" : "none";
+  if (p2pInviteRow) p2pInviteRow.style.display = showInviteFields ? "grid" : "none";
+  if (p2pHintEl) p2pHintEl.style.display = showInviteFields ? "block" : "none";
   if (p2pHostBtn) p2pHostBtn.disabled = gameStarted || hideInvites;
   if (p2pDisconnectBtn) p2pDisconnectBtn.disabled = gameStarted;
 }
@@ -1186,10 +1209,12 @@ function disableP2P(reason = "P2P disabled") {
   p2pUiState.mode = "idle";
   p2pUiState.awaitingAnswer = false;
   p2pUiState.hostCreated = false;
+  p2pUiState.inviteVisible = false;
   p2pUiState.connectedSeats = ensureConnectedSeats();
   logP2P("P2P disabled:", reason);
   if (p2pCopyBtn) p2pCopyBtn.disabled = true;
   updateP2PStatus(reason);
+  updateInviteVisibility(false);
   renderMeeples();
 }
 
@@ -1254,12 +1279,14 @@ async function joinViaSignalling(sessionId, secret) {
   p2pUiState.seatId = 2;
   p2pUiState.seatsTotal = Math.max(2, p2pUiState.seatsTotal || 0);
   p2pUiState.hostCreated = true;
+  p2pUiState.inviteVisible = true;
   p2pUiState.connectedSeats = ensureConnectedSeats(p2pUiState.connectedSeats);
   p2pUiState.connectedSeats[1] = true;
   p2pUiState.connectedSeats[2] = true;
   setActiveSeat(p2pUiState.activeSeat || 1);
   resetBuildDoneMap();
   updateMultiplayerButtons();
+  updateInviteVisibility(true);
   renderMeeples();
   const safeSecret = secret || readP2PSecretOrDefault();
   updateP2PStatus("Fetching host invite via signalling…");
@@ -3133,6 +3160,8 @@ if (typeof window !== "undefined" && window.__RF_ENABLE_TEST_HOOKS__) {
     currentTurnPhase,
     TURN_PHASE,
     buildInviteUrl,
+    updateInviteVisibility,
+    updateP2PControlsVisibility,
     renderMeeples,
   };
 }

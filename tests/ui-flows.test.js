@@ -172,6 +172,20 @@ describe("p2p invite links (jsdom)", () => {
     expect(hashParams.get("s")).toBe("session-abc");
     expect(hashParams.get("k")).toBe("pass-123");
   });
+
+  it("keeps invite fields hidden until a host flow sets them visible", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const codeInput = document.getElementById("p2pCode");
+    const copyBtn = document.getElementById("p2pCopyBtn");
+    expect(codeInput.style.display).toBe("none");
+    expect(copyBtn.style.display).toBe("none");
+    hooks.p2pUiState.inviteVisible = true;
+    hooks.updateInviteVisibility(true);
+    hooks.updateP2PControlsVisibility({ supported: true });
+    expect(codeInput.style.display).not.toBe("none");
+    expect(copyBtn.style.display).not.toBe("none");
+  });
 });
 
 describe("p2p meeple display (jsdom)", () => {
