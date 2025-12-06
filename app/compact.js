@@ -1,25 +1,28 @@
-function toUint8(str) {
+function encodeUtf8(str) {
+  if (typeof TextEncoder !== "undefined") return new TextEncoder().encode(str);
   const buf = new Uint8Array(str.length);
   for (let i = 0; i < str.length; i++) buf[i] = str.charCodeAt(i) & 0xff;
   return buf;
 }
 
-function fromUint8(arr) {
+function decodeUtf8(bytes) {
+  if (typeof TextDecoder !== "undefined") return new TextDecoder().decode(bytes);
   let out = "";
-  for (let i = 0; i < arr.length; i++) out += String.fromCharCode(arr[i]);
+  for (let i = 0; i < bytes.length; i++) out += String.fromCharCode(bytes[i]);
   return out;
 }
 
 function deflate(str) {
+  const bytes = encodeUtf8(str || "");
   if (typeof CompressionStream !== "undefined") {
-    return new Response(new Blob([str]).stream().pipeThrough(new CompressionStream("deflate")))
+    return new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream("deflate")))
       .arrayBuffer()
       .then((buf) => new Uint8Array(buf));
   }
   if (typeof window !== "undefined" && window.pako?.deflate) {
-    return Promise.resolve(window.pako.deflate(str));
+    return Promise.resolve(window.pako.deflate(bytes));
   }
-  return Promise.resolve(toUint8(str));
+  return Promise.resolve(bytes);
 }
 
 function inflate(bytes) {
@@ -68,5 +71,5 @@ export async function decompressFromBase64Url(text) {
   if (!text) return "";
   const bytes = base64UrlDecode(text);
   const inflated = await inflate(bytes);
-  return fromUint8(inflated);
+  return decodeUtf8(inflated);
 }
