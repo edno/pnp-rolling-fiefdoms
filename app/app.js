@@ -2564,8 +2564,12 @@ function actionMessage() {
     return "Waiting for the active player to finish the split.";
   }
   if (isMultiplayer && p2pUiState.splitLocked) {
+    const choice = lockedPairChoice();
     if (p2pUiState.buildDone?.[p2pUiState.seatId]) {
       return "Waiting for other players to finish building.";
+    }
+    if (choice.swapAllowed) {
+      return "Locked split: swap pairs if needed, then build.";
     }
     return "Build with this split.";
   }
@@ -3022,7 +3026,7 @@ function updateDiceAssignments() {
         : state.lastBuildDice;
 
   renderSelectionDice(previewLocation, previewBuild);
-  fillBuildings(buildDice);
+  fillBuildings(previewBuild);
   highlightLocations();
   updateActionBanner();
   renderDice();
