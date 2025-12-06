@@ -1438,7 +1438,9 @@ function rollDice() {
   const needsDoubleReroll = shouldRerollDoubleWindrose(dice);
   const turnIndexOverride = typeof state.pendingTurnIndex === "number" ? state.pendingTurnIndex : null;
   const baseActiveTurn = typeof state.pendingActiveTurn === "boolean" ? state.pendingActiveTurn : null;
-  const activeTurnOverride = isMultiplayerActive() ? true : baseActiveTurn;
+  const activeTurnOverride = isMultiplayerActive()
+    ? p2pUiState.seatId === p2pUiState.activeSeat
+    : baseActiveTurn;
   p2pUiState.splitLocked = false;
   p2pUiState.buildDone = { ...p2pUiState.buildDone };
   updateMultiplayerButtons();
