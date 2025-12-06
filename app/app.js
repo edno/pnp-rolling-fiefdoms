@@ -1995,28 +1995,32 @@ function highlightLocations() {
   });
   if (state.activationMode) {
     const selPop = state.activationSelection.pop;
-    boardEl.querySelectorAll(".cell").forEach((cell) => {
-      const r = parseInt(cell.dataset.row, 10);
-      const c = parseInt(cell.dataset.col, 10);
-      const data = state.board[r][c];
-      const req = Math.max(
-        0,
-        (BUILDING_RULES[data.building]?.requirement || 0) - (Number(data.springBoost) || 0),
-      );
-      const filled = Math.max(0, state.workerAllocations?.[r]?.[c] || 0);
-      const canSelect =
-        data.building && !data.forfeited && !data.activationForfeit && req > filled && (selPop
-          ? nodesForCell(r, c).some(([nr, nc]) => nr === selPop[0] && nc === selPop[1])
-          : true);
-      if (canSelect) {
-        cell.classList.add("highlight");
-      } else {
-        cell.classList.add("disabled");
-      }
-      if ((req === 0 && data.building) || filled >= req) {
-        cell.classList.add("activated-building");
-      }
-    });
+      boardEl.querySelectorAll(".cell").forEach((cell) => {
+        const r = parseInt(cell.dataset.row, 10);
+        const c = parseInt(cell.dataset.col, 10);
+        const data = state.board[r][c];
+        const req = Math.max(
+          0,
+          (BUILDING_RULES[data.building]?.requirement || 0) - (Number(data.springBoost) || 0),
+        );
+        const filled = Math.max(0, state.workerAllocations?.[r]?.[c] || 0);
+        const canSelect =
+          data.building && !data.forfeited && !data.activationForfeit && req > filled && (selPop
+            ? nodesForCell(r, c).some(([nr, nc]) => nr === selPop[0] && nc === selPop[1])
+            : true);
+        if (canSelect) {
+          cell.classList.add("highlight");
+          cell.title = `Workers ${filled}/${req}`;
+        } else {
+          cell.classList.add("disabled");
+          if (data.building && req > 0) {
+            cell.title = `Workers ${filled}/${req}${data.activationForfeit ? " (forfeited)" : ""}`;
+          }
+        }
+        if ((req === 0 && data.building) || filled >= req) {
+          cell.classList.add("activated-building");
+        }
+      });
     return;
   }
   if (state.activationMode) {
@@ -2534,7 +2538,9 @@ function actionMessage() {
       }),
     );
     if (state.activationSelection.pop) {
-      return "Activation: select an adjacent building to assign 1 worker.";
+      const [pr, pc] = state.activationSelection.pop;
+      const remaining = Math.max(0, state.populationAvailable?.[pr]?.[pc] || 0);
+      return `Activation: population selected (${remaining} remaining). Click a highlighted building to assign 1 worker.`;
     }
     if (anyRemaining) return "Activation: select a population node to allocate workers.";
     return "Activation: finish allocation when ready.";
@@ -3320,19 +3326,20 @@ function toggleQrModal(show) {
 }
 
 // Test-only hooks to inspect internal state in jsdom. Enabled by setting window.__RF_ENABLE_TEST_HOOKS__ before loading.
-if (typeof window !== "undefined" && window.__RF_ENABLE_TEST_HOOKS__) {
-  window.__rfTestHooks = {
-    state,
-    p2pUiState,
-    updateDiceAssignments,
-    renderSelectionDice,
-    handleBuildingChoice,
-    applyFullSnapshot,
-    currentTurnPhase,
-    TURN_PHASE,
-    buildInviteUrl,
-    updateInviteVisibility,
-    updateP2PControlsVisibility,
-    renderMeeples,
-  };
-}
+  if (typeof window !== "undefined" && window.__RF_ENABLE_TEST_HOOKS__) {
+    window.__rfTestHooks = {
+      state,
+      p2pUiState,
+      updateDiceAssignments,
+      renderSelectionDice,
+      handleBuildingChoice,
+      applyFullSnapshot,
+      currentTurnPhase,
+      TURN_PHASE,
+      buildInviteUrl,
+      updateInviteVisibility,
+      updateP2PControlsVisibility,
+      renderMeeples,
+      actionMessage,
+    };
+  }

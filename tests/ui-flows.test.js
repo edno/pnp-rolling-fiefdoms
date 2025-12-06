@@ -202,6 +202,27 @@ describe("p2p invite links (jsdom)", () => {
   });
 });
 
+describe("activation prompts (jsdom)", () => {
+  it("shows population-selection prompt then remaining pips when a node is selected", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.state.activationMode = true;
+    hooks.state.board = Array.from({ length: 5 }, () =>
+      Array.from({ length: 5 }, () => ({ building: null, forfeited: false, springBoost: 0 })),
+    );
+    hooks.state.board[0][0].building = "W";
+    hooks.state.populationAvailable = Array.from({ length: 4 }, () => Array(4).fill(0));
+    hooks.state.populationAvailable[0][0] = 3;
+    hooks.state.workerAllocations = Array.from({ length: 5 }, () => Array(5).fill(0));
+    const initialMsg = hooks.actionMessage();
+    expect(initialMsg.toLowerCase()).toContain("select a population node");
+    hooks.state.activationSelection.pop = [0, 0];
+    const selectedMsg = hooks.actionMessage();
+    expect(selectedMsg.toLowerCase()).toContain("3");
+    expect(selectedMsg.toLowerCase()).toContain("1 worker");
+  });
+});
+
 describe("p2p meeple display (jsdom)", () => {
   it("shows five meeples and marks connected seats with colors", async () => {
     await setupApp({ enableHooks: true });
