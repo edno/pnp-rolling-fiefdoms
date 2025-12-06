@@ -49,7 +49,8 @@ const baseHtml = `
   <input id="fiefdomInput" />
   <div id="buildingsOverlay"></div>
   <div id="guildsOverlay"></div>
-  <div id="p2pPanel">
+  <div id="p2pPanel" class="panel p2p-panel">
+    <h2 class="panel-title-with-meeples"><span>Multiplayer game</span><div id="p2pMeeples" class="hidden"></div></h2>
     <div id="p2pStatus"></div>
     <textarea id="p2pCode"></textarea>
     <input id="p2pSecret" />
@@ -170,6 +171,33 @@ describe("p2p invite links (jsdom)", () => {
     const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""));
     expect(hashParams.get("s")).toBe("session-abc");
     expect(hashParams.get("k")).toBe("pass-123");
+  });
+});
+
+describe("p2p meeple display (jsdom)", () => {
+  it("shows five meeples and marks connected seats with colors", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.hostCreated = true;
+    hooks.p2pUiState.connectedSeats = { 1: true, 2: false, 3: false, 4: false, 5: false };
+    hooks.renderMeeples();
+    const container = document.getElementById("p2pMeeples");
+    expect(container.classList.contains("hidden")).toBe(false);
+    const meeples = container.querySelectorAll(".p2p-meeple");
+    expect(meeples.length).toBe(5);
+    expect(meeples[0].dataset.state).toBe("connected");
+    expect(meeples[1].dataset.state).toBe("empty");
+    hooks.p2pUiState.connectedSeats[2] = true;
+    hooks.renderMeeples();
+    expect(container.querySelector('[data-seat="2"]').dataset.state).toBe("connected");
+    expect(container.querySelector('[data-seat="3"]').dataset.state).toBe("empty");
+  });
+
+  it("hides meeples when no host session exists", async () => {
+    await setupApp({ enableHooks: true });
+    const container = document.getElementById("p2pMeeples");
+    expect(container.classList.contains("hidden")).toBe(true);
+    expect(container.children.length).toBe(0);
   });
 });
 

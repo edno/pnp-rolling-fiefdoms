@@ -726,6 +726,13 @@ body.theme-dark .sheet-base {
   filter: brightness(0.95);
 }
 
+.panel-title-with-meeples {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .status-chip {
   display: inline-flex;
   align-items: center;
@@ -775,6 +782,41 @@ body.theme-dark .sheet-base {
   grid-template-columns: 1fr auto;
   gap: 8px;
   align-items: center;
+}
+
+.p2p-meeples {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 30px;
+}
+
+.p2p-meeples.hidden {
+  display: none;
+}
+
+.p2p-meeple {
+  position: relative;
+  width: 28px;
+  height: 28px;
+}
+
+.p2p-meeple::before,
+.p2p-meeple::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  -webkit-mask: url("../img/meeple.svg") center / contain no-repeat;
+  mask: url("../img/meeple.svg") center / contain no-repeat;
+}
+
+.p2p-meeple::before {
+  background: var(--meeple-outline, var(--border));
+  transform: scale(1.06);
+}
+
+.p2p-meeple::after {
+  background: var(--meeple-fill, #fff);
 }
 
 .p2p-row-actions {
