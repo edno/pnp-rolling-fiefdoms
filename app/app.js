@@ -240,7 +240,8 @@ function parseSessionLink(value) {
     const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""));
     const sessionId = hashParams.get("s");
     const secret = hashParams.get("k");
-    return sessionId || secret ? { sessionId, secret } : null;
+    const version = hashParams.get("v") || "1";
+    return sessionId || secret ? { sessionId, secret, version } : null;
   } catch (err) {
     return null;
   }
@@ -394,6 +395,7 @@ const TURN_PHASE = {
   ACTIVATION: "activation",
   ACTIVATION_DONE: "activation-complete",
 };
+const TOAST_DURATION_MS = 3500;
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
@@ -414,6 +416,30 @@ function registerServiceWorker() {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js").catch((err) => console.warn("SW registration failed", err));
   });
+}
+
+function showToast(message) {
+  if (!message) return;
+  const toast = document.createElement("div");
+  toast.textContent = message;
+  toast.setAttribute("role", "status");
+  toast.style.position = "fixed";
+  toast.style.left = "50%";
+  toast.style.bottom = "24px";
+  toast.style.transform = "translateX(-50%)";
+  toast.style.background = "rgba(0, 0, 0, 0.85)";
+  toast.style.color = "#fff";
+  toast.style.padding = "10px 14px";
+  toast.style.borderRadius = "6px";
+  toast.style.fontSize = "14px";
+  toast.style.boxShadow = "0 2px 6px rgba(0, 0, 0, 0.35)";
+  toast.style.zIndex = "1200";
+  toast.style.maxWidth = "90%";
+  toast.style.textAlign = "center";
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    if (toast.parentNode) toast.parentNode.removeChild(toast);
+  }, TOAST_DURATION_MS);
 }
 
 // Hitboxes relative to printed sheet regions (percent of Buildings/Guilds box)
@@ -834,6 +860,7 @@ function buildInviteUrl({ sessionId, secret, signallingUrl }) {
     const hashParams = new URLSearchParams();
     if (sessionId) hashParams.set("s", sessionId);
     if (secret) hashParams.set("k", secret);
+    hashParams.set("v", "1");
     url.hash = `#${hashParams.toString()}`;
     return url.toString();
   } catch (err) {
@@ -1018,6 +1045,8 @@ function applyFullSnapshot(snapshot) {
   const validation = sanitizeSnapshot(snapshot);
   if (!validation.ok) {
     logP2P(`Snapshot rejected: ${validation.reason || "invalid"}.`);
+    console.warn("Peer sync failed: invalid snapshot.", validation.reason || "");
+    showToast("Peer sync failed. See console for details.");
     return;
   }
   const snap = validation.snapshot;

@@ -184,6 +184,7 @@ describe("p2p invite links (jsdom)", () => {
     const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""));
     expect(hashParams.get("s")).toBe("session-abc");
     expect(hashParams.get("k")).toBe("pass-123");
+    expect(hashParams.get("v")).toBe("1");
   });
 
   it("keeps invite fields hidden until a host flow sets them visible", async () => {
