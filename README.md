@@ -1,6 +1,6 @@
-# Rolling Fiefdoms (web helper)
+# Rolling Fiefdoms
 
-This is a lightweight helper for the Rolling Fiefdoms roll-and-write game. It tracks the board, population nodes, dice splits, and scoring so you can focus on playing.
+This is a lightweight online version of the Rolling Fiefdoms roll-and-write game.
 
 ## Quick start
 
