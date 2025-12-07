@@ -1,4 +1,7 @@
-const DEFAULT_ICE_SERVERS = [{ urls: ["stun:stun.l.google.com:19302"] }];
+const DEFAULT_ICE_SERVERS = [
+  { urls: ["stun:stun.l.google.com:19302"] },
+  { urls: ["stun:stun.cloudflare.com:3478"] },
+];
 const CHANNEL_LABEL = "rolling-fiefdoms-sync";
 const INVITE_VERSION = 1;
 const ICE_GATHER_TIMEOUT_MS = 8000;
@@ -167,9 +170,11 @@ export function createManualP2P({ onLog, onStatus, onMessage, captureState, iceS
   function wirePeerEvents(currentPc) {
     currentPc.onconnectionstatechange = () => {
       emitStatus({ connectionState: currentPc.connectionState });
+      log(`[P2P] Peer connection state: ${currentPc.connectionState}`);
     };
     currentPc.oniceconnectionstatechange = () => {
       emitStatus({ connectionState: currentPc.iceConnectionState });
+      log(`[P2P] ICE connection state: ${currentPc.iceConnectionState}`);
     };
   }
 
@@ -225,6 +230,7 @@ export function createManualP2P({ onLog, onStatus, onMessage, captureState, iceS
     pc.onicecandidate = (evt) => {
       if (evt.candidate) {
         gatheredIce.push(evt.candidate.toJSON ? evt.candidate.toJSON() : evt.candidate);
+        log(`[P2P] Host gathered ICE #${gatheredIce.length}`);
       }
     };
     const offer = await pc.createOffer({ offerToReceiveAudio: false, offerToReceiveVideo: false, iceRestart: true });
@@ -253,6 +259,7 @@ export function createManualP2P({ onLog, onStatus, onMessage, captureState, iceS
     pc.onicecandidate = (evt) => {
       if (evt.candidate) {
         gatheredIce.push(evt.candidate.toJSON ? evt.candidate.toJSON() : evt.candidate);
+        log(`[P2P] Joiner gathered ICE #${gatheredIce.length}`);
       }
     };
     pc.ondatachannel = (evt) => {
