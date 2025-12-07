@@ -28,23 +28,44 @@ function addLabel(svg, text) {
   svg.appendChild(label);
 }
 
+function dieShapeAsset(die) {
+  const label = typeof die?.label === "string" ? die.label : "";
+  const isSpecial = label.startsWith("X");
+  return isSpecial ? "assets/img/die-event.svg" : "assets/img/die-windrose.svg";
+}
+
+function addDieShape(svg, die) {
+  const href = dieShapeAsset(die);
+  if (!href) return;
+  const shape = createSvg("image", {
+    href,
+    x: -3.2,
+    y: -3.2,
+    width: 70.4,
+    height: 70.4,
+    preserveAspectRatio: "xMidYMid slice",
+    class: "die-shape",
+  });
+  svg.appendChild(shape);
+}
+
 function addPips(svg, value) {
   const filled = pipPositions[value] || [];
   const coords = {
-    1: [14, 14],
-    2: [32, 14],
-    3: [50, 14],
-    4: [14, 32],
-    5: [32, 32],
-    6: [50, 32],
-    7: [14, 50],
-    8: [32, 50],
-    9: [50, 50],
+    1: [12, 28],
+    2: [24, 28],
+    3: [36, 28],
+    4: [12, 38],
+    5: [24, 38],
+    6: [36, 38],
+    7: [12, 48],
+    8: [24, 48],
+    9: [36, 48],
   };
   filled.forEach((idx) => {
     const [cx, cy] = coords[idx] || [];
     if (!cx || !cy) return;
-    const pip = createSvg("circle", { cx, cy, r: 8, class: "pip pip-svg" });
+    const pip = createSvg("circle", { cx, cy, r: 6, class: "pip pip-svg" });
     svg.appendChild(pip);
   });
 }
@@ -53,9 +74,9 @@ function addCross(svg) {
   const img = createSvg("image", {
     href: "assets/img/forfeit.svg",
     x: 5,
-    y: 5,
-    width: 54,
-    height: 54,
+    y: 17,
+    width: 42,
+    height: 42,
     class: "die-icon die-icon-forfeit",
     role: "presentation",
   });
@@ -65,10 +86,10 @@ function addCross(svg) {
 function addWindrose(svg) {
   const img = createSvg("image", {
     href: "assets/img/windrose.svg",
-    x: 5,
-    y: 5,
-    width: 54,
-    height: 54,
+    x: 3,
+    y: 17,
+    width: 42,
+    height: 42,
     class: "die-icon die-icon-windrose",
     role: "presentation",
   });
@@ -77,6 +98,7 @@ function addWindrose(svg) {
 
 export function createDieFaceSVG(die, { showLabel = true } = {}) {
   const svg = createSvg("svg", { viewBox: "0 0 64 64", class: "die-face", "aria-hidden": "true" });
+  addDieShape(svg, die);
   addLabel(svg, showLabel ? die?.label : null);
 
   if (die?.face === "X") {

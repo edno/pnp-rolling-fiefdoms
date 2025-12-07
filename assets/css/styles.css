@@ -1,5 +1,5 @@
 :root {
-  --sheet-image: url("../../resources/rolling-fiefdoms-player-sheet.webp?v=v1.3");
+  --sheet-image: url("../../resources/rolling-fiefdoms-player-sheet.webp?v=v1.5");
   --bg: #fffbe2;
   --panel: #ffffff;
   --border: #d0c6b8;
@@ -1143,8 +1143,8 @@ select {
   height: 42px;
   margin-right: 8px;
   border-radius: 8px;
-  background: var(--die-base);
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  /* background: var(--die-base); */
+  /* border: 1px solid rgba(0, 0, 0, 0.1); */
   transform-style: preserve-3d;
   box-shadow: none;
   position: relative;
@@ -1162,46 +1162,6 @@ select {
   transform-style: preserve-3d;
   border-radius: 8px;
   overflow: hidden;
-}
-
-.die-badge .side-shade {
-  position: absolute;
-  inset: 3px;
-  border-radius: 6px;
-  background: none;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.die-badge .side-shade::before,
-.die-badge .side-shade::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 6px;
-  background: linear-gradient(0deg, rgba(0, 0, 0, 0.06), transparent 60%);
-}
-
-.die-badge .side-shade::after {
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.06), transparent 60%);
-}
-
-.die-special .side-shade {
-  display: none;
-}
-
-.die-badge .side-3d {
-  display: none;
-}
-
-.die-badge .side-3d-x {
-  transform: rotateY(90deg) translateZ(21px) scaleY(0.92);
-  background: linear-gradient(90deg, rgba(0, 0, 0, 0.15), rgba(255, 255, 255, 0.04));
-}
-
-.die-badge .side-3d-y {
-  transform: rotateX(90deg) translateZ(21px) scaleX(0.92);
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.16), rgba(255, 255, 255, 0.04));
 }
 
 .die-badge::before {
@@ -1226,13 +1186,23 @@ select {
 .die-face {
   width: 90%;
   height: 90%;
-  color: #f0ebd8;
+  color: var(--die-base, #394c6d);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
+}
+
+.die-base {
+  fill: currentColor;
+}
+
+.die-shape {
+  opacity: 1;
+  mix-blend-mode: normal;
+  pointer-events: none;
 }
 
 .pip-svg {
-  fill: #f0ebd8;
+  fill: var(--die-pip-color, #f0ebd8);
 }
 
 .die-x line {
@@ -1261,10 +1231,6 @@ select {
 
 .die-icon-forfeit {
   filter: none;
-}
-
-.die-special .die-face {
-  color: var(--die-pip-color);
 }
 
 .die-special .pip-svg {
@@ -1386,9 +1352,9 @@ body.theme-dark .die-badge {
 }
 
 .die-badge.location-selected {
-  border-color: rgba(230, 126, 34, 0.9);
+  background-color: rgba(230, 126, 34, 0.25);
   box-shadow:
-    0 0 0 2px rgba(230, 126, 34, 0.25),
+    0 0 0 2px var(--accent),
     0 4px 8px rgba(0, 0, 0, 0.12);
 }
 
@@ -1460,7 +1426,7 @@ body.theme-dark .die-badge {
 }
 
 .die-number {
-  --die-pip-color: #394c6d;
+  --die-pip-color: #f0ebd8;
   --die-base: #394c6d;
 }
 

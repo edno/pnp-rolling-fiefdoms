@@ -1,8 +1,8 @@
 /* eslint-env serviceworker */
-const CACHE_VERSION = "v1.3";
+const CACHE_VERSION = "v1.7";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
 const APP_VERSION = "v1";
-const SHEET_VERSION = "v1.3";
+const SHEET_VERSION = "v1.5";
 const ASSETS = [
   "/",
   "/index.html",
@@ -19,6 +19,8 @@ const ASSETS = [
   "/assets/fonts/Roboto/Roboto-Italic-VariableFont_wdth,wght.woff2",
   "/assets/img/forfeit.svg",
   "/assets/img/windrose.svg",
+  "/assets/img/die-event.svg",
+  "/assets/img/die-windrose.svg",
   "/assets/img/rules.webp",
   "/assets/img/playersheet.webp",
   "/assets/img/github.webp",
