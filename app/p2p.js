@@ -1,7 +1,7 @@
 const DEFAULT_ICE_SERVERS = [{ urls: ["stun:stun.l.google.com:19302"] }];
 const CHANNEL_LABEL = "rolling-fiefdoms-sync";
 const INVITE_VERSION = 1;
-const ICE_GATHER_TIMEOUT_MS = 2500;
+const ICE_GATHER_TIMEOUT_MS = 8000;
 
 function supportsWebRTC() {
   return typeof RTCPeerConnection !== "undefined" && typeof RTCSessionDescription !== "undefined";
