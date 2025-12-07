@@ -5,7 +5,7 @@ This folder contains a minimal Durable Object you can deploy to Cloudflare to au
 ## Deploy
 
 1) Copy `wrangler.toml.example` to `wrangler.toml` and adjust the `name` and `account_id`/`route` as needed.  
-2) Run `wrangler publish`.
+2) Run `wrangler publish`. On free plans, the included migration uses `new_sqlite_classes` as required by Cloudflare (error code 10097 if missing).
 
 The DO binding must be named `SIGNALLING` to match `worker.js`.
 

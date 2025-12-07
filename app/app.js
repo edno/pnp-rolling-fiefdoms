@@ -1362,7 +1362,7 @@ function resolveSignallingUrl() {
   if (isLoopback || isPrivateIp) {
     return `http://${host}:8787`;
   }
-  return "https://signal.rolling-fiefdoms.edno.io";
+  return "https://rolling-fiefdoms-signalling.edno.workers.dev";
 }
 
 function disableP2P(reason = "P2P disabled") {
