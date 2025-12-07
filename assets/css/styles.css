@@ -1143,8 +1143,6 @@ select {
   height: 42px;
   margin-right: 8px;
   border-radius: 8px;
-  /* background: var(--die-base); */
-  /* border: 1px solid rgba(0, 0, 0, 0.1); */
   transform-style: preserve-3d;
   box-shadow: none;
   position: relative;
@@ -1189,10 +1187,6 @@ select {
   color: var(--die-base, #394c6d);
   border-radius: 8px;
   overflow: visible;
-}
-
-.die-base {
-  fill: currentColor;
 }
 
 .die-shape {
