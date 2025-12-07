@@ -2328,7 +2328,9 @@ function updateTracks() {
 
 function log(msg) {
   state.log.unshift(msg);
-  logEl.innerHTML = state.log.map((m) => `<li>${m}</li>`).join("");
+  if (logEl) {
+    logEl.innerHTML = state.log.map((m) => `<li>${m}</li>`).join("");
+  }
 }
 
 function autoAdvance() {

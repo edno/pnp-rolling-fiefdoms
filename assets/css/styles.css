@@ -665,9 +665,9 @@ body.theme-dark .sheet-base {
   display: grid;
   grid-template-rows: auto auto auto 1fr;
   gap: 12px;
-  height: 100%;
-  max-height: 100%;
+  align-self: start;
   min-height: 0;
+  max-height: calc(1100px * 0.71 - 4px);
 }
 
 .panel {
@@ -1055,12 +1055,12 @@ button:disabled {
 .log-panel {
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  min-height: 80px;
 }
 
 .log-body {
-  flex: 1 1 0;
-  min-height: 0;
+  flex: 1 1 auto;
+  min-height: 40px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
