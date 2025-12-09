@@ -1,7 +1,7 @@
 /* eslint-env serviceworker */
-const CACHE_VERSION = "v1.13";
+const CACHE_VERSION = "v1.14";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
-const APP_VERSION = "v3";
+const APP_VERSION = "v4";
 const SHEET_VERSION = "v1.6";
 const ASSETS = [
   "/",
