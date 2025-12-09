@@ -691,8 +691,8 @@ body.theme-dark .sheet-base {
 }
 
 .panel-title-with-action {
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-start;
+  gap: 20px;
 }
 
 .icon-btn {
@@ -719,6 +719,45 @@ body.theme-dark .sheet-base {
   height: 18px;
   object-fit: contain;
   pointer-events: none;
+}
+
+@keyframes swap-btn-pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  }
+  10% {
+    transform: scale(1.08);
+    box-shadow: 0 3px 9px rgba(0, 0, 0, 0.2);
+  }
+  20% {
+    transform: scale(1.15);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  }
+  35% {
+    transform: scale(1.05);
+    box-shadow: 0 3px 9px rgba(0, 0, 0, 0.2);
+  }
+  55% {
+    transform: scale(1.12);
+    box-shadow: 0 3px 11px rgba(0, 0, 0, 0.23);
+  }
+  70% {
+    transform: scale(1.04);
+    box-shadow: 0 3px 9px rgba(0, 0, 0, 0.2);
+  }
+  85% {
+    transform: scale(1.02);
+    box-shadow: 0 2px 7px rgba(0, 0, 0, 0.18);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  }
+}
+
+#swapPairBtn.swap-pulse {
+  animation: swap-btn-pulse 4s ease-in-out;
 }
 
 .icon-btn:hover {

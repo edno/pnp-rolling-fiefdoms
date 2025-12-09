@@ -353,6 +353,8 @@ const finishActivationBtn = document.getElementById("finishActivation");
 const newGameBtn = document.getElementById("newGameBtn");
 const finishSplitBtn = document.getElementById("finishSplitBtn");
 const swapPairBtn = document.getElementById("swapPairBtn");
+let swapBtnPulseTimeout = null;
+let swapBtnLastVisible = false;
 // Done building button removed from UI.
 const fullscreenBtn = document.getElementById("fullscreenToggle");
 const themeToggleBtn = document.getElementById("themeToggle");
@@ -1602,7 +1604,7 @@ function rollDice() {
       ? ""
       : isMultiplayerActive()
         ? "Waiting for the active player to finish the split."
-        : "Non-active turn. Dice automatically assigned.";
+        : nonActiveAutoHintText();
   }
   updateTurnStatusChip();
   const nonActiveMultiplayer = isMultiplayerActive() && p2pUiState.activeSeat !== p2pUiState.seatId;
@@ -1683,7 +1685,7 @@ function renderDice() {
       } else {
         turnHintEl.textContent = isMultiplayerActive()
           ? "Waiting for the active player to finish the split."
-          : "Non-active turn. Dice automatically assigned.";
+          : nonActiveAutoHintText();
       }
     } else {
       turnHintEl.textContent = "";
@@ -2667,17 +2669,41 @@ function updateMultiplayerButtons() {
   finishSplitBtn.disabled = !canFinishSplit;
 
   if (swapPairBtn) {
-    const choice = lockedPairChoice();
-    const showSwap =
-      multiplayer &&
-      p2pUiState.splitLocked &&
-      choice.swapAllowed &&
-      !state.pestilence;
+    let showSwap = false;
+    if (multiplayer && p2pUiState.splitLocked && !state.pestilence) {
+      const choice = lockedPairChoice();
+      showSwap = choice.swapAllowed;
+    } else if (!multiplayer) {
+      showSwap = soloSwapAvailable();
+    }
     swapPairBtn.style.display = showSwap ? "inline-block" : "none";
     swapPairBtn.disabled = !showSwap;
+    applySwapButtonPulse(showSwap);
   }
 
   // Done-building button removed; completion is automatic after placement/population.
+}
+
+function applySwapButtonPulse(showSwap) {
+  if (!swapPairBtn) return;
+  const PULSE_DURATION = 4000;
+  if (showSwap) {
+    if (!swapBtnLastVisible) {
+      swapPairBtn.classList.add("swap-pulse");
+      if (swapBtnPulseTimeout) clearTimeout(swapBtnPulseTimeout);
+      swapBtnPulseTimeout = setTimeout(() => {
+        swapPairBtn.classList.remove("swap-pulse");
+        swapBtnPulseTimeout = null;
+      }, PULSE_DURATION);
+    }
+  } else {
+    if (swapBtnPulseTimeout) {
+      clearTimeout(swapBtnPulseTimeout);
+      swapBtnPulseTimeout = null;
+    }
+    swapPairBtn.classList.remove("swap-pulse");
+  }
+  swapBtnLastVisible = showSwap;
 }
 
 function updateTurnStatusChip() {
@@ -3050,7 +3076,7 @@ function updateDiceAssignments() {
     } else if (!state.activeTurn) {
       turnHintEl.textContent = isMultiplayerActive()
         ? "Waiting for the active player to finish the split."
-        : "Non-active turn. Dice automatically assigned.";
+        : nonActiveAutoHintText();
     } else {
       turnHintEl.textContent = "";
     }
@@ -3080,9 +3106,7 @@ function updateDiceAssignments() {
   }
 }
 
-function lockedPairChoice() {
-  const baseLoc = (state.lockedLocationDice || []).slice(0, 2);
-  const baseBuild = (state.lockedBuildDice || state.buildDice || []).slice(0, 2);
+function computeSwapChoice(baseLoc = [], baseBuild = [], swapFlag = false) {
   const locHasX = baseLoc.some((d) => d?.face === "X");
   const buildHasX = baseBuild.some((d) => d?.face === "X");
   const locHasWindrose = baseLoc.some((d) => d?.face === "windrose");
@@ -3093,7 +3117,7 @@ function lockedPairChoice() {
   if (!locHasWindrose && buildHasWindrose) forcedSwap = true;
 
   const swapAllowed = !locHasX && !buildHasX && !forcedSwap && !(locHasWindrose && !buildHasWindrose);
-  const doSwap = forcedSwap || (swapAllowed && p2pUiState.lockedPairSwap);
+  const doSwap = forcedSwap || (swapAllowed && swapFlag);
   return {
     locDice: doSwap ? baseBuild : baseLoc,
     buildDice: doSwap ? baseLoc : baseBuild,
@@ -3102,10 +3126,81 @@ function lockedPairChoice() {
   };
 }
 
+function lockedPairChoice() {
+  const baseLoc = (state.lockedLocationDice || []).slice(0, 2);
+  const baseBuild = (state.lockedBuildDice || state.buildDice || []).slice(0, 2);
+  return computeSwapChoice(baseLoc, baseBuild, p2pUiState.lockedPairSwap);
+}
+
+function soloBaseSelections() {
+  if (isMultiplayerActive()) return null;
+  if (!Array.isArray(state.dice) || state.dice.length < 4) return null;
+  const storedBase = Array.isArray(state.autoLocationSelection) && state.autoLocationSelection.length === 2
+    ? state.autoLocationSelection.slice()
+    : null;
+  let baseLocIdx = storedBase;
+  if (!baseLocIdx || baseLocIdx.length !== 2) {
+    baseLocIdx = state.dice
+      .map((die, idx) => ({ die, idx }))
+      .filter(({ die }) => die?.label?.startsWith("N"))
+      .map(({ idx }) => idx)
+      .slice(0, 2);
+  }
+  if (!baseLocIdx || baseLocIdx.length !== 2) return null;
+  const baseBuildIdx = state.dice
+    .map((_, idx) => idx)
+    .filter((idx) => !baseLocIdx.includes(idx))
+    .slice(0, 2);
+  if (baseBuildIdx.length !== 2) return null;
+  const baseLocDice = baseLocIdx.map((i) => state.dice[i]).filter(Boolean);
+  const baseBuildDice = baseBuildIdx.map((i) => state.dice[i]).filter(Boolean);
+  if (baseLocDice.length !== 2 || baseBuildDice.length !== 2) return null;
+  return { baseLocIdx: baseLocIdx.slice(), baseBuildIdx: baseBuildIdx.slice(), baseLocDice, baseBuildDice };
+}
+
+function soloPairChoice() {
+  const base = soloBaseSelections();
+  if (!base) return { locDice: [], buildDice: [], swapped: false, swapAllowed: false };
+  const choice = computeSwapChoice(base.baseLocDice, base.baseBuildDice, state.nonActiveSwap);
+  return { ...choice, baseLocIdx: base.baseLocIdx, baseBuildIdx: base.baseBuildIdx };
+}
+
+function soloSwapAvailable() {
+  if (isMultiplayerActive()) return false;
+  if (state.activeTurn || state.pestilence || state.activationMode) return false;
+  const choice = soloPairChoice();
+  return Boolean(choice.swapAllowed);
+}
+
+function nonActiveAutoHintText() {
+  const base = "Non-active turn. Dice automatically assigned.";
+  return soloSwapAvailable() ? `${base} Use the swap button to swap pairs.` : base;
+}
+
+function toggleSoloPairChoice() {
+  const base = soloBaseSelections();
+  if (!base) return false;
+  const choice = computeSwapChoice(base.baseLocDice, base.baseBuildDice, state.nonActiveSwap);
+  if (!choice.swapAllowed) return false;
+  state.nonActiveSwap = !state.nonActiveSwap;
+  const target = state.nonActiveSwap ? base.baseBuildIdx : base.baseLocIdx;
+  state.locationSelection = target.slice(0, 2);
+  state.locationPairs = [];
+  state.buildDice = [];
+  return true;
+}
+
 function toggleLockedPairChoice() {
-  const choice = lockedPairChoice();
-  if (!choice.swapAllowed) return;
-  p2pUiState.lockedPairSwap = !p2pUiState.lockedPairSwap;
+  if (isMultiplayerActive()) {
+    const choice = lockedPairChoice();
+    if (!choice.swapAllowed) return;
+    p2pUiState.lockedPairSwap = !p2pUiState.lockedPairSwap;
+  } else if (!state.activeTurn) {
+    const toggled = toggleSoloPairChoice();
+    if (!toggled) return;
+  } else {
+    return;
+  }
   updateDiceAssignments();
   updateMultiplayerButtons();
 }

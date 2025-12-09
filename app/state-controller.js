@@ -17,6 +17,7 @@ const baseState = {
   activationSelection: { pop: null },
   diceRolling: false,
   locationSelection: [],
+  autoLocationSelection: [],
   locationPairs: [],
   buildDice: [],
   diceLocked: false,
@@ -41,6 +42,7 @@ const baseState = {
   lastStatusTurnIndex: 0,
   splitUsedForBuild: false,
   noBuildOptionsLogged: false,
+  nonActiveSwap: false,
 };
 
 export function createState() {
@@ -53,6 +55,7 @@ export function resetTurnState(state) {
   state.buildChoice = null;
   state.selectedGuildType = null;
   state.locationSelection = [];
+  state.autoLocationSelection = [];
   state.locationPairs = [];
   state.buildDice = [];
   state.diceLocked = false;
@@ -72,6 +75,7 @@ export function resetTurnState(state) {
   state.forcedLocationDice = [];
   state.splitUsedForBuild = false;
   state.noBuildOptionsLogged = false;
+  state.nonActiveSwap = false;
   // rollAvailable intentionally not reset here to preserve per-turn lock until explicitly re-enabled
 }
 

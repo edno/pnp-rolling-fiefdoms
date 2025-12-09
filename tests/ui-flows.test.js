@@ -868,6 +868,137 @@ describe("forfeit timing in solo (jsdom)", () => {
   });
 });
 
+describe("solo non-active swap control (jsdom)", () => {
+  it("shows swap button and swaps dice when allowed", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = false;
+    hooks.p2pUiState.seatsTotal = 1;
+    hooks.state.activeTurn = false;
+    hooks.state.rollAvailable = false;
+    const dice = [
+      { face: 2, resolved: 2, label: "N1" },
+      { face: 5, resolved: 5, label: "N2" },
+      { face: 3, resolved: 3, label: "X1" },
+      { face: 4, resolved: 4, label: "X2" },
+    ];
+    hooks.state.dice = dice;
+    hooks.state.locationSelection = [0, 1];
+    hooks.state.autoLocationSelection = [0, 1];
+    hooks.state.forcedLocationDice = [];
+    hooks.updateDiceAssignments();
+    const swapBtn = document.getElementById("swapPairBtn");
+    expect(swapBtn).toBeTruthy();
+    expect(swapBtn.style.display).toBe("inline-block");
+    expect(swapBtn.disabled).toBe(false);
+    swapBtn.click();
+    await flushMicrotasks();
+    expect(hooks.state.nonActiveSwap).toBe(true);
+    expect(hooks.state.locationSelection).toEqual([2, 3]);
+    expect(hooks.state.buildDice.map((d) => d.label)).toEqual(["N1", "N2"]);
+    swapBtn.click();
+    await flushMicrotasks();
+    expect(hooks.state.nonActiveSwap).toBe(false);
+    expect(hooks.state.locationSelection).toEqual([0, 1]);
+  });
+
+  it("hides swap button when event dice have an X face", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = false;
+    hooks.p2pUiState.seatsTotal = 1;
+    hooks.state.activeTurn = false;
+    hooks.state.rollAvailable = false;
+    const dice = [
+      { face: 2, resolved: 2, label: "N1" },
+      { face: 5, resolved: 5, label: "N2" },
+      { face: "X", resolved: null, label: "X1" },
+      { face: 4, resolved: 4, label: "X2" },
+    ];
+    hooks.state.dice = dice;
+    hooks.state.locationSelection = [0, 1];
+    hooks.state.autoLocationSelection = [0, 1];
+    hooks.state.forcedLocationDice = [];
+    hooks.updateDiceAssignments();
+    const swapBtn = document.getElementById("swapPairBtn");
+    expect(swapBtn).toBeTruthy();
+    expect(swapBtn.style.display).toBe("none");
+    expect(swapBtn.disabled).toBe(true);
+  });
+
+  it("adds swap guidance to non-active hint when swap is available", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = false;
+    hooks.p2pUiState.seatsTotal = 1;
+    hooks.state.activeTurn = false;
+    hooks.state.rollAvailable = false;
+    hooks.state.dice = [
+      { face: 2, resolved: 2, label: "N1" },
+      { face: 5, resolved: 5, label: "N2" },
+      { face: 3, resolved: 3, label: "X1" },
+      { face: 4, resolved: 4, label: "X2" },
+    ];
+    hooks.state.locationSelection = [0, 1];
+    hooks.state.autoLocationSelection = [0, 1];
+    hooks.state.forcedLocationDice = [];
+    hooks.updateDiceAssignments();
+    const turnHint = document.getElementById("turnHint");
+    expect(turnHint.textContent).toContain("Use the swap button to swap pairs");
+  });
+
+  it("omits swap guidance when swap is unavailable", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = false;
+    hooks.p2pUiState.seatsTotal = 1;
+    hooks.state.activeTurn = false;
+    hooks.state.rollAvailable = false;
+    hooks.state.dice = [
+      { face: 2, resolved: 2, label: "N1" },
+      { face: "windrose", resolved: 0, label: "N2", choices: [1, 2, 3, 4, 5] },
+      { face: 3, resolved: 3, label: "X1" },
+      { face: 4, resolved: 4, label: "X2" },
+    ];
+    hooks.state.locationSelection = [0, 1];
+    hooks.state.autoLocationSelection = [0, 1];
+    hooks.state.forcedLocationDice = [1];
+    hooks.updateDiceAssignments();
+    const turnHint = document.getElementById("turnHint");
+    expect(turnHint.textContent).toContain("Non-active turn. Dice automatically assigned.");
+    expect(turnHint.textContent).not.toContain("Use the swap button to swap pairs");
+  });
+
+  it("pulses the swap button for 4 seconds when it becomes available", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = false;
+    hooks.p2pUiState.seatsTotal = 1;
+    hooks.state.activeTurn = false;
+    hooks.state.rollAvailable = false;
+    hooks.state.dice = [
+      { face: 2, resolved: 2, label: "N1" },
+      { face: 5, resolved: 5, label: "N2" },
+      { face: 3, resolved: 3, label: "X1" },
+      { face: 4, resolved: 4, label: "X2" },
+    ];
+    hooks.state.locationSelection = [0, 1];
+    hooks.state.autoLocationSelection = [0, 1];
+    hooks.state.forcedLocationDice = [];
+    vi.useFakeTimers();
+    try {
+      hooks.updateDiceAssignments();
+      const swapBtn = document.getElementById("swapPairBtn");
+      expect(swapBtn.classList.contains("swap-pulse")).toBe(true);
+      vi.advanceTimersByTime(4000);
+      await flushMicrotasks();
+      expect(swapBtn.classList.contains("swap-pulse")).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("pestilence forfeit auto-complete (jsdom)", () => {
   it("marks build done and advances after forfeiting during pestilence", async () => {
     await setupApp({ enableHooks: true });

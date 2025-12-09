@@ -58,9 +58,12 @@ export function beginTurn(
   if (state.forcedLocationDice.length) {
     messages.push("Windrose rolled (acts as 1–5).");
   }
+  state.autoLocationSelection = [];
+  state.nonActiveSwap = false;
 
   if (!state.activeTurn) {
     state.locationSelection = autoAssignLocationDice(state.dice, state.forcedLocationDice);
+    state.autoLocationSelection = state.locationSelection.slice();
     const allPairs = filterAvailablePairs(uniqueLocationPairs(state.dice), board);
     state.locationPairs = allPairs;
     state.forceForfeit = allPairs.length === 0;
@@ -112,7 +115,8 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
   state.buildDice = buildDice;
 
   const numberedDice = state.dice.filter((d) => d && isNumberedDie(d));
-  const allPairs = filterAvailablePairs(uniqueLocationPairs(numberedDice), board);
+  const locationPool = state.activeTurn ? numberedDice : (locationDice.length ? locationDice : numberedDice);
+  const allPairs = filterAvailablePairs(uniqueLocationPairs(locationPool), board);
   let locationPairs = [];
   let forceForfeit = state.diceLocked ? state.forceForfeit : allPairs.length === 0;
   let invalidSelection = false;
@@ -133,6 +137,7 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
       const filled = preferred.slice(0, 2);
       const fallback = numberedDice.filter((idx) => !filled.includes(idx)).slice(0, 2 - filled.length);
       state.locationSelection = filled.concat(fallback).slice(0, 2);
+      state.nonActiveSwap = false;
     }
     forceForfeit = true;
     invalidSelection = false;
