@@ -66,7 +66,11 @@ const baseHtml = `
 
 async function flushMicrotasks() {
   await Promise.resolve();
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  if (vi.isFakeTimers()) {
+    await vi.runOnlyPendingTimersAsync();
+  } else {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
 }
 
 function stubEnvironment() {
