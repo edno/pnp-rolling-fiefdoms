@@ -190,8 +190,17 @@ export function createManualP2P({ onLog, onStatus, onMessage, captureState, iceS
       log("[P2P] Data channel closed.");
     };
     currentChannel.onerror = (err) => {
-      emitStatus({ channelOpen: false, lastError: err?.message || "Channel error" });
-      log("[P2P] Channel error.");
+      const errorMessage = err?.error?.message || err?.message || "Channel error";
+      emitStatus({ channelOpen: false, lastError: errorMessage });
+      const diagnostics = [
+        `readyState=${currentChannel.readyState}`,
+        `buffered=${currentChannel.bufferedAmount}`,
+      ];
+      if (pc) {
+        diagnostics.push(`pcState=${pc.connectionState}`);
+        diagnostics.push(`ice=${pc.iceConnectionState}`);
+      }
+      log(`[P2P] Channel error: ${errorMessage} (${diagnostics.join(", ")})`);
     };
     currentChannel.onmessage = (event) => {
       try {
