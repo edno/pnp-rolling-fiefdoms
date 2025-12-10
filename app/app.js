@@ -972,7 +972,7 @@ function sanitizeDie(die) {
 function sanitizeDice(dice, limit = 4) {
   if (!Array.isArray(dice)) return null;
   const clean = dice.slice(0, limit).map((d) => sanitizeDie(d)).filter(Boolean);
-  return clean.length ? clean : null;
+  return clean.length ? clean : [];
 }
 
 function sanitizeNumberArray(arr, limit = 4) {
@@ -988,6 +988,7 @@ function sanitizeLocationPairs(pairs) {
 }
 
 function sanitizeBuildDoneMap(map, seats = 1) {
+  if (!map || typeof map !== "object") return null;
   const total = Math.max(1, Number(seats) || 1);
   const clean = {};
   for (let i = 1; i <= total; i += 1) {

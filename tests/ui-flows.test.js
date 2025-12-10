@@ -754,6 +754,38 @@ describe("build completion state sync (jsdom)", () => {
     expect(hooks.p2pUiState.buildDone[1]).toBe(true);
     expect(hooks.p2pUiState.buildDone[2]).toBe(false);
   });
+
+  it("accepts snapshots before the first roll (no dice yet)", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.state.dice = [{ face: 2, resolved: 2, label: "N1" }];
+    hooks.applyFullSnapshot({
+      version: "1",
+      turnIndex: 0,
+      activeTurn: true,
+      rollAvailable: true,
+      dice: [],
+      locationSelection: [],
+      locationPairs: [],
+      lockedLocationDice: null,
+      lockedBuildDice: null,
+      lockedLocationPairs: null,
+      diceLocked: false,
+      lastLocationDice: [],
+      lastBuildDice: [],
+      forcedLocationDice: [],
+      pestilence: false,
+      forceForfeit: false,
+      pendingNextRoll: false,
+      bannerOverride: null,
+      seatsTotal: 1,
+      activeSeat: 1,
+      splitLocked: false,
+      buildDone: { 1: false },
+    });
+    expect(Array.isArray(hooks.state.dice)).toBe(true);
+    expect(hooks.state.dice.length).toBe(0);
+  });
 });
 
 describe("turn phase derivation (jsdom)", () => {
