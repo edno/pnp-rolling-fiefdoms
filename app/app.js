@@ -341,6 +341,7 @@ const buildDicePreview = document.getElementById("buildDicePreview");
 const logEl = document.getElementById("log");
 const scoreOverlayEl = document.getElementById("scoreOverlay");
 const popHousingOverlay = document.getElementById("popHousingOverlay");
+const turnTrackOverlay = document.getElementById("turnTrackOverlay");
 const guildTypes = ["GF", "GQ", "GW", "GM"];
 const sectionLabels = {
   forest: "Forest",
@@ -383,7 +384,7 @@ const p2pQrCaption = document.getElementById("p2pQrCaption");
 const p2pQrModal = document.getElementById("p2pQrModal");
 const p2pQrClose = document.getElementById("p2pQrClose");
 const p2pShowQrBtn = document.getElementById("p2pShowQrBtn");
-const SHEET_VERSION = "v1.3";
+const SHEET_VERSION = "v1.7";
 const POP_CAPACITY = 5;
 const POP_LAYOUT = { cols: 7, rows: 2, pipsPerCell: 4 };
 const THEME_STORAGE_KEY = "rolling-fiefdoms-theme";
@@ -512,6 +513,7 @@ const scoringSpots = [
   { key: "vagrants", x: 428, y: 30 },
   { key: "reputation", x: 530, y: 30 },
 ];
+const TURN_TRACK_LENGTH = 25;
 
 function readStoredTheme() {
   try {
@@ -581,6 +583,7 @@ function resetState() {
   state.workerAllocations = null;
   state.activationMode = false;
   state.turnIndex = 0;
+  state.turnTrack = 0;
   state.activeTurn = true;
   state.lastStatusTurnIndex = 0;
   state.finalScore = null;
@@ -596,6 +599,7 @@ function resetState() {
   if (logEl) logEl.innerHTML = "";
   if (finishActivationBtn) finishActivationBtn.style.display = "none";
   if (newGameBtn) newGameBtn.style.display = "none";
+  renderTurnTrack(state.turnTrack);
   refreshDiceVisibility();
   updateTurnStatusChip();
   log("Game started.");
@@ -699,6 +703,7 @@ function captureP2PSnapshot() {
   return {
     fiefdomName: state.fiefdomName || "",
     turnIndex: state.turnIndex || 0,
+    turnTrack: state.turnTrack || 0,
     activeTurn: Boolean(state.activeTurn),
     rollAvailable: Boolean(state.rollAvailable),
     score: snapshotScore?.total ?? 0,
@@ -1005,6 +1010,7 @@ function sanitizeSnapshot(raw) {
   const seatsTotal = Math.max(1, Number(clone.seatsTotal || 1) || 1);
   const dice = sanitizeDice(clone.dice);
   if (!dice) return { ok: false, reason: "invalid dice array" };
+  const sanitizedTurnTrack = isFiniteNumber(clone.turnTrack) ? Math.max(0, Math.min(TURN_TRACK_LENGTH, Math.floor(clone.turnTrack))) : 0;
 
   return {
     ok: true,
@@ -1012,6 +1018,7 @@ function sanitizeSnapshot(raw) {
       version: clone.version || "1",
       sessionId: clone.sessionId || null,
       turnIndex: isFiniteNumber(clone.turnIndex) ? clone.turnIndex : 0,
+      turnTrack: sanitizedTurnTrack,
       activeTurn: typeof clone.activeTurn === "boolean" ? clone.activeTurn : true,
       rollAvailable: typeof clone.rollAvailable === "boolean" ? clone.rollAvailable : true,
       dice,
@@ -1043,6 +1050,7 @@ function buildFullSnapshot() {
     version: "1",
     sessionId: p2pUiState.sessionId,
     turnIndex: state.turnIndex,
+    turnTrack: state.turnTrack,
     activeTurn: state.activeTurn,
     rollAvailable: state.rollAvailable,
     dice: state.dice,
@@ -1077,6 +1085,10 @@ function applyFullSnapshot(snapshot) {
   const seatsTotal = snap.seatsTotal || p2pUiState.seatsTotal;
   p2pUiState.splitUsed = ensureSplitUsedMap(seatsTotal, p2pUiState.splitUsed);
   state.turnIndex = typeof snap.turnIndex === "number" ? snap.turnIndex : state.turnIndex;
+  if (typeof snap.turnTrack === "number") {
+    state.turnTrack = Math.max(0, Math.min(TURN_TRACK_LENGTH, Math.floor(snap.turnTrack)));
+    renderTurnTrack(state.turnTrack);
+  }
   state.activeTurn = typeof snap.activeTurn === "boolean" ? snap.activeTurn : state.activeTurn;
   state.rollAvailable = typeof snap.rollAvailable === "boolean" ? snap.rollAvailable : state.rollAvailable;
   state.dice = snap.dice || state.dice;
@@ -2765,6 +2777,7 @@ function maybeRollAfterLock() {
   if (isMultiplayerActive()) return "wait";
   const action = maybeRollAfterLockState(state);
   if (action === "roll") {
+    advanceTurnTrack();
     prepareNextRoll();
   }
 }
@@ -3266,6 +3279,7 @@ function completeMultiplayerTurn() {
   state.pendingActiveTurn = null;
   resetBuildDoneMap();
   setActiveSeat(nextSeatId());
+  advanceTurnTrack();
   prepareNextRoll();
   updateMultiplayerButtons();
   syncStateToPeer();
@@ -3355,6 +3369,29 @@ function renderPopHousingTrack(pop = 0, housing = 0, vagrants = 0) {
     }
   }
   popHousingOverlay.appendChild(grid);
+}
+
+function renderTurnTrack(filled = 0) {
+  if (!turnTrackOverlay) return;
+  const count = Math.max(0, Math.min(TURN_TRACK_LENGTH, Number(filled) || 0));
+  turnTrackOverlay.innerHTML = "";
+  for (let i = 0; i < TURN_TRACK_LENGTH; i += 1) {
+    const slot = document.createElement("div");
+    slot.className = "turn-slot";
+    if (i < count) {
+      const icon = document.createElement("img");
+      icon.src = "assets/img/forfeit.svg";
+      icon.alt = "";
+      icon.setAttribute("aria-hidden", "true");
+      slot.appendChild(icon);
+    }
+    turnTrackOverlay.appendChild(slot);
+  }
+}
+
+function advanceTurnTrack() {
+  state.turnTrack = Math.min(TURN_TRACK_LENGTH, (state.turnTrack || 0) + 1);
+  renderTurnTrack(state.turnTrack);
 }
 
 function adjacentCells(r, c) {
@@ -3485,5 +3522,7 @@ function toggleQrModal(show) {
       updateP2PControlsVisibility,
       renderMeeples,
       actionMessage,
+      renderTurnTrack,
+      maybeRollAfterLock,
     };
   }

@@ -32,6 +32,7 @@ const baseState = {
   fiefdomName: "",
   activeTurn: true,
   turnIndex: 0,
+  turnTrack: 0,
   invalidSelection: false,
   finalScore: null,
   theme: "light",

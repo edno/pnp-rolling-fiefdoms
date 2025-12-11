@@ -35,6 +35,7 @@ const baseHtml = `
   <div id="buildDicePreview"></div>
   <ul id="log"></ul>
   <div id="scoreOverlay"></div>
+  <div id="turnTrackOverlay"></div>
   <div id="popHousingOverlay"></div>
   <button id="finishActivation"></button>
   <button id="finishSplitBtn"></button>
@@ -1505,6 +1506,29 @@ describe("turn status chip (jsdom)", () => {
     clickRoll(); // debug mode allows immediate next roll; turn index advances
     await flushMicrotasks();
     expect(chip.textContent).toContain("Non-active turn");
+  });
+});
+
+describe("turn tracker overlay (jsdom)", () => {
+  it("crosses one slot for each completed turn", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const overlay = document.getElementById("turnTrackOverlay");
+    expect(overlay).toBeTruthy();
+    expect(overlay.querySelectorAll("img").length).toBe(0);
+
+    hooks.state.turnTrack = 0;
+    hooks.renderTurnTrack(0);
+    hooks.state.diceLocked = true;
+    hooks.state.pendingNextRoll = true;
+    hooks.state.pendingPopulation = null;
+    hooks.state.pestilence = false;
+    hooks.state.forceForfeit = false;
+
+    hooks.maybeRollAfterLock();
+    await flushMicrotasks();
+    expect(hooks.state.turnTrack).toBe(1);
+    expect(overlay.querySelectorAll("img").length).toBe(1);
   });
 });
 
