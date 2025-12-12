@@ -570,11 +570,11 @@ body.theme-dark .sheet-base {
   position: absolute;
   left: 630px;
   top: 710px;
-  width: 424px;
+  width: 422px;
   height: 36px;
   display: grid;
   grid-template-columns: repeat(25, 1fr);
-  gap: 2px;
+  gap: 0px;
   pointer-events: none;
 }
 
