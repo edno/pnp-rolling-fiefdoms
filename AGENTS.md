@@ -1,6 +1,6 @@
 # Agent Working Agreement
 
-1) **Read the artifacts first**: Before starting any task, read the rulebook (`rolling-fiefdoms-rulebook.pdf`) and the player sheet (`rolling-fiefdoms-player-sheet.jpg`) to establish the rules context. Then read the existing code (notably `app.js`, `rules.js`, and tests) to understand current logic and gaps.
+1) **Read the artifacts first**: Before starting any task, read the rulebook (`rolling-fiefdoms-rulebook.pdf`) and the player sheet (`rolling-fiefdoms-player-sheet.png`) to establish the rules context. Then read the existing code (notably `app.js`, `rules.js`, and tests) to understand current logic and gaps.
 
 2) **Rule changes require tests**: Any change that affects rules, scoring, or turn flow must include a new test or an update to existing tests. Do not leave rule logic untested.
 
@@ -30,7 +30,6 @@
 
 ## Appendix: TODO / Known Gaps
 
-- Pestilence section assignments are fixed to the default (Centre 1–6, Forest 2–7, Mountain 3–8, Sea 5–10, Marsh 4–9); no per-game configuration UI.
 - Turn flow: handling of no-action/blocked builds and pestilence forfeits should be aligned to the rulebook; auto-advance assumptions may be too loose.
 - Worker activation UI/logic needs refinement: worker requirements should be filled one pip at a time, with no double-counting of population across buildings; activation happens only at game end.
 - Dice split/lock UI is unstable: location pair and previews can disappear or allow building selection before a valid pair is set; lock state/visibility needs a stable implementation.

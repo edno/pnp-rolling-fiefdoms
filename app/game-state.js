@@ -39,7 +39,7 @@ export function beginTurn(
   state,
   dice,
   board,
-  { uniqueLocationPairs, filterAvailablePairs, computePestilenceInfo, sectionLabels, turnIndexOverride = null, activeTurnOverride = null },
+  { uniqueLocationPairs, filterAvailablePairs, computePestilenceInfo, turnIndexOverride = null, activeTurnOverride = null },
 ) {
   const messages = [];
   resetTurnState(state);
@@ -75,11 +75,8 @@ export function beginTurn(
 
   state.pestilence = dice.filter((d) => d.face === "X").length === 2;
   state.pestilenceInfo = state.pestilence ? computePestilenceInfo(state.dice, board) : null;
-  if (state.pestilenceInfo && state.pestilenceInfo.section) {
-    state.pestilenceInfo.sectionLabel = sectionLabels[state.pestilenceInfo.section] || state.pestilenceInfo.section;
-    messages.push(
-      `Pestilence! Sum ${state.pestilenceInfo.sum}${state.pestilenceInfo.sectionLabel ? ` -> ${state.pestilenceInfo.sectionLabel}` : ""}`,
-    );
+  if (state.pestilence) {
+    messages.push("Pestilence! Forfeit any empty plot.");
   }
   return { messages };
 }

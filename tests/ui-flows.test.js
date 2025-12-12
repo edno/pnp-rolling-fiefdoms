@@ -45,7 +45,6 @@ const baseHtml = `
   <button id="themeToggle"><span id="themeToggleIcon"></span><span id="themeToggleText"></span></button>
   <div id="actionBanner"></div>
   <span id="turnStatusChip"></span>
-  <div id="regionOverlay"></div>
   <button id="rollBtn"></button>
   <input id="fiefdomInput" />
   <div id="buildingsOverlay"></div>

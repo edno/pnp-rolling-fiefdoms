@@ -24,7 +24,7 @@ import {
   computeScore,
 } from "../app/rules.js";
 
-const helpers = { uniqueLocationPairs, filterAvailablePairs, computePestilenceInfo, sectionLabels: { centre: "Centre" } };
+const helpers = { uniqueLocationPairs, filterAvailablePairs, computePestilenceInfo };
 
 const emptyBoard = () =>
   Array.from({ length: 5 }, () =>
@@ -83,7 +83,7 @@ describe("beginTurn", () => {
     expect(state.forceForfeit).toBe(true);
   });
 
-  it("marks pestilence and computes section label", () => {
+  it("marks pestilence and computes pestilence info", () => {
     const state = createState();
     const dice = [
       { face: "X", label: "X1", resolved: null },
@@ -93,8 +93,8 @@ describe("beginTurn", () => {
     ];
     beginTurn(state, dice, emptyBoard(), helpers);
     expect(state.pestilence).toBe(true);
-    expect(state.pestilenceInfo.sectionLabel).toBeDefined();
     expect(state.pestilenceInfo.sum).toBe(6);
+    expect(state.pestilenceInfo.targetCells).toEqual([]);
   });
 });
 
@@ -281,7 +281,7 @@ describe("die selection and location evaluation", () => {
     expect(stateB.forceForfeit).toBe(false);
   });
 
-  it("keeps pestilence targets per player board (targetCells differ)", () => {
+  it("keeps pestilence forfeits agnostic to board state", () => {
     const dice = [
       { face: "X", resolved: null, label: "X1" },
       { face: "X", resolved: null, label: "X2" },
@@ -294,10 +294,8 @@ describe("die selection and location evaluation", () => {
     beginTurn(stateA, dice, filledCentreBoard(), helpers);
     beginTurn(stateB, dice, emptyBoard(), helpers);
 
-    expect(stateA.pestilenceInfo.section).toBe("centre");
-    expect(stateB.pestilenceInfo.section).toBe("centre");
-    expect(stateA.pestilenceInfo.targetCells.length).toBe(0);
-    expect(stateB.pestilenceInfo.targetCells.length).toBeGreaterThan(0);
+    expect(stateA.pestilenceInfo.targetCells).toEqual([]);
+    expect(stateB.pestilenceInfo.targetCells).toEqual([]);
   });
 });
 

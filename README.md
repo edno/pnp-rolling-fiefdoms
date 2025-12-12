@@ -29,7 +29,7 @@ Open `index.html` directly or serve the folder with your preferred static server
 
 - Roll phase: four dice (two numbered, two X) appear in the Turn panel. Click two non-X dice to set the Location pair; X dice are auto-assigned to Build. Building/Guild overlays stay disabled until two location dice are selected.
 - Build phase: pick a building from the overlay, then click a highlighted plot. Dice lock (grey) after a build/forfeit/pestilence and stay visible until the next roll; location/build previews should persist while locked.
-- Pestilence: if both Xs show, forfeit a plot in the indicated section (or any if full); dice lock during this step.
+- Pestilence: if both Xs show, skip pairing and forfeit any empty plot; dice lock during this step.
 - The log shows the actions (newest first) and includes Pestilence details.
 
 ## Tests and lint

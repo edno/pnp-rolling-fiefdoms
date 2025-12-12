@@ -8,7 +8,6 @@ import {
   restrictBuildOptionsForBoard,
   allocatePopulationToNode,
   BUILDING_RULES,
-  pestilenceAssignments,
   computeActivationMap,
   scoreBuildingAt,
 } from "./rules.js";
@@ -343,13 +342,6 @@ const scoreOverlayEl = document.getElementById("scoreOverlay");
 const popHousingOverlay = document.getElementById("popHousingOverlay");
 const turnTrackOverlay = document.getElementById("turnTrackOverlay");
 const guildTypes = ["GF", "GQ", "GW", "GM"];
-const sectionLabels = {
-  forest: "Forest",
-  sea: "Sea",
-  mountain: "Mountain",
-  marsh: "Marsh",
-  centre: "Centre",
-};
 const finishActivationBtn = document.getElementById("finishActivation");
 const newGameBtn = document.getElementById("newGameBtn");
 const finishSplitBtn = document.getElementById("finishSplitBtn");
@@ -365,7 +357,6 @@ const actionBannerEl = document.getElementById("actionBanner");
 const turnStatusChip = document.getElementById("turnStatusChip");
 const loadingOverlay = document.getElementById("loadingOverlay");
 const sheetBaseImage = document.getElementById("sheetBaseImage");
-const regionOverlayEl = document.getElementById("regionOverlay");
 const p2pPanel = document.getElementById("p2pPanel");
 const p2pStatusEl = document.getElementById("p2pStatus");
 const p2pCodeEl = document.getElementById("p2pCode");
@@ -384,9 +375,9 @@ const p2pQrCaption = document.getElementById("p2pQrCaption");
 const p2pQrModal = document.getElementById("p2pQrModal");
 const p2pQrClose = document.getElementById("p2pQrClose");
 const p2pShowQrBtn = document.getElementById("p2pShowQrBtn");
-const SHEET_VERSION = "v1.7";
+const SHEET_VERSION = "v1.8";
 const POP_CAPACITY = 5;
-const POP_LAYOUT = { cols: 7, rows: 2, pipsPerCell: 4 };
+const POP_LAYOUT = { cols: 8, rows: 2, pipsPerCell: 4 };
 const THEME_STORAGE_KEY = "rolling-fiefdoms-theme";
 const TURN_PHASE = {
   AWAIT_ROLL: "awaiting-roll",
@@ -561,7 +552,6 @@ function setupThemeToggle() {
 function init() {
   resetState();
   renderBoard();
-  renderRegionOverlay();
   updateTracks();
   updateTurnStatusChip();
   updateActionBanner();
@@ -1555,7 +1545,6 @@ function rollDice() {
     uniqueLocationPairs,
     computePestilenceInfo,
     filterAvailablePairs,
-    sectionLabels,
     turnIndexOverride,
     activeTurnOverride,
   });
@@ -1591,11 +1580,7 @@ function rollDice() {
     return;
   }
   if (state.pestilence) {
-    const target = state.pestilenceInfo?.sectionLabel || "any section";
-    if (turnHintEl) turnHintEl.textContent = `Pestilence! Forfeit a plot in ${target}.`;
-    if (state.pestilenceInfo?.sectionLabel && state.pestilenceInfo.targetCells.length === 0) {
-      log("Target section is full; forfeit any empty plot.");
-    }
+    if (turnHintEl) turnHintEl.textContent = "Pestilence! Forfeit any empty plot.";
     // Auto-assign the split for pestilence: numbered/windrose stay in location, X dice in build.
     const forcedSplit = splitForcedDice(state.dice || []);
     const locIdx = [];
@@ -1683,8 +1668,7 @@ function renderDice() {
   diceView.innerHTML = "";
   if (turnHintEl) {
     if (state.pestilence) {
-      const target = state.pestilenceInfo?.sectionLabel || "any section";
-      turnHintEl.textContent = `Pestilence! Forfeit a plot in ${target}.`;
+      turnHintEl.textContent = "Pestilence! Forfeit any empty plot.";
     } else if (state.activeTurn && state.invalidSelection) {
       turnHintEl.textContent = "No valid plots for that pair; choose a different location pair.";
     } else if (state.forceForfeit) {
@@ -2335,9 +2319,7 @@ function forfeitCell(r, c) {
   lockDiceSnapshot(state, { markPendingNextRoll: true, uniqueLocationPairs });
   updateDiceAssignments();
   renderBoard();
-  const section = state.pestilenceInfo?.sectionLabel || null;
-  const context =
-    section && state.pestilence ? ` during Pestilence (${section})` : state.pestilence ? " during Pestilence" : "";
+  const context = state.pestilence ? " during Pestilence" : "";
   log(`Forfeited row ${r + 1}, col ${c + 1}${context}`);
   // Resolve pestilence/forfeit state so the turn can advance
   state.pestilence = false;
@@ -2419,7 +2401,6 @@ function finishActivation() {
 function newGame() {
   resetState();
   renderBoard();
-  renderRegionOverlay();
   prepareNextRoll();
   renderSelectionDice([], []);
   updateTracks();
@@ -2742,37 +2723,6 @@ function updateTurnStatusChip() {
   }
 }
 
-function renderRegionOverlay() {
-  if (!regionOverlayEl) return;
-  regionOverlayEl.innerHTML = "";
-  const positions = {
-    forest: { top: [110, 110], left: [258, 378] },
-    mountain: { top: [302, 432], left: [55, 55] },
-    sea: { top: [302, 420], left: [570, 570] },
-    marsh: { top: [610, 610], left: [252, 378] },
-  };
-  Object.entries(pestilenceAssignments).forEach(([region, nums]) => {
-    const pos = positions[region];
-    if (!pos || !Array.isArray(nums) || nums.length === 0) return;
-    const minVal = Math.min(...nums);
-    const maxVal = Math.max(...nums);
-    const values = minVal === maxVal ? [minVal] : [minVal, maxVal];
-    const coords = values.map((val, idx) => ({
-      val,
-      top: pos.top[Math.min(idx, pos.top.length - 1)],
-      left: pos.left[Math.min(idx, pos.left.length - 1)],
-    }));
-    coords.forEach((entry) => {
-      const tag = document.createElement("div");
-      tag.className = `region-tag ${region}`;
-      tag.style.top = `${entry.top}px`;
-      tag.style.left = `${entry.left}px`;
-      tag.textContent = entry.val;
-      regionOverlayEl.appendChild(tag);
-    });
-  });
-}
-
 function maybeRollAfterLock() {
   if (isMultiplayerActive()) return "wait";
   const action = maybeRollAfterLockState(state);
@@ -2833,34 +2783,34 @@ function renderPopulationNodes() {
         const pipLayouts = {
           1: [{ x: 50, y: 50 }],
           2: [
-            { x: 26, y: 26 },
-            { x: 74, y: 74 },
+            { x: 22, y: 22 },
+            { x: 78, y: 78 },
           ],
           3: [
-            { x: 26, y: 26 },
+            { x: 22, y: 22 },
             { x: 50, y: 50 },
-            { x: 74, y: 74 },
+            { x: 78, y: 78 },
           ],
           4: [
-            { x: 26, y: 26 },
-            { x: 74, y: 26 },
-            { x: 26, y: 74 },
-            { x: 74, y: 74 },
+            { x: 22, y: 22 },
+            { x: 78, y: 22 },
+            { x: 22, y: 78 },
+            { x: 78, y: 78 },
           ],
           5: [
-            { x: 26, y: 26 },
-            { x: 74, y: 26 },
+            { x: 22, y: 22 },
+            { x: 78, y: 22 },
             { x: 50, y: 50 },
-            { x: 26, y: 74 },
-            { x: 74, y: 74 },
+            { x: 22, y: 78 },
+            { x: 78, y: 78 },
           ],
           6: [
-            { x: 30, y: 26 },
-            { x: 70, y: 26 },
-            { x: 30, y: 50 },
-            { x: 70, y: 50 },
-            { x: 30, y: 74 },
-            { x: 70, y: 74 },
+            { x: 22, y: 22 },
+            { x: 78, y: 22 },
+            { x: 22, y: 50 },
+            { x: 78, y: 50 },
+            { x: 22, y: 78 },
+            { x: 78, y: 78 },
           ],
         };
         const positions = pipLayouts[Math.min(originalVal, 6)] || pipLayouts[6];

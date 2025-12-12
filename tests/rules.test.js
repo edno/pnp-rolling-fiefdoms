@@ -8,7 +8,6 @@ import {
   computeScore,
   filterAvailablePairs,
   computePestilenceInfo,
-  cellSections,
   restrictBuildOptionsForBoard,
   allocatePopulationToNode,
   availableLocationPairs,
@@ -628,88 +627,28 @@ describe("adjacency scoring (cardinal)", () => {
   });
 });
 
-describe("pestilence section mapping", () => {
-  const emptyBoard = () =>
-    Array.from({ length: 5 }, () =>
-      Array.from({ length: 5 }, () => ({ building: null, forfeited: false, springBoost: 0 })),
-    );
-
-  it("reports overlapping sections for corner cells", () => {
-    const sections = cellSections(0, 0);
-    expect(sections.has("forest")).toBe(true);
-    expect(sections.has("mountain")).toBe(true);
-  });
-
-  it("assigns sea to columns 4 and 5", () => {
-    const board = emptyBoard();
-    const dice = [
-      { label: "N1", resolved: 5 },
-      { label: "N2", resolved: 5 },
-      { label: "X1", resolved: "X", face: "X" },
-      { label: "X2", resolved: "X", face: "X" },
-    ];
-    const info = computePestilenceInfo(dice, board);
-    const targetCols = new Set(info.targetCells.map(([, c]) => c));
-    expect(info.section).toBe("sea");
-    expect(targetCols.has(3)).toBe(true);
-    expect(targetCols.has(4)).toBe(true);
-  });
-
-  it("covers overlapping regions (row 1/col 1 counts for mountain sums)", () => {
-    const board = emptyBoard();
-    const dice = [
-      { label: "N1", resolved: 3 },
-      { label: "N2", resolved: 5 },
-      { label: "X1", resolved: "X", face: "X" },
-      { label: "X2", resolved: "X", face: "X" },
-    ];
-    const info = computePestilenceInfo(dice, board);
-    const includesCorner = info.targetCells.some(([r, c]) => r === 0 && c === 0);
-    expect(info.section).toBe("mountain"); // 3+5=8 -> mountain
-    expect(includesCorner).toBe(true);
-  });
-
-  it("assigns marsh when its range is the highest-priority match", () => {
-    const board = emptyBoard();
-    const dice = [
-      { label: "N1", resolved: 4 },
-      { label: "N2", resolved: 5 },
-      { label: "X1", face: "X", resolved: "X" },
-      { label: "X2", face: "X", resolved: "X" },
-    ];
-    const info = computePestilenceInfo(dice, board);
-    expect(info.section).toBe("marsh"); // sum 9 now maps to marsh (priority after forest/mountain)
-    const allMarsh = info.targetCells.every(([r]) => r >= 3); // rows 4-5 zero-based 3-4
-    expect(allMarsh).toBe(true);
-  });
-
-  it("treats windrose as 0 during pestilence and targets centre for low sums", () => {
-    const board = emptyBoard();
+describe("pestilence info", () => {
+  it("ignores windrose dice for the pestilence sum", () => {
     const dice = [
       { label: "N1", resolved: 0, face: "windrose" },
-      { label: "N2", resolved: 1 },
+      { label: "N2", resolved: 5 },
       { label: "X1", face: "X", resolved: "X" },
       { label: "X2", face: "X", resolved: "X" },
     ];
-    const info = computePestilenceInfo(dice, board);
-    expect(info.section).toBe("centre");
-    const allCentre = info.targetCells.every(([r, c]) => r >= 1 && r <= 3 && c >= 1 && c <= 3);
-    expect(allCentre).toBe(true);
+    const info = computePestilenceInfo(dice, []);
+    expect(info.sum).toBe(5);
   });
 
-  it("returns empty targetCells when the section is already full", () => {
-    const fullBoard = Array.from({ length: 5 }, () =>
-      Array.from({ length: 5 }, () => ({ building: "X", forfeited: false, springBoost: 0 })),
-    );
+  it("allows forfeiting any plot (no targeted cells)", () => {
     const dice = [
       { label: "N1", resolved: 3 },
       { label: "N2", resolved: 3 },
       { label: "X1", face: "X", resolved: "X" },
       { label: "X2", face: "X", resolved: "X" },
     ];
-    const info = computePestilenceInfo(dice, fullBoard);
-    expect(info.section).toBe("centre");
-    expect(info.targetCells.length).toBe(0);
+    const info = computePestilenceInfo(dice, []);
+    expect(info.targetCells).toEqual([]);
+    expect(info.section).toBeNull();
   });
 });
 

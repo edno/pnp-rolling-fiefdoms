@@ -623,41 +623,7 @@ function orthNeighbors(r, c, rows, cols) {
   ].filter(([rr, cc]) => rr >= 0 && cc >= 0 && rr < rows && cc < cols);
 }
 
-// Pestilence helpers (regions overlap per sheet: forest rows 1-2, marsh rows 4-5, mountain cols 1-2, sea cols 4-5, centre is middle 3x3).
-const range = (low, high) => Array.from({ length: high - low + 1 }, (_, i) => low + i);
-
-export const pestilenceAssignments = {
-  forest: range(2, 7),
-  sea: range(5, 10),
-  mountain: range(3, 8),
-  marsh: range(4, 9),
-  centre: range(1, 6),
-};
-
-export const pestilencePriority = ["centre", "forest", "mountain", "marsh", "sea"];
-
-export function cellSections(r, c, rows = 5, cols = 5) {
-  const sections = new Set();
-  if (r >= 1 && r <= 3 && c >= 1 && c <= 3) sections.add("centre");
-  if (r <= 1) sections.add("forest");
-  if (r >= rows - 2) sections.add("marsh");
-  if (c <= 1) sections.add("mountain");
-  if (c >= cols - 2) sections.add("sea");
-  return sections;
-}
-
-export function pestilenceSectionForSum(sum, assignments = pestilenceAssignments, priority = pestilencePriority) {
-  const matching = Object.entries(assignments)
-    .filter(([, vals]) => vals.includes(sum))
-    .map(([region]) => region);
-  if (!matching.length) return null;
-  for (const region of priority) {
-    if (matching.includes(region)) return region;
-  }
-  return matching[0] || null;
-}
-
-export function computePestilenceInfo(dice, board) {
+export function computePestilenceInfo(dice) {
   const numbered = dice.filter((d) => d.label && d.label.startsWith("N"));
   const sum = numbered.reduce((acc, d) => {
     if (!d) return acc;
@@ -665,20 +631,7 @@ export function computePestilenceInfo(dice, board) {
     const val = typeof d.resolved === "number" ? d.resolved : 0;
     return acc + val;
   }, 0);
-  const section = pestilenceSectionForSum(sum);
-  const targetCells = [];
-  if (section) {
-    for (let r = 0; r < board.length; r++) {
-      for (let c = 0; c < board[0].length; c++) {
-        const cell = board[r][c];
-        if (cell.building || cell.forfeited) continue;
-        if (cellSections(r, c, board.length, board[0].length).has(section)) {
-          targetCells.push([r, c]);
-        }
-      }
-    }
-  }
-  return { sum, section, targetCells };
+  return { sum, section: null, targetCells: [] };
 }
 
 // Convenience helper for UI logic: all valid location pairs for current dice/board.
