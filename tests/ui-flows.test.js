@@ -938,6 +938,39 @@ describe("solo non-active swap control (jsdom)", () => {
     expect(hooks.state.locationSelection).toEqual([0, 1]);
   });
 
+  it("auto-selects the only valid pair on non-active turns to avoid an unnecessary forfeit", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = false;
+    hooks.p2pUiState.seatsTotal = 1;
+    hooks.state.activeTurn = false;
+    hooks.state.rollAvailable = false;
+    const dice = [
+      { face: 1, resolved: 1, label: "N1" },
+      { face: 1, resolved: 1, label: "N2" },
+      { face: 2, resolved: 2, label: "X1" },
+      { face: 5, resolved: 5, label: "X2" },
+    ];
+    hooks.state.dice = dice;
+    hooks.state.locationSelection = [0, 1];
+    hooks.state.autoLocationSelection = [0, 1];
+    hooks.state.forcedLocationDice = [];
+    hooks.state.nonActiveSwap = false;
+    // Block the only plots for pair (1,1)
+    hooks.state.board[0][0].forfeited = true;
+    hooks.updateDiceAssignments();
+    expect(hooks.state.forceForfeit).toBe(false);
+    expect(hooks.state.locationSelection).toEqual([2, 3]);
+    expect(hooks.state.nonActiveSwap).toBe(true);
+    expect(hooks.state.locationPairs).toEqual([[2, 5]]);
+    const swapBtn = document.getElementById("swapPairBtn");
+    expect(swapBtn.style.display).toBe("none");
+    expect(swapBtn.disabled).toBe(true);
+    const turnHint = document.getElementById("turnHint");
+    expect(turnHint.textContent).toContain("Non-active turn. Dice automatically assigned.");
+    expect(turnHint.textContent).not.toContain("Use the swap button to swap pairs");
+  });
+
   it("hides swap button when event dice have an X face", async () => {
     await setupApp({ enableHooks: true });
     const hooks = window.__rfTestHooks;
@@ -960,6 +993,35 @@ describe("solo non-active swap control (jsdom)", () => {
     expect(swapBtn).toBeTruthy();
     expect(swapBtn.style.display).toBe("none");
     expect(swapBtn.disabled).toBe(true);
+  });
+
+  it("hides swap button when the alternate pair would immediately forfeit", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = false;
+    hooks.p2pUiState.seatsTotal = 1;
+    hooks.state.activeTurn = false;
+    hooks.state.rollAvailable = false;
+    const dice = [
+      { face: 2, resolved: 2, label: "N1" },
+      { face: 5, resolved: 5, label: "N2" },
+      { face: 3, resolved: 3, label: "X1" },
+      { face: 4, resolved: 4, label: "X2" },
+    ];
+    hooks.state.dice = dice;
+    hooks.state.locationSelection = [0, 1];
+    hooks.state.autoLocationSelection = [0, 1];
+    hooks.state.forcedLocationDice = [];
+    // Block both permutations of the alternate pair (3,4)
+    hooks.state.board[2][3].forfeited = true;
+    hooks.state.board[3][2].forfeited = true;
+    hooks.updateDiceAssignments();
+    const swapBtn = document.getElementById("swapPairBtn");
+    expect(swapBtn.style.display).toBe("none");
+    expect(swapBtn.disabled).toBe(true);
+    const turnHint = document.getElementById("turnHint");
+    expect(turnHint.textContent).toContain("Non-active turn. Dice automatically assigned.");
+    expect(turnHint.textContent).not.toContain("Use the swap button to swap pairs");
   });
 
   it("adds swap guidance to non-active hint when swap is available", async () => {

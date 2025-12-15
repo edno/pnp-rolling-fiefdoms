@@ -175,7 +175,43 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
   state.locationPairs = locationPairs;
   state.forceForfeit = forceForfeit;
   state.invalidSelection = invalidSelection;
+  if (!state.activeTurn && !state.diceLocked && forceForfeit) {
+    const swapped = autoSelectValidNonActivePair(state, { uniqueLocationPairs, filterAvailablePairs, board });
+    if (swapped) {
+      return evaluateLocationSelection(state, { uniqueLocationPairs, filterAvailablePairs, board });
+    }
+  }
   return { invalidSelection, forceForfeit, message };
+}
+
+function autoSelectValidNonActivePair(state, { uniqueLocationPairs, filterAvailablePairs, board }) {
+  if (!Array.isArray(state.locationSelection) || state.locationSelection.length !== 2) return false;
+  if (!Array.isArray(state.dice) || state.dice.length < 4) return false;
+  const forced = Array.isArray(state.forcedLocationDice) ? state.forcedLocationDice : [];
+  if (forced.length) return false;
+  const altIdx = state.dice
+    .map((_, idx) => idx)
+    .filter((idx) => !state.locationSelection.includes(idx));
+  if (altIdx.length !== 2) return false;
+  const alternateDice = altIdx.map((i) => state.dice[i]).filter(Boolean);
+  if (alternateDice.length !== 2) return false;
+  const alternatePairs = filterAvailablePairs(uniqueLocationPairs(alternateDice), board);
+  if (!alternatePairs.length) return false;
+  state.locationSelection = altIdx.slice();
+  state.buildDice = state.dice.filter((_, idx) => !altIdx.includes(idx));
+  state.locationPairs = alternatePairs;
+  state.forceForfeit = false;
+  state.invalidSelection = false;
+  if (Array.isArray(state.autoLocationSelection) && state.autoLocationSelection.length === 2) {
+    const normalize = (arr) => arr.slice().sort((a, b) => a - b);
+    const current = normalize(state.locationSelection);
+    const base = normalize(state.autoLocationSelection);
+    const matchesBase = current.length === base.length && current.every((val, idx) => val === base[idx]);
+    state.nonActiveSwap = !matchesBase;
+  } else {
+    state.nonActiveSwap = true;
+  }
+  return true;
 }
 
 export function startActivation(state) {

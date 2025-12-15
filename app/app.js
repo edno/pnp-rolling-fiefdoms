@@ -3126,13 +3126,30 @@ function soloPairChoice() {
   const base = soloBaseSelections();
   if (!base) return { locDice: [], buildDice: [], swapped: false, swapAllowed: false };
   const choice = computeSwapChoice(base.baseLocDice, base.baseBuildDice, state.nonActiveSwap);
-  return { ...choice, baseLocIdx: base.baseLocIdx, baseBuildIdx: base.baseBuildIdx };
+  return {
+    ...choice,
+    baseLocIdx: base.baseLocIdx,
+    baseBuildIdx: base.baseBuildIdx,
+    baseLocDice: base.baseLocDice,
+    baseBuildDice: base.baseBuildDice,
+  };
+}
+
+function soloPairHasValidLocations(diceList = []) {
+  if (!Array.isArray(diceList) || diceList.length !== 2) return false;
+  if (!Array.isArray(state.board) || !state.board.length) return false;
+  const pairs = filterAvailablePairs(uniqueLocationPairs(diceList), state.board);
+  return pairs.length > 0;
 }
 
 function soloSwapAvailable() {
   if (isMultiplayerActive()) return false;
   if (state.activeTurn || state.pestilence || state.activationMode) return false;
   const choice = soloPairChoice();
+  if (!choice.baseLocIdx || !choice.baseBuildIdx) return false;
+  const baseValid = soloPairHasValidLocations(choice.baseLocDice);
+  const altValid = soloPairHasValidLocations(choice.baseBuildDice);
+  if (!baseValid || !altValid) return false;
   return Boolean(choice.swapAllowed);
 }
 
