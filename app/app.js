@@ -1683,18 +1683,26 @@ async function joinViaSignalling(sessionId, secret) {
 // GAME LOGIC - Turn flow, dice rolling, building, and scoring
 // ============================================================================
 
+let rollingInProgress = false;
+
 function rollDice() {
-  if (state.activationMode) return;
-  if (!debugMode && !state.rollAvailable) {
-    log("Roll already used this turn. Finish the turn to roll again.");
+  if (rollingInProgress) {
     return;
   }
-  if (p2pUiState.seatsTotal > 1 && p2pUiState.activeSeat !== p2pUiState.seatId) {
-    logP2P("Roll ignored: not your turn.");
-    return;
-  }
+  rollingInProgress = true;
   
-  // If hosting but no one joined yet and this is the first roll, cancel hosting and go solo
+  try {
+    if (state.activationMode) return;
+    if (!debugMode && !state.rollAvailable) {
+      log("Roll already used this turn. Finish the turn to roll again.");
+      return;
+    }
+    if (p2pUiState.seatsTotal > 1 && p2pUiState.activeSeat !== p2pUiState.seatId) {
+      logP2P("Roll ignored: not your turn.");
+      return;
+    }
+    
+    // If hosting but no one joined yet and this is the first roll, cancel hosting and go solo
   // Also cancel if WebRTC is not available
   const isFirstRoll = state.turnIndex === 0;
   const isHostingAlone = p2pUiState.mode === "host" && !p2pUiState.channelOpen && p2pUiState.awaitingAnswer;
@@ -1808,6 +1816,9 @@ function rollDice() {
   renderDice();
   updateActionBanner();
   syncStateToPeer();
+  } finally {
+    rollingInProgress = false;
+  }
 }
 
 function describeDice(dice) {
