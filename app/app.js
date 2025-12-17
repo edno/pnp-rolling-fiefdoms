@@ -1705,6 +1705,18 @@ function rollDice() {
     logP2P("Roll ignored: not your turn.");
     return;
   }
+  
+  // If hosting but no one joined yet and this is the first roll, cancel hosting and go solo
+  // Also cancel if WebRTC is not available
+  const isFirstRoll = state.turnIndex === 0;
+  const isHostingAlone = p2pUiState.mode === "host" && !p2pUiState.channelOpen && p2pUiState.awaitingAnswer;
+  const webrtcUnavailable = p2pUiState.mode === "host" && p2p && !p2p.supported;
+  if (isFirstRoll && (isHostingAlone || webrtcUnavailable)) {
+    const reason = webrtcUnavailable ? "WebRTC not available" : "Starting solo game";
+    logP2P(`${reason} - canceling P2P hosting`);
+    disableP2P(reason);
+  }
+  
   resetBuildDoneMap();
   const n1 = rollNumberedDie("N1");
   const n2 = rollNumberedDie("N2");
