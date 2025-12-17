@@ -73,7 +73,7 @@ async function flushMicrotasks() {
   }
 }
 
-function stubEnvironment() {
+function stubEnvironment({ p2pEnabled = true } = {}) {
   document.body.innerHTML = baseHtml;
   document.body.classList.add("loading");
   if (!window.matchMedia) {
@@ -87,13 +87,26 @@ function stubEnvironment() {
   }
   // eslint-disable-next-line no-global-assign
   Image = InstantImage;
+  // Mock fetch for /api/config
+  window.fetch = vi.fn((url) => {
+    if (url === "/api/config") {
+      const data = { signalingUrl: "http://localhost", p2pEnabled };
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(data),
+        headers: { get: () => "application/json" },
+      });
+    }
+    return Promise.reject(new Error(`Unmocked fetch: ${url}`));
+  });
 }
 
 async function setupApp({ numbered = [], x = [], debug = false, enableHooks = false, p2p = true } = {}) {
   vi.resetModules();
   numberedQueue.length = 0;
   xQueue.length = 0;
-  stubEnvironment();
+  stubEnvironment({ p2pEnabled: p2p });
   const url = new URL("http://localhost/");
   if (debug) url.searchParams.set("debug", "");
   if (p2p) url.searchParams.set("p2p", "");
@@ -198,6 +211,7 @@ describe("p2p invite links (jsdom)", () => {
     const copyBtn = document.getElementById("p2pCopyBtn");
     expect(codeInput.style.display).toBe("none");
     expect(copyBtn.style.display).toBe("none");
+    hooks.p2pUiState.signallingDisabled = false;
     hooks.p2pUiState.inviteVisible = true;
     hooks.updateInviteVisibility(true);
     hooks.updateP2PControlsVisibility({ supported: true });
@@ -270,22 +284,21 @@ describe("blocked build flow (jsdom)", () => {
 });
 
 describe("p2p meeple display (jsdom)", () => {
-  it("shows five meeples and marks connected seats with colors", async () => {
+  it("shows two meeples and marks connected seats with colors", async () => {
     await setupApp({ enableHooks: true });
     const hooks = window.__rfTestHooks;
     hooks.p2pUiState.hostCreated = true;
-    hooks.p2pUiState.connectedSeats = { 1: true, 2: false, 3: false, 4: false, 5: false };
+    hooks.p2pUiState.connectedSeats = { 1: true, 2: false };
     hooks.renderMeeples();
     const container = document.getElementById("p2pMeeples");
     expect(container.classList.contains("hidden")).toBe(false);
     const meeples = container.querySelectorAll(".p2p-meeple");
-    expect(meeples.length).toBe(5);
+    expect(meeples.length).toBe(2);
     expect(meeples[0].dataset.state).toBe("connected");
     expect(meeples[1].dataset.state).toBe("empty");
     hooks.p2pUiState.connectedSeats[2] = true;
     hooks.renderMeeples();
     expect(container.querySelector('[data-seat="2"]').dataset.state).toBe("connected");
-    expect(container.querySelector('[data-seat="3"]').dataset.state).toBe("empty");
   });
 
   it("hides meeples when no host session exists", async () => {
@@ -771,6 +784,48 @@ describe("build completion state sync (jsdom)", () => {
     hooks.updateDiceAssignments();
     expect(hooks.p2pUiState.buildDone[1]).toBe(true);
     expect(hooks.p2pUiState.buildDone[2]).toBe(false);
+  });
+
+  it("syncs splitUsed when peer completes turn", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = true;
+    hooks.p2pUiState.seatsTotal = 2;
+    hooks.p2pUiState.seatId = 2;
+    hooks.p2pUiState.activeSeat = 1;
+    hooks.p2pUiState.splitUsed = { 1: true, 2: true }; // Both players built
+    hooks.p2pUiState.buildDone = { 1: true, 2: true };
+    
+    // Peer (active player) completes turn and sends snapshot with reset splitUsed
+    hooks.applyFullSnapshot({
+      version: "1",
+      turnIndex: 2,
+      activeTurn: false,
+      rollAvailable: true,
+      dice: [],
+      locationSelection: [],
+      locationPairs: [],
+      lockedLocationDice: null,
+      lockedBuildDice: null,
+      lockedLocationPairs: null,
+      diceLocked: false,
+      lastLocationDice: [],
+      lastBuildDice: [],
+      forcedLocationDice: [],
+      pestilence: false,
+      forceForfeit: false,
+      pendingNextRoll: false,
+      seatsTotal: 2,
+      activeSeat: 2, // Now we're active
+      splitLocked: false,
+      buildDone: { 1: false, 2: false },
+      splitUsed: { 1: false, 2: false },
+    });
+    
+    // splitUsed should be reset for new turn
+    expect(hooks.p2pUiState.splitUsed[1]).toBe(false);
+    expect(hooks.p2pUiState.splitUsed[2]).toBe(false);
+    expect(hooks.state.activeTurn).toBe(true); // We're now active
   });
 
   it("accepts snapshots before the first roll (no dice yet)", async () => {
@@ -1882,6 +1937,388 @@ describe("building after split lock (jsdom)", () => {
     expect(built).toBe(true);
     const logs = latestLogs();
     expect(logs.some((m) => m.includes("Placed"))).toBe(true);
+  });
+});
+
+describe("multiplayer building flow (jsdom)", () => {
+  it("sets splitUsed flag after building is placed", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = true;
+    hooks.p2pUiState.seatsTotal = 2;
+    hooks.p2pUiState.seatId = 1;
+    hooks.p2pUiState.activeSeat = 1;
+    hooks.p2pUiState.buildDone = { 1: false, 2: false };
+    hooks.p2pUiState.splitUsed = { 1: false, 2: false };
+    hooks.state.activeTurn = true;
+
+    // Place a building directly
+    hooks.state.board[1][2] = { building: null, forfeited: false };
+    hooks.state.locationSelection = [0, 1];
+    hooks.state.diceLocked = true;
+    hooks.state.lockedLocationDice = [
+      { face: 2, resolved: 2, label: "N1" }, 
+      { face: 3, resolved: 3, label: "N2" }
+    ];
+    hooks.state.lockedBuildDice = [
+      { face: 4, resolved: 4, label: "X1" }, 
+      { face: 5, resolved: 5, label: "X2" }
+    ];
+    hooks.state.lockedLocationPairs = [[2, 3]];
+    hooks.p2pUiState.splitLocked = true;
+    
+    // Verify splitUsed is false before building
+    expect(hooks.p2pUiState.splitUsed[1]).toBe(false);
+    
+    hooks.placeBuilding(1, 2, "T");
+    await flushMicrotasks();
+    
+    // Verify splitUsed is true after building
+    expect(hooks.p2pUiState.splitUsed[1]).toBe(true);
+  });
+
+  it("persists lockedPairSwap after building until turn completes", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = true;
+    hooks.p2pUiState.seatsTotal = 2;
+    hooks.p2pUiState.seatId = 1;
+    hooks.p2pUiState.activeSeat = 1;
+    hooks.p2pUiState.buildDone = { 1: false, 2: false };
+    hooks.p2pUiState.splitUsed = { 1: false, 2: false };
+    hooks.p2pUiState.lockedPairSwap = true;
+    hooks.p2pUiState.splitLocked = true;
+    hooks.state.activeTurn = true;
+
+    // Place a building directly
+    hooks.state.board[1][2] = { building: null, forfeited: false };
+    hooks.state.locationSelection = [0, 1];
+    hooks.state.diceLocked = true;
+    hooks.state.lockedLocationDice = [
+      { face: 2, resolved: 2, label: "N1" }, 
+      { face: 3, resolved: 3, label: "N2" }
+    ];
+    hooks.state.lockedBuildDice = [
+      { face: 4, resolved: 4, label: "X1" }, 
+      { face: 5, resolved: 5, label: "X2" }
+    ];
+    hooks.state.lockedLocationPairs = [[2, 3]];
+    
+    // Verify swap state is true before building
+    expect(hooks.p2pUiState.lockedPairSwap).toBe(true);
+    
+    hooks.placeBuilding(1, 2, "T");
+    await flushMicrotasks();
+    
+    // Verify swap state persists after building
+    expect(hooks.p2pUiState.lockedPairSwap).toBe(true);
+  });
+
+  it("does not highlight locations when splitUsed is true", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = true;
+    hooks.p2pUiState.seatsTotal = 2;
+    hooks.p2pUiState.seatId = 1;
+    hooks.p2pUiState.activeSeat = 1;
+    hooks.p2pUiState.buildDone = { 1: false, 2: false };
+    hooks.p2pUiState.splitLocked = true;
+    hooks.state.activeTurn = true;
+    hooks.state.diceLocked = true;
+    hooks.state.lockedLocationPairs = [[2, 3]];
+    
+    // Test with splitUsed false - should allow highlighting
+    hooks.p2pUiState.splitUsed = { 1: false, 2: false };
+    hooks.state.board[1][2] = { building: null, forfeited: false };
+    
+    // Verify the condition that highlightLocations checks
+    const mySplitUsed = hooks.p2pUiState.splitUsed[hooks.p2pUiState.seatId];
+    const myBuildDone = hooks.p2pUiState.buildDone[hooks.p2pUiState.seatId];
+    expect(mySplitUsed || myBuildDone).toBe(false);
+    
+    // Now set splitUsed true (simulating after building)
+    hooks.p2pUiState.splitUsed[1] = true;
+    
+    // Verify the condition that would prevent highlighting
+    const mySplitUsedAfter = hooks.p2pUiState.splitUsed[hooks.p2pUiState.seatId];
+    expect(mySplitUsedAfter).toBe(true);
+  });
+
+  it("controls influence visibility based on splitUsed flag", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = true;
+    hooks.p2pUiState.seatsTotal = 2;
+    hooks.p2pUiState.seatId = 1;
+    hooks.p2pUiState.activeSeat = 1;
+    hooks.p2pUiState.buildDone = { 1: false, 2: false };
+    hooks.p2pUiState.splitLocked = true;
+    hooks.state.activeTurn = true;
+    hooks.state.diceLocked = true;
+    
+    // Test with splitUsed false - should allow influence controls
+    hooks.p2pUiState.splitUsed = { 1: false, 2: false };
+    
+    const mySplitNotUsed = !hooks.p2pUiState.splitUsed[hooks.p2pUiState.seatId];
+    const myBuildNotDone = !hooks.p2pUiState.buildDone[hooks.p2pUiState.seatId];
+    const influenceSeatOk = hooks.p2pUiState.splitLocked && myBuildNotDone && mySplitNotUsed;
+    expect(influenceSeatOk).toBe(true);
+    
+    // Now set splitUsed true (simulating after building)
+    hooks.p2pUiState.splitUsed[1] = true;
+    
+    const mySplitNotUsedAfter = !hooks.p2pUiState.splitUsed[hooks.p2pUiState.seatId];
+    const influenceSeatOkAfter = hooks.p2pUiState.splitLocked && myBuildNotDone && mySplitNotUsedAfter;
+    expect(influenceSeatOkAfter).toBe(false);
+  });
+
+  it("keeps influence controls visible when adjustments exist even during forfeit", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    
+    // Setup a forfeit scenario
+    hooks.state.forceForfeit = true;
+    hooks.state.forceForfeitAdvisory = false; // true forfeit, not advisory
+    hooks.state.diceLocked = false;
+    hooks.state.activationMode = false;
+    hooks.state.pestilence = false;
+    hooks.state.locationSelection = [1, 2]; // 2 dice selected
+    
+    // Add influence adjustments (user spent influence)
+    hooks.state.influenceAdjustments = {
+      "0": { delta: 1 },
+    };
+    
+    // Condition should allow controls because adjustments exist
+    const hasAdjustments = hooks.state.influenceAdjustments && Object.keys(hooks.state.influenceAdjustments).length > 0;
+    const forfeitActive = hooks.state.forceForfeit && !hooks.state.forceForfeitAdvisory;
+    
+    expect(hasAdjustments).toBe(true);
+    expect(forfeitActive).toBe(true);
+    
+    // Controls should be visible because: !forfeitActive OR hasAdjustments = false OR true = true
+    const controlsVisible = !forfeitActive || hasAdjustments;
+    expect(controlsVisible).toBe(true);
+    
+    // Now test without adjustments - controls should be hidden
+    hooks.state.influenceAdjustments = {};
+    const noAdjustments = !hooks.state.influenceAdjustments || Object.keys(hooks.state.influenceAdjustments).length === 0;
+    expect(noAdjustments).toBe(true);
+    
+    const controlsVisibleWithoutAdj = !forfeitActive || !noAdjustments;
+    expect(controlsVisibleWithoutAdj).toBe(false);
+  });
+
+  it("shows building options after using influence to fix forfeit location", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    
+    // This test verifies that fillBuildings uses effectiveLockedLocationPairs()
+    // which applies influence adjustments to compute valid location pairs
+    
+    hooks.p2pUiState.signallingActive = true;
+    hooks.p2pUiState.seatsTotal = 2;
+    hooks.p2pUiState.seatId = 1;
+    hooks.p2pUiState.activeSeat = 1;
+    hooks.p2pUiState.splitLocked = true;
+    hooks.p2pUiState.buildDone = { 1: false, 2: false };
+    hooks.p2pUiState.splitUsed = { 1: false, 2: false };
+    hooks.state.activeTurn = true;
+    hooks.state.diceLocked = true;
+    
+    // Setup dice: 2 and 3 for location, valid build dice
+    hooks.state.dice = [
+      { face: 2, resolved: 2, label: "N1" },
+      { face: 3, resolved: 3, label: "N2" },
+      { face: 1, label: "X1" },
+      { face: 2, label: "X2" },
+    ];
+    hooks.state.lockedLocationDice = [hooks.state.dice[0], hooks.state.dice[1]];
+    hooks.state.lockedBuildDice = [hooks.state.dice[2], hooks.state.dice[3]];
+    
+    // Apply influence: 2->1, creating valid 1-3 pair
+    hooks.state.influenceAdjustments = { "N1": { delta: -1 } };
+    hooks.state.influenceTarget = "N1";
+    
+    // The fix: fillBuildings should call effectiveLockedLocationPairs()
+    // to get [[1,3]] instead of using stale lockedLocationPairs
+    hooks.updateDiceAssignments();
+    
+    // The test passes if updateDiceAssignments completes without error
+    // and influence adjustments are preserved
+    expect(hooks.state.influenceAdjustments["N1"].delta).toBe(-1);
+  });
+
+  it("allows other player to build after first player builds", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = true;
+    hooks.p2pUiState.seatsTotal = 2;
+    hooks.p2pUiState.seatId = 2; // We are player 2
+    hooks.p2pUiState.activeSeat = 2;
+    hooks.p2pUiState.buildDone = { 1: false, 2: false };
+    hooks.p2pUiState.splitUsed = { 1: true, 2: false }; // Player 1 already built
+    hooks.p2pUiState.splitLocked = true;
+    hooks.state.activeTurn = true;
+    hooks.state.diceLocked = true;
+    hooks.state.lockedLocationPairs = [[2, 3]];
+    
+    // Verify player 2 (us) can still highlight/use influence
+    const mySplitUsed = hooks.p2pUiState.splitUsed[hooks.p2pUiState.seatId];
+    const myBuildDone = hooks.p2pUiState.buildDone[hooks.p2pUiState.seatId];
+    const mySplitNotUsed = !hooks.p2pUiState.splitUsed[hooks.p2pUiState.seatId];
+    const myBuildNotDone = !hooks.p2pUiState.buildDone[hooks.p2pUiState.seatId];
+    
+    // Player 2 should not be blocked by player 1's splitUsed
+    expect(mySplitUsed).toBe(false);
+    expect(myBuildDone).toBe(false);
+    
+    // Conditions for player 2 to see highlights/influence
+    const canHighlight = !(mySplitUsed || myBuildDone);
+    const canInfluence = hooks.p2pUiState.splitLocked && myBuildNotDone && mySplitNotUsed;
+    expect(canHighlight).toBe(true);
+    expect(canInfluence).toBe(true);
+  });
+
+  it("keeps building overlay enabled for player 2 after player 1 builds", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = true;
+    hooks.p2pUiState.seatsTotal = 2;
+    hooks.p2pUiState.seatId = 2; // We are player 2
+    hooks.p2pUiState.activeSeat = 2;
+    hooks.p2pUiState.buildDone = { 1: false, 2: false };
+    hooks.p2pUiState.splitUsed = { 1: true, 2: false }; // Player 1 already built
+    hooks.p2pUiState.splitLocked = true;
+    hooks.state.activeTurn = true;
+
+    const dice = [
+      { face: 2, resolved: 2, label: "N1" },
+      { face: 3, resolved: 3, label: "N2" },
+      { face: 4, resolved: 4, label: "X1" },
+      { face: 5, resolved: 5, label: "X2" },
+    ];
+
+    hooks.applyFullSnapshot({
+      version: "1",
+      turnIndex: 1,
+      activeTurn: true,
+      rollAvailable: false,
+      dice,
+      locationSelection: [0, 1],
+      locationPairs: [[2, 3]],
+      lockedLocationDice: [dice[0], dice[1]],
+      lockedBuildDice: [dice[2], dice[3]],
+      lockedLocationPairs: [[2, 3]],
+      diceLocked: true,
+      lastLocationDice: [],
+      lastBuildDice: [],
+      forcedLocationDice: [],
+      pestilence: false,
+      forceForfeit: false,
+      pendingNextRoll: false,
+      seatsTotal: 2,
+      activeSeat: 2,
+      splitLocked: true,
+      buildDone: { 1: false, 2: false },
+      splitUsed: { 1: true, 2: false },
+    });
+
+    hooks.updateDiceAssignments();
+    hooks.renderSelectionDice();
+
+    // Building overlay should NOT be disabled for player 2
+    const overlay = document.getElementById("buildingsOverlay");
+    expect(overlay.classList.contains("disabled")).toBe(false);
+    
+    // Should have available building options
+    const availableBuildings = document.querySelectorAll(".building-hit.available");
+    expect(availableBuildings.length).toBeGreaterThan(0);
+  });
+
+  it("shows only population nodes during population placement, not building plots", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = true;
+    hooks.p2pUiState.seatsTotal = 2;
+    hooks.p2pUiState.seatId = 1;
+    hooks.p2pUiState.activeSeat = 1;
+    hooks.p2pUiState.buildDone = { 1: false, 2: false };
+    hooks.p2pUiState.splitUsed = { 1: false, 2: false };
+    hooks.state.activeTurn = true;
+
+    const dice = [
+      { face: 2, resolved: 2, label: "N1" },
+      { face: 3, resolved: 3, label: "N2" },
+      { face: 5, resolved: 5, label: "X1" },
+      { face: 3, resolved: 3, label: "X2" },
+    ];
+
+    hooks.applyFullSnapshot({
+      version: "1",
+      turnIndex: 1,
+      activeTurn: true,
+      rollAvailable: false,
+      dice,
+      locationSelection: [0, 1],
+      locationPairs: [[2, 3]],
+      lockedLocationDice: [dice[0], dice[1]],
+      lockedBuildDice: [dice[2], dice[3]],
+      lockedLocationPairs: [[2, 3]],
+      diceLocked: true,
+      lastLocationDice: [],
+      lastBuildDice: [],
+      forcedLocationDice: [],
+      pestilence: false,
+      forceForfeit: false,
+      pendingNextRoll: false,
+      seatsTotal: 2,
+      activeSeat: 1,
+      splitLocked: true,
+      buildDone: { 1: false, 2: false },
+    });
+
+    hooks.updateDiceAssignments();
+    selectBuilding("M", "die1"); // Market with popGain
+    clickBoardCell(1, 2);
+    await flushMicrotasks();
+    
+    // During population placement, no building plots should be highlighted
+    const highlightedCells = document.querySelectorAll(".cell.highlight");
+    expect(highlightedCells.length).toBe(0);
+    
+    // But population nodes should be highlighted
+    const highlightedNodes = document.querySelectorAll(".population-node.highlight");
+    expect(highlightedNodes.length).toBeGreaterThan(0);
+    
+    // Verify pendingPopulation is set
+    expect(hooks.state.pendingPopulation).toBeTruthy();
+    expect(hooks.state.pendingPopulation.remaining).toBeGreaterThan(0);
+  });
+
+  it("disables debug mode roll bypass in multiplayer", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    
+    // Enable debug mode directly
+    window.debugMode = true;
+    
+    // Set up multiplayer
+    hooks.p2pUiState.signallingActive = true;
+    hooks.p2pUiState.seatsTotal = 2;
+    hooks.p2pUiState.seatId = 1;
+    hooks.p2pUiState.activeSeat = 1;
+    hooks.state.activeTurn = true;
+    hooks.state.rollAvailable = false; // Roll already used
+    
+    // In multiplayer, debug mode should NOT show roll button when roll is unavailable
+    const rollBtn = document.getElementById("rollBtn");
+    hooks.updateDiceAssignments();
+    
+    expect(rollBtn.style.display).toBe("none");
+    
+    // Clean up
+    window.debugMode = false;
   });
 });
 

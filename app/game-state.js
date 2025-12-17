@@ -202,7 +202,14 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
     state,
     state.dice.filter((d) => d && isNumberedDie(d)),
   );
-  const locationPool = state.activeTurn ? numberedDice : (locationDice.length ? locationDice : numberedDice);
+  // Include X dice that have influence adjustments in the location pool for rescue calculations
+  const influenceAdjustedDice = state.influenceTarget
+    ? applyInfluenceToDice(state, state.dice.filter(d => d && d.label === state.influenceTarget))
+    : [];
+  const poolWithInfluence = influenceAdjustedDice.length
+    ? [...numberedDice, ...influenceAdjustedDice]
+    : numberedDice;
+  const locationPool = state.activeTurn ? poolWithInfluence : (locationDice.length ? locationDice : poolWithInfluence);
   const allPairs = filterAvailablePairs(uniqueLocationPairs(locationPool), board);
   let locationPairs = [];
   let forceForfeit = state.diceLocked ? state.forceForfeit : allPairs.length === 0;

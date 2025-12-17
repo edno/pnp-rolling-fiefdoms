@@ -483,6 +483,130 @@ describe("influence integration", () => {
     evaluateLocationSelection(state, { ...helpers, board: emptyBoard() });
     expect(state.locationPairs).toEqual([[2, 2]]);
   });
+
+  it("includes influence-adjusted X dice in location pool for rescue", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    // Block all positions except Row 4, Col 2 and Row 2, Col 4
+    state.board.forEach((row, r) =>
+      row.forEach((cell, c) => {
+        if ((r === 3 && c === 1) || (r === 1 && c === 3)) {
+          cell.building = null; // Row 4, Col 2 and Row 2, Col 4 are open
+        } else {
+          cell.building = "X";
+        }
+      }),
+    );
+    
+    state.dice = [
+      { label: "N1", face: 4, resolved: 4 },
+      { label: "N2", face: 4, resolved: 4 },
+      { label: "X1", face: 3, resolved: 3 },
+      { label: "X2", face: "X" },
+    ];
+    state.locationSelection = [0, 1]; // N1, N2 selected
+    state.activeTurn = true;
+    state.influence = { earned: 1, spent: 0, pending: 0 };
+    
+    // Without influence adjustment, only [4,4] possible but all positions forfeited
+    // Since no rescue is possible without adjusting X1, should force forfeit
+    const beforeInfluence = evaluateLocationSelection(state, {
+      uniqueLocationPairs,
+      filterAvailablePairs,
+      board: state.board,
+    });
+    expect(beforeInfluence.forceForfeit).toBe(true);
+    expect(state.invalidSelection).toBe(false);
+    
+    // Apply influence to adjust X1 from 3 to 2
+    state.influenceAdjustments = { X1: { delta: -1 } };
+    state.influenceTarget = "X1";
+    
+    // With influence adjustment, pair [4,2] should now be valid
+    const afterInfluence = evaluateLocationSelection(state, {
+      uniqueLocationPairs,
+      filterAvailablePairs,
+      board: state.board,
+    });
+    expect(afterInfluence.forceForfeit).toBe(false);
+    expect(state.invalidSelection).toBe(true); // Still invalid because N1,N2 selected, not using X1
+  });
+
+  it("recognizes X dice can rescue from forfeit when adjusted with influence", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    // Only position Row 2, Col 4 is open
+    state.board.forEach((row, r) =>
+      row.forEach((cell, c) => {
+        if (r === 1 && c === 3) {
+          cell.building = null; // Row 2, Col 4 open
+        } else {
+          cell.building = "X";
+        }
+      }),
+    );
+    
+    state.dice = [
+      { label: "N1", face: 2, resolved: 2 },
+      { label: "N2", face: 2, resolved: 2 },
+      { label: "X1", face: 3, resolved: 3 },
+      { label: "X2", face: "X" },
+    ];
+    state.locationSelection = [0, 1]; // N1, N2 selected
+    state.activeTurn = true;
+    state.influence = { earned: 2, spent: 0, pending: 0 };
+    
+    // Pair [2,2] has no valid positions
+    const before = evaluateLocationSelection(state, {
+      uniqueLocationPairs,
+      filterAvailablePairs,
+      board: state.board,
+    });
+    expect(state.invalidSelection).toBe(true);
+    expect(before.message).toContain("Influence");
+    
+    // Adjust X1 from 3 to 4 to enable pair [2,4]
+    state.influenceAdjustments = { X1: { delta: 1 } };
+    state.influenceTarget = "X1";
+    
+    const after = evaluateLocationSelection(state, {
+      uniqueLocationPairs,
+      filterAvailablePairs,
+      board: state.board,
+    });
+    // Should recognize that [2,4] is now possible via influence-adjusted X1
+    expect(after.forceForfeit).toBe(false);
+  });
+
+  it("does not include unselected X dice without influence in location pool", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    // Block all positions for pair [1,1]
+    state.board[0][0].building = "X";
+    state.board[0][4].building = "X";
+    state.board[4][0].building = "X";
+    state.board[4][4].building = "X";
+    
+    state.dice = [
+      { label: "N1", face: 1, resolved: 1 },
+      { label: "N2", face: 1, resolved: 1 },
+      { label: "X1", face: 2, resolved: 2 }, // Has resolved value but not adjusted
+      { label: "X2", face: 2, resolved: 2 },
+    ];
+    state.locationSelection = [0, 1]; // N1, N2 selected
+    state.activeTurn = true;
+    state.influence = { earned: 0, spent: 0, pending: 0 };
+    
+    // Without influence on X dice, should force forfeit since [1,1] is blocked
+    // and X dice should not auto-rescue
+    const result = evaluateLocationSelection(state, {
+      uniqueLocationPairs,
+      filterAvailablePairs,
+      board: state.board,
+    });
+    expect(result.forceForfeit).toBe(true);
+    expect(state.invalidSelection).toBe(false);
+  });
 });
 
 describe("activation lifecycle", () => {

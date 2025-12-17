@@ -26,12 +26,9 @@
 - Dice locking: after selecting a building or resolving pestilence/forfeit, dice are locked and should remain visible/grey until the next roll; location/build previews must persist during the lock.
 - Mid-game scoring: zero-requirement buildings (Cottage, Springhouse) and vagrants can score during play; worker-requiring buildings only score after activation at game end.
 - Adjacency is cardinal-only, matching the printed square grid.
-- PWA behavior: a cache-first service worker (cache name `rf-cache-v1`) precaches the core shell (HTML, JS, CSS, fonts, images including `assets/img/forfeit.svg`) and serves navigations offline. Bump the cache version when changing core assets. Manifest icon uses `assets/img/forfeit.svg`.
+- PWA behavior: a cache-first service worker (cache name `rf-cache-v1`) precaches the core shell (HTML, JS, CSS, fonts, images including `assets/img/forfeit.svg`) and serves navigation offline. Bump the cache version when changing core assets. Manifest icon uses `assets/img/forfeit.svg`.
+- Influence application: Can be applied to any die with a resolved numeric value (1-5) if: (1) influence points are available, (2) no other die currently has influence applied, (3) not during pestilence. This includes N dice and X dice with resolved values. When influence is applied to adjust an X die's value, that die is included in location pair calculations via `state.influenceTarget` in `game-state.js` to properly enable rescue from forfeit situations.
 
 ## Appendix: TODO / Known Gaps
 
-- Turn flow: handling of no-action/blocked builds and pestilence forfeits should be aligned to the rulebook; auto-advance assumptions may be too loose.
-- Worker activation UI/logic needs refinement: worker requirements should be filled one pip at a time, with no double-counting of population across buildings; activation happens only at game end.
-- Dice split/lock UI is unstable: location pair and previews can disappear or allow building selection before a valid pair is set; lock state/visibility needs a stable implementation.
 - Cleanup: remove duplicate/conflicting CSS selectors when encountered.
-- P2P: signalling attempts to auto-send offer/answer via https://signal.rolling-fiefdoms.edno.io (or local http://<host>:8787 when served on LAN); falls back to manual exchange if signalling fails. Gameplay state remains local-only.

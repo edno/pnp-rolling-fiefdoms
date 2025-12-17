@@ -37,6 +37,25 @@ async function ensureRootExists() {
 const server = createServer(async (req, res) => {
   try {
     const urlPath = decodeURIComponent((req.url || "").split("?")[0]);
+    
+    // Mock /api/config for local development
+    if (urlPath === "/api/config") {
+      const host = req.headers.host || "localhost:4173";
+      const hostname = host.split(":")[0];
+      // If wrangler is running on default port, use it; otherwise no signalling
+      const signalingUrl = `http://${hostname}:8787`;
+      const config = {
+        signalingUrl: signalingUrl,
+        p2pEnabled: false,
+      };
+      res.writeHead(200, { 
+        "Content-Type": "application/json; charset=utf-8",
+        "Access-Control-Allow-Origin": "*",
+      });
+      res.end(JSON.stringify(config));
+      return;
+    }
+    
     const safePath = urlPath === "/" ? "/index.html" : urlPath;
     const filePath = path.join(root, safePath);
     const fileStat = await stat(filePath);

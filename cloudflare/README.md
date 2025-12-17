@@ -18,10 +18,36 @@ The DO binding must be named `SIGNALLING` to match `worker.js`.
 
 Sessions auto-expire after ~1 hour (configurable via `expirationTtl` in `worker.js`).
 
+## Configuration
+
+Configure P2P functionality using environment variables in your Cloudflare Pages settings:
+
+### Environment Variables
+
+- **`SIGNALLING_URL`** (optional): Explicit signalling endpoint URL. If not set, derives from the current deployment URL (protocol + host). Use this if your signalling server is on a different domain than your Pages deployment.
+  - Example: `https://rolling-fiefdoms-signalling.example.workers.dev`
+  
+- **`P2P_ENABLED`** (optional): Controls whether P2P features are enabled by default. Defaults to `true`. Set to `"false"` to disable.
+  - Example: `P2P_ENABLED=false`
+
+These are exposed to the client via the `/api/config` endpoint implemented as a Cloudflare Pages Function.
+
+### Durable Object Bindings
+
+Bind the SIGNALLING Durable Object to your Pages project:
+
+1. Deploy the Worker from this directory: `wrangler publish`
+2. In your Cloudflare dashboard, go to Pages → Your Project → Settings → Functions
+3. Add a Durable Object binding:
+   - Variable name: `SIGNALLING`
+   - Durable Object namespace: Select your deployed `Signalling` class
+
 ## Local testing
 
 - Run `wrangler dev --local --persist-to=.wrangler-state` inside this folder. Endpoint: `http://127.0.0.1:8787`.
-- The web app auto-picks the signalling URL based on the page host:
-  - If served from localhost, a private LAN IP (10.x/192.168.x/172.16–31.x), or `.local`, it targets `http://<host>:8787`.
-  - Otherwise it targets `https://signal.rolling-fiefdoms.edno.io`.
-  - You can override with `?signal=http://host:8787` in the page URL or set `data-signalling-url` on `<body>`.
+- The web app resolution order for signalling URL:
+  1. URL parameter: `?signal=http://host:8787`
+  2. Body data attribute: `data-signalling-url`
+  3. API fetch from `/api/config` (uses `SIGNALLING_URL` env var)
+  4. Local development detection: if localhost/private LAN IP/`.local`, targets `http://<host>:8787`
+  5. Falls back to `null` (manual exchange only)
