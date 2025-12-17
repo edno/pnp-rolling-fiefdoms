@@ -6,6 +6,7 @@ import {
   buildingOptionsFromDice,
   calcVagrants,
   computeScore,
+  scoreBuildingAt,
   filterAvailablePairs,
   computePestilenceInfo,
   restrictBuildOptionsForBoard,
@@ -296,6 +297,22 @@ describe("computeScore", () => {
     pop[2][1] = 4;
     const result = computeScore(board, pop);
     expect(result.breakdown.market).toBe(13);
+  });
+
+  it("shared population nodes only score once and go to the top-left market", () => {
+    const board = emptyBoard();
+    board[1][1].building = "M";
+    board[2][2].building = "M";
+    const pop = emptyPop();
+    pop[0][0] = 2; // unique to top-left market
+    pop[1][0] = 2; // unique to top-left market
+    pop[1][1] = 4; // shared node between both markets
+    pop[1][2] = 3; // unique to bottom-right market
+    pop[2][2] = 2; // unique to bottom-right market
+    const result = computeScore(board, pop);
+    expect(result.breakdown.market).toBe(13);
+    expect(scoreBuildingAt(board, pop, null, 1, 1)).toBe(8);
+    expect(scoreBuildingAt(board, pop, null, 2, 2)).toBe(5);
   });
 
   it("Almshouse cancels up to 12 vagrant penalty only when active", () => {
