@@ -46,7 +46,7 @@ const server = createServer(async (req, res) => {
       const signalingUrl = `http://${hostname}:8787`;
       const config = {
         signalingUrl: signalingUrl,
-        p2pEnabled: true,
+        p2pEnabled: false,
       };
       res.writeHead(200, { 
         "Content-Type": "application/json; charset=utf-8",

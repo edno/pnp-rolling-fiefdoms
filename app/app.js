@@ -66,23 +66,68 @@ import { createDieFaceSVG } from "./dice-face.js";
 import { createManualP2P } from "./p2p.js";
 import { createQrDataUrl } from "./qr.js";
 import { compressToBase64Url, decompressFromBase64Url } from "./compact.js";
+import {
+  boardEl,
+  diceView,
+  turnHintEl,
+  locDicePreview,
+  buildDicePreview,
+  logEl,
+  scoreOverlayEl,
+  popHousingOverlay,
+  influenceOverlay,
+  turnTrackOverlay,
+  finishActivationBtn,
+  newGameBtn,
+  finishSplitBtn,
+  swapPairBtn,
+  fullscreenBtn,
+  themeToggleBtn,
+  themeToggleIcon,
+  themeToggleText,
+  turnStatusChip,
+  loadingOverlay,
+  sheetBaseImage,
+  p2pPanel,
+  p2pStatusEl,
+  p2pCodeEl,
+  p2pCodeLabel,
+  p2pCopyBtn,
+  p2pApplyBtn,
+  p2pHostBtn,
+  p2pJoinBtn,
+  p2pDisconnectBtn,
+  p2pSendAnswerBtn,
+  p2pHintEl,
+  p2pMeeplesEl,
+  p2pInviteRow,
+  p2pQrImg,
+  p2pQrCaption,
+  p2pQrModal,
+  p2pQrClose,
+  p2pShowQrBtn,
+  forEachCell,
+  createOctagon,
+  clearElement,
+  debugLog as debugLogUtil,
+} from "./dom-manager.js";
+import {
+  ICONS,
+  buildingHitboxes,
+  guildHitboxes,
+  scoringSpots,
+  TURN_TRACK_LENGTH,
+  countGuilds,
+  builtGuildTypes,
+} from "./ui-renderer.js";
+import {
+  nonActiveAutoHintText as generateNonActiveHint,
+  actionMessage as generateActionMessage,
+  updateActionBanner as updateBannerUI,
+} from "./ui-feedback.js";
 
-const terrainLayout = [
-  ["Mt", "Fo", "Fo", "Fo", "Se"],
-  ["Mt", "..", "..", "..", "Se"],
-  ["Mt", "..", "Vi", "..", "Se"],
-  ["Mt", "..", "..", "..", "Se"],
-  ["Mt", "Ma", "Ma", "Ma", "Se"],
-];
-
-const ICONS = {
-  plotOutline: "assets/img/plot-outline.svg",
-  housingOutline: "assets/img/housing-outline.svg",
-  pipFill: "assets/img/pip-fill.svg",
-  pipOutline: "assets/img/pip-outline.svg",
-  influenceOutline: "assets/img/influence-outline.svg",
-  influenceScribble: "assets/img/scribble.svg",
-};
+const BOARD_SIZE = 5;
+const POPULATION_GRID_SIZE = 4;
 
 const state = createState();
 
@@ -126,6 +171,11 @@ const p2pUiState = {
 // HELPER FUNCTIONS - Utilities for state checks and DOM manipulation
 // ============================================================================
 
+// Wrapper for debug logging using the utility from dom-manager
+function debugLog(...args) {
+  debugLogUtil(debugMode, ...args);
+}
+
 function isMultiplayerActive() {
   return p2pUiState.signallingActive && p2pUiState.seatsTotal > 1;
 }
@@ -144,23 +194,6 @@ function isAwaitingSplit() {
 
 function isNonActiveMultiplayer() {
   return isMultiplayerActive() && p2pUiState.activeSeat !== p2pUiState.seatId;
-}
-
-function clearElement(element) {
-  if (element) element.innerHTML = "";
-}
-
-// Utility for creating DOM elements with attributes (can be used to further reduce createElement boilerplate)
-// eslint-disable-next-line no-unused-vars
-function createEl(tag, { className, textContent, children, ...attrs } = {}) {
-  const el = document.createElement(tag);
-  if (className) el.className = className;
-  if (textContent) el.textContent = textContent;
-  Object.entries(attrs).forEach(([k, v]) => {
-    if (v !== undefined && v !== null) el.setAttribute(k, String(v));
-  });
-  children?.forEach(child => el.appendChild(child));
-  return el;
 }
 
 function awaitingSplitNonActive(snapshotActiveSeat = null) {
@@ -230,6 +263,7 @@ function logP2P(...args) {
   }
 }
 
+// ========================================
 function resetSecretField() {
   const fresh = randomPasscode();
   p2pUiState.passcode = fresh;
@@ -398,50 +432,11 @@ function toggleFullscreen() {
   }
 }
 
-const boardEl = document.getElementById("board");
-const diceView = document.getElementById("diceView");
-const turnHintEl = document.getElementById("turnHint");
-const locDicePreview = document.getElementById("locDicePreview");
-const buildDicePreview = document.getElementById("buildDicePreview");
-const logEl = document.getElementById("log");
-const scoreOverlayEl = document.getElementById("scoreOverlay");
-const popHousingOverlay = document.getElementById("popHousingOverlay");
-const influenceOverlay = document.getElementById("influenceOverlay");
-const turnTrackOverlay = document.getElementById("turnTrackOverlay");
+// DOM element state (not from dom-manager, app-specific state)
 const guildTypes = ["GF", "GQ", "GW", "GM"];
-const finishActivationBtn = document.getElementById("finishActivation");
-const newGameBtn = document.getElementById("newGameBtn");
-const finishSplitBtn = document.getElementById("finishSplitBtn");
-const swapPairBtn = document.getElementById("swapPairBtn");
 let swapBtnPulseTimeout = null;
 let swapBtnLastVisible = false;
-// Done building button removed from UI.
-const fullscreenBtn = document.getElementById("fullscreenToggle");
-const themeToggleBtn = document.getElementById("themeToggle");
-const themeToggleIcon = document.getElementById("themeToggleIcon");
-const themeToggleText = document.getElementById("themeToggleText");
-const actionBannerEl = document.getElementById("actionBanner");
-const turnStatusChip = document.getElementById("turnStatusChip");
-const loadingOverlay = document.getElementById("loadingOverlay");
-const sheetBaseImage = document.getElementById("sheetBaseImage");
-const p2pPanel = document.getElementById("p2pPanel");
-const p2pStatusEl = document.getElementById("p2pStatus");
-const p2pCodeEl = document.getElementById("p2pCode");
-const p2pCodeLabel = document.querySelector('label[for="p2pCode"]');
-const p2pCopyBtn = document.getElementById("p2pCopyBtn");
-const p2pApplyBtn = document.getElementById("p2pApplyBtn");
-const p2pHostBtn = document.getElementById("p2pHostBtn");
-const p2pJoinBtn = document.getElementById("p2pJoinBtn");
-const p2pDisconnectBtn = document.getElementById("p2pDisconnectBtn");
-const p2pSendAnswerBtn = document.getElementById("p2pSendAnswerBtn");
-const p2pHintEl = document.getElementById("p2pHint");
-const p2pMeeplesEl = document.getElementById("p2pMeeples");
-const p2pInviteRow = p2pCodeEl ? p2pCodeEl.closest(".p2p-row") : null;
-const p2pQrImg = document.getElementById("p2pQrImg");
-const p2pQrCaption = document.getElementById("p2pQrCaption");
-const p2pQrModal = document.getElementById("p2pQrModal");
-const p2pQrClose = document.getElementById("p2pQrClose");
-const p2pShowQrBtn = document.getElementById("p2pShowQrBtn");
+
 const SHEET_VERSION = "v1.9";
 const POP_CAPACITY = 5;
 const POP_LAYOUT = { rows: [8, 7], pipsPerCell: 4 };
@@ -461,7 +456,6 @@ const TURN_PHASE = {
   ACTIVATION: "activation",
   ACTIVATION_DONE: "activation-complete",
 };
-const TOAST_DURATION_MS = 3500;
 const SIGNALLING_RETRY_COUNT = 3;
 const SIGNALLING_RETRY_BACKOFF_MS = 1000;
 const SIGNALLING_MAX_BACKOFF_MS = 5000;
@@ -510,80 +504,6 @@ function registerServiceWorker() {
     });
   });
 }
-
-function showToast(message) {
-  if (!message) return;
-  const toast = document.createElement("div");
-  toast.textContent = message;
-  toast.setAttribute("role", "status");
-  toast.style.position = "fixed";
-  toast.style.left = "50%";
-  toast.style.bottom = "24px";
-  toast.style.transform = "translateX(-50%)";
-  toast.style.background = "rgba(0, 0, 0, 0.85)";
-  toast.style.color = "#fff";
-  toast.style.padding = "10px 14px";
-  toast.style.borderRadius = "6px";
-  toast.style.fontSize = "14px";
-  toast.style.boxShadow = "0 2px 6px rgba(0, 0, 0, 0.35)";
-  toast.style.zIndex = "1200";
-  toast.style.maxWidth = "90%";
-  toast.style.textAlign = "center";
-  document.body.appendChild(toast);
-  setTimeout(() => {
-    if (toast.parentNode) toast.parentNode.removeChild(toast);
-  }, TOAST_DURATION_MS);
-}
-
-// Hitboxes relative to printed sheet regions (percent of Buildings/Guilds box)
-const buildingHitboxes = [
-  { code: "C", col: 1, row: 1 },
-  { code: "F", col: 1, row: 2 },
-  { code: "Q", col: 1, row: 3 },
-  { code: "W", col: 1, row: 4 },
-  { code: "M", col: 1, row: 5 },
-  { code: "S", col: 2, row: 1 },
-  { code: "T", col: 2, row: 2 },
-  { code: "U", col: 2, row: 3 },
-  { code: "A", col: 2, row: 4 },
-  { code: "G", col: 2, row: 5 },
-];
-const guildHitboxes = [
-  { code: "GF", col: 1, row: 1 },
-  { code: "GW", col: 2, row: 1 },
-  { code: "GQ", col: 1, row: 2 },
-  { code: "GM", col: 2, row: 2 },
-];
-
-function countGuilds(board) {
-  return board.flat().filter((cell) => cell.building === "G").length;
-}
-
-function builtGuildTypes(board) {
-  const set = new Set();
-  board.flat().forEach((cell) => {
-    if (cell.building === "G" && cell.buildingLabel) {
-      set.add(cell.buildingLabel.toUpperCase());
-    }
-  });
-  return set;
-}
-
-const SCORE_SPOT_TOP = 28;
-const scoringSpots = [
-  { key: "cottages", x: 20, y: SCORE_SPOT_TOP },
-  { key: "farm", x: 66, y: SCORE_SPOT_TOP },
-  { key: "quarry", x: 112, y: SCORE_SPOT_TOP },
-  { key: "windmill", x: 156, y: SCORE_SPOT_TOP },
-  { key: "market", x: 202, y: SCORE_SPOT_TOP },
-  { key: "townhall", x: 244, y: SCORE_SPOT_TOP },
-  { key: "university", x: 290, y: SCORE_SPOT_TOP },
-  { key: "guilds", x: 334, y: SCORE_SPOT_TOP },
-  { key: "springhouse", x: 380, y: SCORE_SPOT_TOP },
-  { key: "vagrants", x: 424, y: SCORE_SPOT_TOP },
-  { key: "reputation", x: 527, y: SCORE_SPOT_TOP },
-];
-const TURN_TRACK_LENGTH = 25;
 
 function readStoredTheme() {
   try {
@@ -644,10 +564,10 @@ async function init() {
 }
 
 function resetState() {
-  state.board = terrainLayout.map((row) =>
-    row.map((terrain) => ({ terrain, building: null, buildingLabel: null, forfeited: false, springBoost: 0 })),
+  state.board = Array.from({ length: BOARD_SIZE }, () =>
+    Array.from({ length: BOARD_SIZE }, () => ({ building: null, buildingLabel: null, forfeited: false, springBoost: 0 })),
   );
-  state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+  state.populationNodes = Array.from({ length: POPULATION_GRID_SIZE }, () => Array(POPULATION_GRID_SIZE).fill(0));
   state.populationAvailable = null;
   state.workerAllocations = null;
   state.activationMode = false;
@@ -711,10 +631,10 @@ async function fetchConfig() {
     if (response.ok) {
       const config = await response.json();
       p2pFeatureEnabled = urlParams.has("p2p") || config.p2pEnabled;
-      if (debugMode) console.log("[Config] Loaded from server:", config);
+      debugLog("[Config] Loaded from server:", config);
     } else if (response.status === 404) {
       // Local development without Cloudflare Pages Functions
-      if (debugMode) console.log("[Config] Running in local mode, using defaults");
+      debugLog("[Config] Running in local mode, using defaults");
       p2pFeatureEnabled = urlParams.has("p2p");
     }
   } catch (err) {
@@ -785,7 +705,6 @@ async function setupControls() {
     finishSplitBtn.onclick = () => finishDiceSplit();
     finishSplitBtn.style.display = "none";
   }
-  // Done building button removed; completion is automatic after placement/population.
   if (swapPairBtn) {
     swapPairBtn.onclick = () => toggleLockedPairChoice();
     swapPairBtn.style.display = "none";
@@ -1186,7 +1105,6 @@ function applyFullSnapshot(snapshot) {
   if (!validation.ok) {
     logP2P(`Snapshot rejected: ${validation.reason || "invalid"}.`);
     console.warn("Peer sync failed: invalid snapshot.", validation.reason || "");
-    showToast("Peer sync failed. See console for details.");
     return;
   }
   const snap = validation.snapshot;
@@ -1474,7 +1392,7 @@ async function setupP2PControls() {
     return;
   }
   const supported = Boolean(p2p?.supported);
-  if (debugMode) console.log("[P2P] WebRTC supported:", supported);
+  debugLog("[P2P] WebRTC supported:", supported);
   const controls = [p2pHostBtn, p2pJoinBtn, p2pApplyBtn, p2pCopyBtn, p2pDisconnectBtn, p2pCodeEl];
   if (!supported) {
     if (debugMode) console.warn("[P2P] WebRTC not supported - P2P will be limited");
@@ -1557,12 +1475,12 @@ async function resolveSignallingUrl() {
   if (paramUrl) {
     const decoded = decodeSignalParam(paramUrl);
     const result = decoded || paramUrl;
-    if (debugMode) console.log("[P2P] Using signalling URL from ?signal param:", result);
+    debugLog("[P2P] Using signalling URL from ?signal param:", result);
     return result;
   }
   const dataUrl = document.body?.dataset?.signallingUrl;
   if (dataUrl) {
-    if (debugMode) console.log("[P2P] Using signalling URL from data attribute:", dataUrl);
+    debugLog("[P2P] Using signalling URL from data attribute:", dataUrl);
     return dataUrl;
   }
   
@@ -1571,13 +1489,13 @@ async function resolveSignallingUrl() {
     const response = await fetch("/api/config");
     if (response.ok) {
       const config = await response.json();
-      if (debugMode) console.log("[P2P] Received config:", config);
+      debugLog("[P2P] Received config:", config);
       if (config.signalingUrl) {
-        if (debugMode) console.log("[P2P] Using signalling URL from /api/config:", config.signalingUrl);
+        debugLog("[P2P] Using signalling URL from /api/config:", config.signalingUrl);
         return config.signalingUrl;
       }
     } else {
-      if (debugMode) console.log("[P2P] Config fetch returned status:", response.status);
+      debugLog("[P2P] Config fetch returned status:", response.status);
     }
   } catch (err) {
     // API unavailable, fall through to fallback logic
@@ -1594,7 +1512,7 @@ async function resolveSignallingUrl() {
     host.endsWith(".local");
   if (isLoopback || isPrivateIp) {
     const fallbackUrl = `http://${host}:8787`;
-    if (debugMode) console.log("[P2P] Using fallback signalling URL (local/private IP):", fallbackUrl);
+    debugLog("[P2P] Using fallback signalling URL (local/private IP):", fallbackUrl);
     return fallbackUrl;
   }
   if (debugMode) console.log("[P2P] No signalling URL available (production deployment without config)");
@@ -1622,6 +1540,7 @@ function disableP2P(reason = "P2P disabled") {
   updateP2PStatus(reason);
   updateInviteVisibility(false);
   renderMeeples();
+  if (p2pPanel) p2pPanel.style.display = "none";
 }
 
 async function sendSignalBlob(role, compactCode, secret, retries = SIGNALLING_RETRY_COUNT) {
@@ -2315,15 +2234,14 @@ function renderBoard() {
     state.activationMode || state.activationComplete
       ? computeActivationMap(state.board, state.populationNodes, currentWorkerAllocationsForScore())
       : null;
-  terrainLayout.forEach((row, r) => {
-    row.forEach((terrain, c) => {
+  state.board.forEach((row, r) => {
+    row.forEach((data, c) => {
       const cell = document.createElement("div");
       cell.className = "cell terrain";
       cell.dataset.row = r;
       cell.dataset.col = c;
       cell.style.gridRowStart = r + 1;
       cell.style.gridColumnStart = c + 1;
-      const data = state.board[r][c];
       if (data.forfeited) {
         cell.classList.add("forfeited");
         const forfeiture = document.createElement("img");
@@ -2495,15 +2413,14 @@ function onCellClick(r, c) {
 }
 
 function highlightLocations() {
-  boardEl.querySelectorAll(".cell").forEach((cell) => {
-    cell.classList.remove("highlight");
-    cell.classList.remove("disabled");
+  forEachCell((cell) => {
+    cell.classList.remove("highlight", "disabled");
     const oct = cell.querySelector(".octagon");
     if (oct) oct.remove();
   });
   if (state.activationMode) {
     const selPop = state.activationSelection.pop;
-      boardEl.querySelectorAll(".cell").forEach((cell) => {
+      forEachCell((cell) => {
         const r = parseInt(cell.dataset.row, 10);
         const c = parseInt(cell.dataset.col, 10);
         const data = state.board[r][c];
@@ -2533,7 +2450,7 @@ function highlightLocations() {
   }
   if (state.activationMode) {
     const sel = state.activationSelection.building;
-    boardEl.querySelectorAll(".cell").forEach((cell) => {
+    forEachCell((cell) => {
       const r = parseInt(cell.dataset.row, 10);
       const c = parseInt(cell.dataset.col, 10);
       const data = state.board[r][c];
@@ -2556,16 +2473,14 @@ function highlightLocations() {
   }
   if (state.pendingSpringhouseTarget) {
     const options = state.pendingSpringhouseTarget.options || [];
-    boardEl.querySelectorAll(".cell").forEach((cell) => {
+    forEachCell((cell) => {
       const r = parseInt(cell.dataset.row, 10);
       const c = parseInt(cell.dataset.col, 10);
       const data = state.board[r][c];
       const match = options.some(([rr, cc]) => rr === r && cc === c);
       if (match && data.building && !data.forfeited) {
         cell.classList.add("highlight");
-        const oct = document.createElement("div");
-        oct.className = "octagon";
-        cell.appendChild(oct);
+        cell.appendChild(createOctagon());
       } else {
         cell.classList.add("disabled");
       }
@@ -2577,7 +2492,7 @@ function highlightLocations() {
     if (!state.pestilence) return;
     const targetCells = state.pestilenceInfo?.targetCells || [];
     const highlightAny = targetCells.length === 0;
-    boardEl.querySelectorAll(".cell").forEach((cell) => {
+    forEachCell((cell) => {
       const r = parseInt(cell.dataset.row, 10);
       const c = parseInt(cell.dataset.col, 10);
       const data = state.board[r][c];
@@ -2586,9 +2501,7 @@ function highlightLocations() {
         targetCells.some(([tr, tc]) => tr === r && tc === c);
       if (match && !data.building && !data.forfeited) {
         cell.classList.add("highlight");
-        const oct = document.createElement("div");
-        oct.className = "octagon";
-        cell.appendChild(oct);
+        cell.appendChild(createOctagon());
       } else {
         cell.classList.add("disabled");
       }
@@ -2601,26 +2514,17 @@ function highlightLocations() {
   const myBuildAlreadyDone = isMyBuildDone();
   const mySplitUsed = isMySplitUsed();
   if (myBuildAlreadyDone || mySplitUsed) {
-    if (debugMode) {
-      console.log('[highlightLocations] Player already done, skipping all highlights:', {
-        seatId: p2pUiState.seatId,
-        buildDone: myBuildAlreadyDone,
-        splitUsed: mySplitUsed
-      });
-    }
     return;
   }
   
   if (state.forceForfeit || state.forceForfeitAdvisory) {
-    boardEl.querySelectorAll(".cell").forEach((cell) => {
+    forEachCell((cell) => {
       const r = parseInt(cell.dataset.row, 10);
       const c = parseInt(cell.dataset.col, 10);
       const data = state.board[r][c];
       if (!data.building && !data.forfeited) {
         cell.classList.add("highlight");
-        const oct = document.createElement("div");
-        oct.className = "octagon";
-        cell.appendChild(oct);
+        cell.appendChild(createOctagon());
       } else {
         cell.classList.add("disabled");
       }
@@ -2632,7 +2536,7 @@ function highlightLocations() {
     p2pUiState.splitLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
   const locPairs = showLockedHighlight ? effectiveLockedLocationPairs() : state.locationPairs;
   if ((state.locationSelection.length !== 2 && !showLockedHighlight) || !locPairs?.length) return;
-  boardEl.querySelectorAll(".cell").forEach((cell) => {
+  forEachCell((cell) => {
     const r = parseInt(cell.dataset.row, 10);
     const c = parseInt(cell.dataset.col, 10);
     const data = state.board[r][c];
@@ -2645,9 +2549,7 @@ function highlightLocations() {
     });
     if (match && !data.building && !data.forfeited) {
       cell.classList.add("highlight");
-      const oct = document.createElement("div");
-      oct.className = "octagon";
-      cell.appendChild(oct);
+      cell.appendChild(createOctagon());
     } else {
       cell.classList.add("disabled");
     }
@@ -3080,100 +2982,13 @@ function renderTopTracks() {
 // UI MESSAGES & FEEDBACK - Action banners, turn hints, and user feedback
 // ============================================================================
 
-function actionMessage() {
-  if (state.bannerOverride) return state.bannerOverride;
-  const isMultiplayer = p2pUiState.seatsTotal > 1 && p2pUiState.signallingActive;
-  const phase = currentTurnPhase();
-
-  if (phase === TURN_PHASE.ACTIVATION_DONE) {
-    const score = typeof state.finalScore === "number"
-      ? state.finalScore
-      : currentScore({ allowPopulationActivation: true }).total;
-    return `Game over. Final score ${score}.`;
-  }
-  if (phase === TURN_PHASE.ACTIVATION) {
-    const anyRemaining = state.board.some((row, r) =>
-      row.some((cell, c) => {
-        if (!cell.building || cell.forfeited || cell.activationForfeit) return false;
-        const req = Math.max(0, (BUILDING_RULES[cell.building]?.requirement || 0) - (Number(cell.springBoost) || 0));
-        const filled = Math.max(0, state.workerAllocations?.[r]?.[c] || 0);
-        return req > filled;
-      }),
-    );
-    if (state.activationSelection.pop) {
-      const [pr, pc] = state.activationSelection.pop;
-      const remaining = Math.max(0, state.populationAvailable?.[pr]?.[pc] || 0);
-      return `Activation: population selected (${remaining} remaining). Click a highlighted building to assign 1 worker.`;
-    }
-    if (anyRemaining) return "Activation: select a population node to allocate workers.";
-    return "Activation: finish allocation when ready.";
-  }
-  if (state.pendingSpringhouseTarget) {
-    return "Select an adjacent building for Springhouse to reduce worker requirement by 1.";
-  }
-  if (state.forceForfeitAdvisory) {
-    return "No valid location pairs; spend Influence or forfeit a plot.";
-  }
-  if (state.activeTurn && state.invalidSelection && state.invalidSelectionMessage) {
-    return state.invalidSelectionMessage;
-  }
-  if (phase === TURN_PHASE.PESTILENCE || phase === TURN_PHASE.FORFEIT) {
-    return "Forfeit an empty plot.";
-  }
-  if (phase === TURN_PHASE.POPULATION) {
-    return `Place ${state.pendingPopulation.remaining} population on an adjacent intersection.`;
-  }
-  if (phase === TURN_PHASE.AWAIT_ROLL) {
-    if (isMultiplayer && p2pUiState.activeSeat !== p2pUiState.seatId) {
-      return "Waiting for the active player to roll dice.";
-    }
-    return "Press Roll Dice to start your turn.";
-  }
-  if (isMultiplayer && !p2pUiState.splitLocked && p2pUiState.activeSeat !== p2pUiState.seatId) {
-    return "Waiting for the active player to finish the split.";
-  }
-  if (isMultiplayer && p2pUiState.splitLocked) {
-    const choice = lockedPairChoice();
-    if (p2pUiState.buildDone?.[p2pUiState.seatId]) {
-      return "Waiting for other players to finish building.";
-    }
-    if (choice.swapAllowed) {
-      return "Locked split: swap pairs if needed, then build.";
-    }
-    return "Build with this split.";
-  }
-  if (phase === TURN_PHASE.SPLITTING) {
-    if (state.locationSelection.length < 2 && !(state.diceLocked && state.lockedLocationDice?.length === 2)) {
-      return "Select two location dice in the Turn panel.";
-    }
-    return "Lock the split to continue building.";
-  }
-  if (phase === TURN_PHASE.BUILDING) {
-    if (!state.buildChoice) {
-      return "Select a building from the Buildings overlay.";
-    }
-    return "Click a highlighted plot to place the chosen building.";
-  }
-  if (!state.activeTurn) return "Waiting for the active player.";
-  return "Roll dice to begin.";
-}
-
 function updateActionBanner() {
-  if (!actionBannerEl) return;
-  const newText = actionMessage();
-  const prevText = actionBannerEl.dataset.msg || "";
-  const changed = prevText !== newText;
-  actionBannerEl.dataset.msg = newText;
-  if (newText && newText.includes("<")) {
-    actionBannerEl.innerHTML = newText;
-  } else {
-    actionBannerEl.textContent = newText;
-  }
-  if (changed) {
-    actionBannerEl.classList.remove("bump");
-    void actionBannerEl.offsetWidth; // restart animation
-    actionBannerEl.classList.add("bump");
-  }
+  const phase = currentTurnPhase();
+  updateBannerUI(state, p2pUiState, phase, {
+    currentScore,
+    lockedPairChoice,
+    isMultiplayerActive,
+  });
 }
 
 function updateMultiplayerButtons() {
@@ -3204,8 +3019,6 @@ function updateMultiplayerButtons() {
     swapPairBtn.disabled = !showSwap;
     applySwapButtonPulse(showSwap);
   }
-
-  // Done-building button removed; completion is automatic after placement/population.
 }
 
 function applySwapButtonPulse(showSwap) {
@@ -3827,8 +3640,7 @@ function soloSwapAvailable() {
 }
 
 function nonActiveAutoHintText() {
-  const base = "Non-active turn. Dice automatically assigned.";
-  return soloSwapAvailable() ? `${base} Use the swap button to swap pairs.` : base;
+  return generateNonActiveHint(soloSwapAvailable());
 }
 
 function toggleSoloPairChoice() {
@@ -4191,6 +4003,20 @@ function toggleQrModal(show) {
   }
 }
 
+// Debug helper - always available in console
+  if (typeof window !== "undefined") {
+    window.debugBoard = () => {
+      console.table(state.board.map((row, r) => {
+        const rowData = {};
+        row.forEach((cell, c) => {
+          rowData[`Col ${c + 1}`] = cell.building || (cell.forfeited ? 'FORFEIT' : 'empty');
+        });
+        rowData['Row'] = r + 1;
+        return rowData;
+      }));
+    };
+  }
+
 // Test-only hooks to inspect internal state in jsdom. Enabled by setting window.__RF_ENABLE_TEST_HOOKS__ before loading.
   if (typeof window !== "undefined" && window.__RF_ENABLE_TEST_HOOKS__) {
     window.__rfTestHooks = {
@@ -4206,7 +4032,12 @@ function toggleQrModal(show) {
       updateInviteVisibility,
       updateP2PControlsVisibility,
       renderMeeples,
-      actionMessage,
+      actionMessage: (stateArg, p2pUiStateArg, phase) => {
+        const s = stateArg || state;
+        const p = p2pUiStateArg || p2pUiState;
+        const ph = phase || currentTurnPhase();
+        return generateActionMessage(s, p, ph, { currentScore, lockedPairChoice, isMultiplayerActive });
+      },
       renderTurnTrack,
       maybeRollAfterLock,
       placeBuilding,
