@@ -354,6 +354,7 @@ describe("windrose handling (jsdom)", () => {
       x: [3, 3, 1, 1],
     });
     clickRoll();
+    await flushMicrotasks();
 
     const windroseBadge = document.querySelector('.die-badge[data-idx="0"]');
     expect(windroseBadge.classList.contains("dice-locked")).toBe(true);
@@ -1673,6 +1674,7 @@ describe("guild selection (jsdom)", () => {
       x: [5, 5, 1, 1], // build dice 5/5 -> Guild via sum 10
     });
     clickRoll();
+    await flushMicrotasks();
 
     clickDie(0);
     clickDie(1);
@@ -1697,6 +1699,7 @@ describe("springhouse targeting (jsdom)", () => {
       x: [4, 3, 5, 1], // roll 1 build dice 4/3 -> Townhall (sum 7), roll 2 build dice 5/1 -> Springhouse
     });
     clickRoll(); // first roll
+    await flushMicrotasks();
 
     // First roll: place a Windmill at row 1, col 3 (pair 1/3)
     clickDie(0); // select N1
@@ -1741,6 +1744,7 @@ describe("split population placement (jsdom)", () => {
       x: [5, 3, 1, 1], // build dice 5/3 -> choose Market via die1, pop gain 3
     });
     clickRoll();
+    await flushMicrotasks();
 
     clickDie(0);
     clickDie(1);
@@ -1854,6 +1858,7 @@ describe("score overlay display (jsdom)", () => {
       x: [5, 3],
     });
     clickRoll();
+    await flushMicrotasks();
 
     clickDie(0);
     clickDie(1);
@@ -1887,6 +1892,7 @@ describe("split previews and build gating (jsdom)", () => {
   it("keeps dice previews visible after dice are locked", async () => {
     await setupApp({ numbered: [1, 2, 3, 4], x: [2, 5], enableHooks: true });
     clickRoll();
+    await flushMicrotasks();
     clickDie(0);
     clickDie(1);
     await flushMicrotasks();
@@ -1908,6 +1914,7 @@ describe("building after split lock (jsdom)", () => {
   it("allows selecting and placing a building when split is locked in multiplayer", async () => {
     await setupApp({ numbered: [1, 2, 3, 4], x: [2, 5], enableHooks: true });
     clickRoll();
+    await flushMicrotasks();
     clickDie(0);
     clickDie(1);
 
