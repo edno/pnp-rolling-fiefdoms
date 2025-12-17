@@ -331,15 +331,15 @@ body.theme-dark .sheet-base {
 }
 
 .board {
-    position: absolute;
-    top: 143px;
-    left: 63px;
-    width: 487px;
-    height: 487px;
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    grid-template-rows: repeat(5, 1fr);
-    gap: 10px;
+  position: absolute;
+  top: 143px;
+  left: 63px;
+  width: 487px;
+  height: 487px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(5, 1fr);
+  gap: 10px;
 }
 
 .cell {
@@ -1231,21 +1231,21 @@ select {
 }
 
 .die-influence-controls {
-    position: absolute;
-    top: 46px;
-    display: flex;
-    flex-direction: row;
-    gap: 2px;
-    z-index: 2;
-    width: 46px;
-    align-items: center;
-    justify-content: center;
+  position: absolute;
+  top: 46px;
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
+  z-index: 2;
+  width: 46px;
+  align-items: center;
+  justify-content: center;
 }
 
 .influence-btn {
   border: 1px solid rgba(0, 0, 0, 0.3);
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--accent);
+  color: white;
   width: 18px;
   height: 14px;
   font-size: 11px;
