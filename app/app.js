@@ -487,7 +487,22 @@ function registerServiceWorker() {
           const newWorker = reg.installing;
           newWorker.addEventListener("statechange", () => {
             if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-              newWorker.postMessage({ type: "SKIP_WAITING" });
+              // Check if safe to update - not during critical game actions
+              const isSafeToUpdate = !state.activationMode && 
+                                     !state.diceLocked && 
+                                     !state.diceRolling && 
+                                     !animationInProgress &&
+                                     !rollingInProgress;
+              
+              if (isSafeToUpdate) {
+                newWorker.postMessage({ type: "SKIP_WAITING" });
+              } else {
+                console.log("SW update available but game in progress. Will update after turn.");
+                // Store flag to update after current action completes
+                if (typeof window !== "undefined") {
+                  window.__pendingServiceWorkerUpdate = newWorker;
+                }
+              }
             }
           });
         });
