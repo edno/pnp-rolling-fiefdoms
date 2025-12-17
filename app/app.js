@@ -685,12 +685,31 @@ async function fetchConfig() {
 setupThemeToggle();
 registerServiceWorker();
 
-preloadSheet().then(async () => {
-  document.body.classList.remove("loading");
-  if (loadingOverlay) loadingOverlay.remove();
-  await fetchConfig();
-  init().catch((err) => console.error("Initialization failed:", err));
-});
+async function initializeApp() {
+  try {
+    // Wait for sheet to preload before continuing
+    await preloadSheet();
+    document.body.classList.remove("loading");
+    if (loadingOverlay) loadingOverlay.remove();
+    
+    // Fetch config
+    await fetchConfig();
+    
+    // Initialize the game
+    await init();
+  } catch (err) {
+    console.error("Initialization failed:", err);
+    // Show error to user
+    if (loadingOverlay) {
+      const loadingText = loadingOverlay.querySelector(".loading-text");
+      if (loadingText) {
+        loadingText.textContent = "Failed to load game. Please refresh.";
+      }
+    }
+  }
+}
+
+initializeApp();
 
 // ============================================================================
 // EVENT HANDLERS - DOM event setup and user interaction
