@@ -736,7 +736,22 @@ function captureP2PSnapshot() {
   };
 }
 
+let processingP2PMessage = false;
+const p2pMessageQueue = [];
+
 function handleP2PMessage(message) {
+  p2pMessageQueue.push(message);
+  if (processingP2PMessage) return;
+  
+  processingP2PMessage = true;
+  while (p2pMessageQueue.length > 0) {
+    const msg = p2pMessageQueue.shift();
+    processP2PMessage(msg);
+  }
+  processingP2PMessage = false;
+}
+
+function processP2PMessage(message) {
   if (!message || typeof message !== "object") return;
   if (debugMode) logP2P(`Received message type: ${message.type}`);
   if (message.type === "session:seat" && message.payload) {
