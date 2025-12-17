@@ -520,6 +520,8 @@ function registerServiceWorker() {
   });
 }
 
+let lastThemeSaveTimestamp = 0;
+
 function readStoredTheme() {
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
@@ -528,6 +530,21 @@ function readStoredTheme() {
     console.warn("Could not read theme preference", err);
   }
   return "light";
+}
+
+// Listen for storage events to detect cross-tab conflicts
+if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+  window.addEventListener("storage", (e) => {
+    if (e.key === THEME_STORAGE_KEY && e.newValue) {
+      const newTheme = e.newValue === "dark" ? "dark" : "light";
+      if (state.theme !== newTheme) {
+        console.log("Theme changed by another tab, syncing...");
+        state.theme = newTheme;
+        document.body.classList.toggle("theme-dark", newTheme === "dark");
+        updateThemeToggle();
+      }
+    }
+  });
 }
 
 function updateThemeToggle() {
@@ -549,7 +566,13 @@ function applyTheme(theme, persist = false) {
   document.body.classList.toggle("theme-dark", normalized === "dark");
   if (persist) {
     try {
+      const now = Date.now();
+      const payload = JSON.stringify({
+        timestamp: now,
+        value: normalized
+      });
       localStorage.setItem(THEME_STORAGE_KEY, normalized);
+      lastThemeSaveTimestamp = now;
     } catch (err) {
       console.warn("Could not store theme preference", err);
     }
