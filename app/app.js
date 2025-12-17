@@ -1034,9 +1034,11 @@ function maybeLoadInviteFromUrl() {
       renderP2PQr(p2pCodeEl.value);
       updateInviteVisibility(true);
       renderMeeples();
-      setTimeout(() => {
+      const joinTimeout = setTimeout(() => {
         joinViaSignalling(parsed.sessionId, parsed.secret);
       }, 20);
+      // Store for potential cleanup
+      if (typeof window !== "undefined") window.__p2pJoinTimeout = joinTimeout;
     }
   } catch (err) {
     // ignore malformed URLs
@@ -1917,13 +1919,15 @@ function triggerDiceAnimation() {
   const rollingMsg = "Rolling dice...";
   state.bannerOverride = rollingMsg;
   updateActionBanner();
-  setTimeout(() => {
+  const animTimeout = setTimeout(() => {
     state.diceRolling = false;
     animationInProgress = false;
     diceView.classList.remove("dice-rolling");
     if (state.bannerOverride === rollingMsg) state.bannerOverride = null;
     updateActionBanner();
   }, 1200);
+  // Store for potential cleanup
+  if (typeof window !== "undefined") window.__diceAnimTimeout = animTimeout;
 }
 
 function dieMaxValue(die) {
@@ -4047,10 +4051,12 @@ function copyInviteLink() {
             const original = p2pCopyBtn.textContent || "Copy";
             p2pCopyBtn.textContent = "Copied";
             p2pCopyBtn.classList.add("copied");
-            setTimeout(() => {
+            const copyFeedbackTimeout = setTimeout(() => {
               p2pCopyBtn.textContent = original;
               p2pCopyBtn.classList.remove("copied");
             }, 1500);
+            // Store for potential cleanup
+            if (typeof window !== "undefined") window.__copyFeedbackTimeout = copyFeedbackTimeout;
           }
           updateP2PStatus("Invite copied. Share it in chat.");
         } else {
