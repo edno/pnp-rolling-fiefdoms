@@ -1237,7 +1237,7 @@ select {
   flex-direction: row;
   gap: 2px;
   z-index: 2;
-  width: 46px;
+  width: auto;
   align-items: center;
   justify-content: center;
 }

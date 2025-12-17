@@ -1707,6 +1707,59 @@ describe("split population placement (jsdom)", () => {
   });
 });
 
+describe("influence controls (jsdom)", () => {
+  async function setupInfluenceScenario() {
+    await setupApp({
+      numbered: [1, 2, 3, 4, 1, 2, 3, 4],
+      x: [5, 5, 5, 5, 1, 1, 1, 1],
+      enableHooks: true,
+      p2p: false,
+    });
+    clickRoll();
+    await flushMicrotasks();
+    const hooks = window.__rfTestHooks;
+    hooks.state.influence.earned = 3;
+    hooks.state.influence.spent = 0;
+    hooks.state.influence.pending = 0;
+    hooks.updateDiceAssignments();
+    await flushMicrotasks();
+    clickDie(0);
+    clickDie(1);
+    await flushMicrotasks();
+    return hooks;
+  }
+
+  it("keeps turn dice faces at their rolled values when influence is applied", async () => {
+    const hooks = await setupInfluenceScenario();
+    const dieSelector = '#diceView .die-badge[data-idx="0"] .pip-svg';
+    const basePips = document.querySelectorAll(dieSelector).length;
+    const plusBtn = document.querySelector("#locDicePreview .influence-btn.plus");
+    expect(plusBtn).toBeTruthy();
+    plusBtn.click();
+    await flushMicrotasks();
+    const adjusted = document.querySelectorAll(dieSelector).length;
+    expect(adjusted).toBe(basePips);
+    expect(hooks.state.influenceAdjustments.N1?.delta ?? 0).toBeGreaterThan(0);
+  });
+
+  it("resets pending influence when the location selection changes", async () => {
+    const hooks = await setupInfluenceScenario();
+    const plusBtn = document.querySelector("#locDicePreview .influence-btn.plus");
+    plusBtn.click();
+    await flushMicrotasks();
+    expect(Object.keys(hooks.state.influenceAdjustments || {})).toHaveLength(1);
+    expect(hooks.state.influenceSelectionKey).not.toBeNull();
+    clickDie(1); // deselect second die
+    await flushMicrotasks();
+    clickDie(2); // pick a different die for the pair
+    await flushMicrotasks();
+    expect(Object.keys(hooks.state.influenceAdjustments || {})).toHaveLength(0);
+    expect(hooks.state.influenceSelectionKey).toBeNull();
+    const logs = latestLogs();
+    expect(logs.some((msg) => msg.includes("Influence adjustments reset after changing dice selection."))).toBe(true);
+  });
+});
+
 describe("score overlay display (jsdom)", () => {
   it("shows a negative sign for negative reputation totals", async () => {
     await setupApp({

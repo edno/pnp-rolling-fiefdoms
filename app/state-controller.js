@@ -8,6 +8,7 @@ const baseState = {
   influence: { earned: 0, spent: 0, pending: 0 },
   influenceAdjustments: {},
   influenceTarget: null,
+  influenceSelectionKey: null,
   dice: [],
   pendingPopulation: null,
   buildChoice: null,
@@ -102,6 +103,7 @@ export function resetTurnState(state) {
   state.forceForfeitAdvisory = false;
   state.influenceAdjustments = {};
   state.influenceTarget = null;
+  state.influenceSelectionKey = null;
   // rollAvailable intentionally not reset here to preserve per-turn lock until explicitly re-enabled
 }
 

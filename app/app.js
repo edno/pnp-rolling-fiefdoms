@@ -1741,6 +1741,42 @@ function influenceAdjustmentsEmpty() {
   return !state.influenceAdjustments || Object.keys(state.influenceAdjustments).length === 0;
 }
 
+function canonicalSelectionKey(selection = null) {
+  const source = Array.isArray(selection) ? selection : state.locationSelection;
+  if (!Array.isArray(source)) return "";
+  return source
+    .slice()
+    .sort((a, b) => a - b)
+    .join("-");
+}
+
+function clearInfluenceAdjustments({ label = null } = {}) {
+  if (!state.influenceAdjustments) state.influenceAdjustments = {};
+  let changed = false;
+  if (label) {
+    if (state.influenceAdjustments[label]) {
+      delete state.influenceAdjustments[label];
+      changed = true;
+    }
+  } else if (!influenceAdjustmentsEmpty()) {
+    state.influenceAdjustments = {};
+    changed = true;
+  }
+  if (!changed) return false;
+  if (influenceAdjustmentsEmpty()) {
+    state.influenceTarget = null;
+    state.influenceSelectionKey = null;
+    return true;
+  }
+  if (label && state.influenceTarget === label) {
+    const remaining = Object.keys(state.influenceAdjustments || {}).find(
+      (key) => influenceAdjustmentDelta(key) !== 0,
+    );
+    state.influenceTarget = remaining || null;
+  }
+  return true;
+}
+
 function influenceTargetBlocked(label) {
   const target = state.influenceTarget;
   if (!target || target === label) return false;
@@ -1804,7 +1840,31 @@ function adjustDieWithInfluence(idx, direction) {
   } else if (!state.influenceTarget) {
     state.influenceTarget = die.label;
   }
+  state.influenceSelectionKey =
+    state.locationSelection.length >= 1 ? canonicalSelectionKey(state.locationSelection) : null;
   log(`Influence adjustment: ${die.label} now ${target}.`);
+  updateTracks();
+  updateDiceAssignments();
+  refreshDiceVisibility();
+}
+
+function resetDieInfluence(idx) {
+  if (!state.dice || !state.dice[idx]) return;
+  const die = state.dice[idx];
+  if (!isInfluenceEligibleDie(die)) return;
+  const delta = influenceAdjustmentDelta(die.label);
+  if (!delta) return;
+  const cleared = clearInfluenceAdjustments({ label: die.label });
+  if (!cleared) return;
+  const base =
+    typeof die.resolved === "number"
+      ? die.resolved
+      : typeof die.face === "number"
+        ? die.face
+        : die.face === "windrose"
+          ? "windrose"
+          : die.face;
+  log(`Influence reset: ${die.label} restored to ${base}.`);
   updateTracks();
   updateDiceAssignments();
   refreshDiceVisibility();
@@ -1875,6 +1935,7 @@ function renderDice() {
       showRoleStyle: !turnLocked,
       forcedLocation: (state.forcedLocationDice || []).includes(idx),
       allowInfluence: false,
+      useAdjustedFace: false,
     });
     row.appendChild(badge);
   });
@@ -3118,6 +3179,7 @@ function makeDieBadge(
     forcedLocation = false,
     allowInfluence = false,
     sourceIndex = idx,
+    useAdjustedFace = true,
   } = {},
 ) {
   const badge = document.createElement("div");
@@ -3139,20 +3201,22 @@ function makeDieBadge(
   if (effectiveIdx >= 0) badge.dataset.idx = effectiveIdx;
   const wrap = document.createElement("div");
   wrap.className = "face-wrap";
-  const displayDie = applyInfluenceToDie(state, die) || die;
+  const displayDie = useAdjustedFace ? applyInfluenceToDie(state, die) || die : die;
   const face = createDieFaceSVG(displayDie);
   wrap.appendChild(face);
   badge.appendChild(wrap);
   if (clickable && !locked && die.face !== "X" && effectiveIdx >= 0) {
     badge.addEventListener("click", () => onDieClick(effectiveIdx));
   }
-    if (allowInfluence && isInfluenceEligibleDie(die) && effectiveIdx >= 0) {
-      const canDecrease = canAdjustDieValue(die, -1);
-      const canIncrease = canAdjustDieValue(die, 1);
-      if (canDecrease || canIncrease) {
-        const controls = document.createElement("div");
-        controls.className = "die-influence-controls";
-        badge.classList.add("has-influence-controls");
+  if (allowInfluence && isInfluenceEligibleDie(die) && effectiveIdx >= 0) {
+    const canDecrease = canAdjustDieValue(die, -1);
+    const canIncrease = canAdjustDieValue(die, 1);
+    const hasAdjustment = influenceAdjustmentDelta(die.label) !== 0;
+    const showControls = canDecrease || canIncrease || hasAdjustment;
+    if (showControls) {
+      const controls = document.createElement("div");
+      controls.className = "die-influence-controls";
+      badge.classList.add("has-influence-controls");
       if (canDecrease) {
         const minusBtn = document.createElement("button");
         minusBtn.type = "button";
@@ -3176,6 +3240,18 @@ function makeDieBadge(
           adjustDieWithInfluence(effectiveIdx, 1);
         });
         controls.appendChild(plusBtn);
+      }
+      if (hasAdjustment) {
+        const resetBtn = document.createElement("button");
+        resetBtn.type = "button";
+        resetBtn.className = "influence-btn reset";
+        resetBtn.textContent = "↺";
+        resetBtn.title = "Reset this die to its rolled value.";
+        resetBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          resetDieInfluence(effectiveIdx);
+        });
+        controls.appendChild(resetBtn);
       }
       badge.appendChild(controls);
     }
@@ -3227,6 +3303,7 @@ function updateDiceAssignments() {
     state.forceForfeitAdvisory = false;
     state.invalidSelection = false;
     state.invalidSelectionMessage = null;
+    state.influenceSelectionKey = null;
     renderSelectionDice([], []);
     fillBuildings([]);
     highlightLocations();
@@ -3234,6 +3311,18 @@ function updateDiceAssignments() {
     renderDice();
     updateMultiplayerButtons();
     return;
+  }
+  if (!influenceAdjustmentsEmpty()) {
+    const selectionKey = canonicalSelectionKey(state.locationSelection);
+    if (state.influenceSelectionKey && state.influenceSelectionKey !== selectionKey) {
+      const cleared = clearInfluenceAdjustments();
+      if (cleared) {
+        log("Influence adjustments reset after changing dice selection.");
+        updateTracks();
+      }
+    }
+  } else if (state.influenceSelectionKey) {
+    state.influenceSelectionKey = null;
   }
   if (isMultiplayerActive() && p2pUiState.splitLocked) {
     const choice = lockedPairChoice();
