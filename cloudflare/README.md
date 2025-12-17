@@ -32,6 +32,16 @@ Configure P2P functionality using environment variables in your Cloudflare Pages
 
 These are exposed to the client via the `/api/config` endpoint implemented as a Cloudflare Pages Function.
 
+### Durable Object Bindings
+
+Bind the SIGNALLING Durable Object to your Pages project:
+
+1. Deploy the Worker from this directory: `wrangler publish`
+2. In your Cloudflare dashboard, go to Pages → Your Project → Settings → Functions
+3. Add a Durable Object binding:
+   - Variable name: `SIGNALLING`
+   - Durable Object namespace: Select your deployed `Signalling` class
+
 ## Local testing
 
 - Run `wrangler dev --local --persist-to=.wrangler-state` inside this folder. Endpoint: `http://127.0.0.1:8787`.
