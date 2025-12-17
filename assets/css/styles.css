@@ -1051,7 +1051,6 @@ button:disabled {
 .field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
   margin-bottom: 8px;
 }
 
@@ -1232,13 +1231,15 @@ select {
 }
 
 .die-influence-controls {
-  position: absolute;
-  top: -6px;
-  right: -10px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  z-index: 2;
+    position: absolute;
+    top: 46px;
+    display: flex;
+    flex-direction: row;
+    gap: 2px;
+    z-index: 2;
+    width: 46px;
+    align-items: center;
+    justify-content: center;
 }
 
 .influence-btn {
@@ -1502,6 +1503,7 @@ body.theme-dark .die-badge {
 .split-preview .die-badge {
   cursor: default;
   pointer-events: none;
+  margin-bottom: 6px;
 }
 
 .split-preview .die-badge.has-influence-controls {
