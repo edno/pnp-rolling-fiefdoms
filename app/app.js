@@ -25,8 +25,18 @@ import {
   autoAdvanceState,
   recalcTracks,
   maybeRollAfterLockState,
+  canRescueLocationWithInfluence,
 } from "./game-state.js";
 import { rollNumberedDie, rollXDie } from "./dice.js";
+import {
+  applyInfluenceToDie,
+  applyInfluenceToDice,
+  isInfluenceEligibleDie,
+  DICE_MIN_VALUE,
+  DICE_MAX_VALUE,
+  POPS_PER_INFLUENCE,
+  totalInfluenceSpent,
+} from "./influence.js";
 import { splitForcedDice } from "./dice-display.js";
 import { createDieFaceSVG } from "./dice-face.js";
 import { createManualP2P } from "./p2p.js";
@@ -40,6 +50,15 @@ const terrainLayout = [
   ["Mt", "..", "..", "..", "Se"],
   ["Mt", "Ma", "Ma", "Ma", "Se"],
 ];
+
+const ICONS = {
+  plotOutline: "assets/img/plot-outline.svg",
+  housingOutline: "assets/img/housing-outline.svg",
+  pipFill: "assets/img/pip-fill.svg",
+  pipOutline: "assets/img/pip-outline.svg",
+  influenceOutline: "assets/img/influence-outline.svg",
+  influenceScribble: "assets/img/scribble.svg",
+};
 
 const state = createState();
 
@@ -92,7 +111,7 @@ function isMultiplayerActive() {
 function awaitingSplitNonActive(snapshotActiveSeat = null) {
   const activeSeat = snapshotActiveSeat ?? p2pUiState.activeSeat;
   const nonActive = isMultiplayerActive() && activeSeat !== p2pUiState.seatId;
-  return nonActive && !p2pUiState.splitLocked && !state.pestilence && !state.forceForfeit;
+  return nonActive && !p2pUiState.splitLocked && !state.pestilence && !forceForfeitActive();
 }
 
 function ensureBuildDoneMap(total = null, seed = null) {
@@ -130,7 +149,7 @@ function currentTurnPhase() {
   if (state.activationMode) return TURN_PHASE.ACTIVATION;
   if (state.pendingPopulation?.remaining > 0) return TURN_PHASE.POPULATION;
   if (state.pestilence) return TURN_PHASE.PESTILENCE;
-  if (state.forceForfeit) return TURN_PHASE.FORFEIT;
+  if (forceForfeitActive()) return TURN_PHASE.FORFEIT;
   if (state.rollAvailable && !debugMode) return TURN_PHASE.AWAIT_ROLL;
   if (state.diceLocked || state.locationSelection.length === 2) return TURN_PHASE.BUILDING;
   if (state.dice?.length) return TURN_PHASE.SPLITTING;
@@ -141,7 +160,7 @@ function effectiveLockedLocationPairs() {
   if (!p2pUiState.splitLocked || !state.lockedLocationDice || state.lockedLocationDice.length !== 2) return [];
   const choice = lockedPairChoice();
   const locDice = choice.locDice || state.lockedLocationDice;
-  return uniqueLocationPairs(locDice);
+  return uniqueLocationPairs(applyInfluenceToDice(state, locDice || []));
 }
 
 function setActiveSeat(nextSeat = 1) {
@@ -267,6 +286,8 @@ function prepareNextRoll() {
   });
   resetBuildDoneMap();
   state.forceForfeit = false;
+  state.forceForfeitAdvisory = false;
+  state.forceForfeitAdvisory = false;
   state.pestilence = false;
   state.pestilenceInfo = null;
   state.invalidSelection = false;
@@ -335,11 +356,13 @@ function toggleFullscreen() {
 const boardEl = document.getElementById("board");
 const diceView = document.getElementById("diceView");
 const turnHintEl = document.getElementById("turnHint");
+const influenceStatusEl = document.getElementById("influenceStatus");
 const locDicePreview = document.getElementById("locDicePreview");
 const buildDicePreview = document.getElementById("buildDicePreview");
 const logEl = document.getElementById("log");
 const scoreOverlayEl = document.getElementById("scoreOverlay");
 const popHousingOverlay = document.getElementById("popHousingOverlay");
+const influenceOverlay = document.getElementById("influenceOverlay");
 const turnTrackOverlay = document.getElementById("turnTrackOverlay");
 const guildTypes = ["GF", "GQ", "GW", "GM"];
 const finishActivationBtn = document.getElementById("finishActivation");
@@ -375,9 +398,14 @@ const p2pQrCaption = document.getElementById("p2pQrCaption");
 const p2pQrModal = document.getElementById("p2pQrModal");
 const p2pQrClose = document.getElementById("p2pQrClose");
 const p2pShowQrBtn = document.getElementById("p2pShowQrBtn");
-const SHEET_VERSION = "v1.8";
+const SHEET_VERSION = "v1.9";
 const POP_CAPACITY = 5;
-const POP_LAYOUT = { cols: 8, rows: 2, pipsPerCell: 4 };
+const POP_LAYOUT = { rows: [8, 7], pipsPerCell: 4 };
+const POP_TRACK_TOTAL_CELLS = POP_LAYOUT.rows.reduce((sum, len) => sum + len, 0);
+const INFLUENCE_TRACK_SLOTS = Math.max(
+  1,
+  Math.floor((POP_TRACK_TOTAL_CELLS * POP_LAYOUT.pipsPerCell) / POPS_PER_INFLUENCE),
+);
 const THEME_STORAGE_KEY = "rolling-fiefdoms-theme";
 const TURN_PHASE = {
   AWAIT_ROLL: "awaiting-roll",
@@ -491,18 +519,19 @@ function builtGuildTypes(board) {
   return set;
 }
 
+const SCORE_SPOT_TOP = 28;
 const scoringSpots = [
-  { key: "cottages", x: 22, y: 30 },
-  { key: "farm", x: 68, y: 30 },
-  { key: "quarry", x: 114, y: 30 },
-  { key: "windmill", x: 158, y: 30 },
-  { key: "market", x: 204, y: 30 },
-  { key: "townhall", x: 246, y: 30 },
-  { key: "university", x: 292, y: 30 },
-  { key: "guilds", x: 336, y: 30 },
-  { key: "springhouse", x: 384, y: 30 },
-  { key: "vagrants", x: 428, y: 30 },
-  { key: "reputation", x: 530, y: 30 },
+  { key: "cottages", x: 20, y: SCORE_SPOT_TOP },
+  { key: "farm", x: 66, y: SCORE_SPOT_TOP },
+  { key: "quarry", x: 112, y: SCORE_SPOT_TOP },
+  { key: "windmill", x: 156, y: SCORE_SPOT_TOP },
+  { key: "market", x: 202, y: SCORE_SPOT_TOP },
+  { key: "townhall", x: 244, y: SCORE_SPOT_TOP },
+  { key: "university", x: 290, y: SCORE_SPOT_TOP },
+  { key: "guilds", x: 334, y: SCORE_SPOT_TOP },
+  { key: "springhouse", x: 380, y: SCORE_SPOT_TOP },
+  { key: "vagrants", x: 424, y: SCORE_SPOT_TOP },
+  { key: "reputation", x: 527, y: SCORE_SPOT_TOP },
 ];
 const TURN_TRACK_LENGTH = 25;
 
@@ -572,6 +601,12 @@ function resetState() {
   state.populationAvailable = null;
   state.workerAllocations = null;
   state.activationMode = false;
+  state.influence = { earned: 0, spent: 0, pending: 0 };
+  state.influenceAdjustments = {};
+  state.influenceTarget = null;
+  state.tracks.population = 0;
+  state.tracks.housing = 0;
+  state.tracks.influence = 0;
   state.turnIndex = 0;
   state.turnTrack = 0;
   state.activeTurn = true;
@@ -1024,6 +1059,7 @@ function sanitizeSnapshot(raw) {
       pestilence: Boolean(clone.pestilence),
       pestilenceInfo: clone.pestilenceInfo && typeof clone.pestilenceInfo === "object" ? clone.pestilenceInfo : null,
       forceForfeit: Boolean(clone.forceForfeit),
+      forceForfeitAdvisory: Boolean(clone.forceForfeitAdvisory),
       pendingNextRoll: Boolean(clone.pendingNextRoll),
       bannerOverride: typeof clone.bannerOverride === "string" ? clone.bannerOverride : null,
       seatsTotal,
@@ -1031,6 +1067,7 @@ function sanitizeSnapshot(raw) {
       splitLocked: Boolean(clone.splitLocked),
       buildDone: sanitizeBuildDoneMap(clone.buildDone, seatsTotal),
       fiefdomName: typeof clone.fiefdomName === "string" ? clone.fiefdomName : "",
+      invalidSelectionMessage: typeof clone.invalidSelectionMessage === "string" ? clone.invalidSelectionMessage : null,
     },
   };
 }
@@ -1059,6 +1096,8 @@ function buildFullSnapshot() {
     activeSeat: p2pUiState.activeSeat,
     splitLocked: p2pUiState.splitLocked,
     buildDone: ensureBuildDoneMap(),
+    forceForfeitAdvisory: state.forceForfeitAdvisory,
+    invalidSelectionMessage: state.invalidSelectionMessage,
   };
   return base;
 }
@@ -1093,6 +1132,8 @@ function applyFullSnapshot(snapshot) {
   state.forcedLocationDice = snap.forcedLocationDice || [];
   state.pestilence = Boolean(snap.pestilence);
   state.forceForfeit = Boolean(snap.forceForfeit);
+  state.forceForfeitAdvisory = Boolean(snap.forceForfeitAdvisory);
+  state.invalidSelectionMessage = typeof snap.invalidSelectionMessage === "string" ? snap.invalidSelectionMessage : null;
   if (state.pestilence) {
     state.pestilenceInfo = computePestilenceInfo(state.dice, state.board);
     const locIdx = [];
@@ -1142,6 +1183,7 @@ function applyFullSnapshot(snapshot) {
       const windroseIdx = (snapshot.forcedLocationDice || []).filter((idx) => snapshot.dice?.[idx]?.face === "windrose");
       state.locationSelection = windroseIdx.slice();
       state.forceForfeit = false;
+      state.forceForfeitAdvisory = false;
       state.locationPairs = [];
       state.buildDice = [];
       state.lastBuildDice = [];
@@ -1596,6 +1638,7 @@ function rollDice() {
     state.lockedLocationPairs = state.locationPairs;
     p2pUiState.splitLocked = true;
     state.forceForfeit = true;
+    state.forceForfeitAdvisory = false;
     state.diceLocked = true;
   } else if (turnHintEl) {
     turnHintEl.textContent = state.activeTurn
@@ -1606,7 +1649,7 @@ function rollDice() {
   }
   updateTurnStatusChip();
   const nonActiveMultiplayer = isMultiplayerActive() && p2pUiState.activeSeat !== p2pUiState.seatId;
-  if (nonActiveMultiplayer && !state.pestilence && !state.forceForfeit) {
+  if (nonActiveMultiplayer && !state.pestilence && !forceForfeitActive()) {
     state.locationSelection = [];
     state.locationPairs = [];
     state.buildDice = [];
@@ -1660,6 +1703,130 @@ function dieMaxValue(die) {
   return 0;
 }
 
+function dieSourceIndex(die) {
+  if (!die || !state?.dice) return -1;
+  const exact = state.dice.indexOf(die);
+  if (exact >= 0) return exact;
+  if (die.label) {
+    const byLabel = state.dice.findIndex((d) => d?.label === die.label);
+    if (byLabel >= 0) return byLabel;
+  }
+  return -1;
+}
+
+function forceForfeitActive() {
+  return Boolean(state.forceForfeit) && !state.forceForfeitAdvisory;
+}
+
+function influenceAvailable() {
+  const earned = Math.max(0, state.influence?.earned || 0);
+  const committed = Math.min(earned, Math.max(0, state.influence?.spent || 0));
+  const remaining = Math.max(0, earned - committed);
+  let pending = state.influence?.pending;
+  if (typeof pending !== "number" || Number.isNaN(pending)) {
+    pending = totalInfluenceSpent(state.influenceAdjustments);
+  }
+  const pendingClamped = Math.min(Math.max(0, pending || 0), remaining);
+  return Math.max(0, earned - committed - pendingClamped);
+}
+
+function influenceAdjustmentDelta(label) {
+  if (!label || !state.influenceAdjustments) return 0;
+  return typeof state.influenceAdjustments[label]?.delta === "number"
+    ? state.influenceAdjustments[label].delta
+    : 0;
+}
+
+function influenceAdjustmentsEmpty() {
+  return !state.influenceAdjustments || Object.keys(state.influenceAdjustments).length === 0;
+}
+
+function influenceTargetBlocked(label) {
+  const target = state.influenceTarget;
+  if (!target || target === label) return false;
+  const entry = state.influenceAdjustments?.[target];
+  return Boolean(entry && typeof entry.delta === "number" && entry.delta !== 0);
+}
+
+function canAdjustDieValue(die, direction = 0) {
+  if (!isInfluenceEligibleDie(die)) return false;
+  const base = typeof die.resolved === "number" ? die.resolved : null;
+  if (base === null) return false;
+  if (direction === 0) return !influenceTargetBlocked(die.label);
+  if (influenceTargetBlocked(die.label)) return false;
+  const delta = influenceAdjustmentDelta(die.label);
+  const nextDelta = delta + direction;
+  const target = base + nextDelta;
+  if (target < DICE_MIN_VALUE || target > DICE_MAX_VALUE) return false;
+  const reducesMagnitude = Math.abs(nextDelta) < Math.abs(delta);
+  if (reducesMagnitude) return true;
+  return influenceAvailable() > 0;
+}
+
+function adjustDieWithInfluence(idx, direction) {
+  if (!state.dice || !state.dice[idx]) return;
+  const die = state.dice[idx];
+  if (!isInfluenceEligibleDie(die)) {
+    log("Influence can only adjust numbered dice.");
+    return;
+  }
+  if (influenceTargetBlocked(die.label)) {
+    log("Influence can only adjust one die per roll. Reset previous adjustments first.");
+    return;
+  }
+  const base = typeof die.resolved === "number" ? die.resolved : null;
+  if (base === null) {
+    log("That die cannot be adjusted.");
+    return;
+  }
+  const delta = influenceAdjustmentDelta(die.label);
+  const nextDelta = delta + direction;
+  if (nextDelta === delta) return;
+  const target = base + nextDelta;
+  if (target < DICE_MIN_VALUE || target > DICE_MAX_VALUE) {
+    log("Influence cannot adjust dice beyond 1–5.");
+    return;
+  }
+  const reducesMagnitude = Math.abs(nextDelta) < Math.abs(delta);
+  if (!reducesMagnitude && influenceAvailable() <= 0) {
+    log("No Influence available.");
+    return;
+  }
+  if (!state.influenceAdjustments) state.influenceAdjustments = {};
+  if (nextDelta === 0) {
+    delete state.influenceAdjustments[die.label];
+  } else {
+    state.influenceAdjustments[die.label] = { delta: nextDelta };
+    state.influenceTarget = die.label;
+  }
+  if (influenceAdjustmentsEmpty()) {
+    state.influenceTarget = null;
+  } else if (!state.influenceTarget) {
+    state.influenceTarget = die.label;
+  }
+  log(`Influence adjustment: ${die.label} now ${target}.`);
+  updateTracks();
+  updateDiceAssignments();
+  refreshDiceVisibility();
+}
+
+function updateInfluenceStatus() {
+  if (!influenceStatusEl) return;
+  const earned = Math.max(0, state.influence?.earned || 0);
+  const committed = Math.min(earned, Math.max(0, state.influence?.spent || 0));
+  const pending = Math.max(0, Math.min(state.influence?.pending || 0, Math.max(0, earned - committed)));
+  const spentTotal = Math.min(earned, committed + pending);
+  const available = Math.max(0, earned - spentTotal);
+  if (!earned) {
+    influenceStatusEl.textContent = "No Influence available.";
+    influenceStatusEl.classList.add("muted");
+    return;
+  }
+  influenceStatusEl.classList.remove("muted");
+  const spentText = spentTotal ? ` · ${spentTotal} spent` : "";
+  influenceStatusEl.textContent = `${available} Influence available${spentText}`;
+}
+
 function renderDice() {
   if (!diceView) return;
   refreshDiceVisibility();
@@ -1669,13 +1836,16 @@ function renderDice() {
   if (turnHintEl) {
     if (state.pestilence) {
       turnHintEl.textContent = "Pestilence! Forfeit any empty plot.";
+    } else if (state.forceForfeitAdvisory && !state.forceForfeit) {
+      turnHintEl.textContent = "No valid location pairs; spend Influence or forfeit a plot.";
     } else if (state.activeTurn && state.invalidSelection) {
-      turnHintEl.textContent = "No valid plots for that pair; choose a different location pair.";
-    } else if (state.forceForfeit) {
+      turnHintEl.textContent =
+        state.invalidSelectionMessage || "No valid plots for that pair; choose a different location pair.";
+    } else if (forceForfeitActive()) {
       turnHintEl.textContent = "No valid location pairs; forfeit a plot.";
     } else if (!state.activeTurn) {
       const waitingSplit = awaitingSplitNonActive();
-      if (waitingSplit && (state.pestilence || state.forceForfeit)) {
+      if (waitingSplit && (state.pestilence || forceForfeitActive())) {
         turnHintEl.textContent = "Forfeit a plot.";
       } else if (p2pUiState.splitLocked) {
         turnHintEl.textContent = "";
@@ -1692,7 +1862,7 @@ function renderDice() {
   field.className = "field dice-field";
   const row = document.createElement("div");
   row.className = "dice-row";
-  const turnLocked = state.diceLocked || state.activationMode || state.pestilence || state.forceForfeit;
+  const turnLocked = state.diceLocked || state.activationMode || state.pestilence || forceForfeitActive();
   if (turnLocked) row.classList.add("dice-locked");
   state.dice.forEach((die, idx) => {
     const isLocation = state.locationSelection.includes(idx);
@@ -1704,6 +1874,7 @@ function renderDice() {
       clickable: !turnLocked,
       showRoleStyle: !turnLocked,
       forcedLocation: (state.forcedLocationDice || []).includes(idx),
+      allowInfluence: false,
     });
     row.appendChild(badge);
   });
@@ -1732,11 +1903,12 @@ function fillBuildings(buildDice) {
     renderBuildingOverlay([], true);
     return;
   }
-  if (state.activationMode || state.forceForfeit || state.pestilence) {
+  if (state.activationMode || forceForfeitActive() || state.pestilence) {
     renderBuildingOverlay([], true);
     return;
   }
-  const allowed = restrictBuildOptionsForBoard(buildingOptionsFromDice(effectiveBuildDice), state.board);
+  const adjustedBuildDice = applyInfluenceToDice(state, effectiveBuildDice);
+  const allowed = restrictBuildOptionsForBoard(buildingOptionsFromDice(adjustedBuildDice), state.board);
   const availableGuildTypes = guildTypes.filter((t) => !builtGuildTypes(state.board).has(t));
   const options = allowed.filter((opt) => {
     if (opt.code !== "G") return true;
@@ -1796,7 +1968,7 @@ function renderBuildingOverlay(options = [], disabled = false) {
     (!hasLockedLocation && state.locationSelection.length !== 2) ||
     diceLockedForBuild ||
     state.activationMode ||
-    state.forceForfeit ||
+    forceForfeitActive() ||
     state.pestilence;
   const buildDice =
     hasLockedLocation && state.lockedBuildDice?.length === 2
@@ -1894,9 +2066,11 @@ function renderBoard() {
         const isActivated = req === 0 || filled >= req;
         if (isActivated) {
           cell.classList.add("activated-building");
-          const oct = document.createElement("div");
-          oct.className = "octagon-border";
-          cell.appendChild(oct);
+          const outline = document.createElement("img");
+          outline.className = "plot-outline";
+          outline.src = ICONS.plotOutline;
+          outline.alt = "";
+          cell.appendChild(outline);
           if (
             activationMap &&
             !data.forfeited &&
@@ -1946,9 +2120,9 @@ function renderBoard() {
 
 function onCellClick(r, c) {
   const hasLockedLocation = state.diceLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
-  const awaitingSplit = isMultiplayerActive() && !p2pUiState.splitLocked && !state.pestilence && !state.forceForfeit;
+  const awaitingSplit = isMultiplayerActive() && !p2pUiState.splitLocked && !state.pestilence && !forceForfeitActive();
   const phase = currentTurnPhase();
-  if (state.locationSelection.length < 2 && !hasLockedLocation && !state.pestilence && !state.forceForfeit && !state.activationMode) {
+  if (state.locationSelection.length < 2 && !hasLockedLocation && !state.pestilence && !forceForfeitActive() && !state.activationMode) {
     log("Split the dice first, then pick a plot.");
     return;
   }
@@ -1979,7 +2153,7 @@ function onCellClick(r, c) {
     applySpringhouseTarget([r, c]);
     return;
   }
-  if (state.pestilence || state.forceForfeit) {
+  if (state.pestilence || state.forceForfeit || state.forceForfeitAdvisory) {
     const cell = state.board[r][c];
     if (cell.building || cell.forfeited) {
       log("Choose an empty plot to forfeit.");
@@ -2123,7 +2297,7 @@ function highlightLocations() {
     });
     return;
   }
-  if (state.forceForfeit) {
+  if (state.forceForfeit || state.forceForfeitAdvisory) {
     boardEl.querySelectorAll(".cell").forEach((cell) => {
       const r = parseInt(cell.dataset.row, 10);
       const c = parseInt(cell.dataset.col, 10);
@@ -2210,12 +2384,16 @@ function placeBuilding(r, c, code) {
     p2pUiState.splitLocked && Array.isArray(state.lockedBuildDice) && state.lockedBuildDice.length === 2
       ? (lockedPairChoice().buildDice || state.lockedBuildDice)
       : state.buildDice;
-  const popGain =
-    state.buildChoice?.source === "die1"
-      ? dieMaxValue(buildPool[1])
-      : state.buildChoice?.source === "die2"
-        ? dieMaxValue(buildPool[0])
-        : 0;
+  const adjustedBuildPool = applyInfluenceToDice(state, buildPool || []);
+  let popGain = 0;
+  if (state.buildChoice?.source === "die1") {
+    popGain = dieMaxValue(adjustedBuildPool?.[1]);
+  } else if (state.buildChoice?.source === "die2") {
+    popGain = dieMaxValue(adjustedBuildPool?.[0]);
+  }
+  if (!popGain && typeof state.buildChoice?.popGain === "number") {
+    popGain = state.buildChoice.popGain;
+  }
   lockDiceSnapshot(state, { markPendingNextRoll: true, uniqueLocationPairs });
   renderBoard();
   updateTracks();
@@ -2314,7 +2492,7 @@ function forfeitCell(r, c) {
     log("Cell occupied or forfeited.");
     return;
   }
-  const forcedFlow = state.pestilence || state.forceForfeit;
+  const forcedFlow = state.pestilence || forceForfeitActive();
   cell.forfeited = true;
   lockDiceSnapshot(state, { markPendingNextRoll: true, uniqueLocationPairs });
   updateDiceAssignments();
@@ -2336,12 +2514,23 @@ function forfeitCell(r, c) {
 }
 
 function updateTracks() {
-  const { vagrants, scoreResult } = recalcTracks(state, {
+  const { vagrants, scoreResult, influence } = recalcTracks(state, {
     computeScore,
     calcVagrants,
   });
+  if (influence?.gained > 0) {
+    log(
+      influence.gained === 1
+        ? "Population milestone reached: gained 1 Influence."
+        : `Population milestone reached: gained ${influence.gained} Influence.`,
+    );
+  }
   updateScoreOverlay(scoreResult.breakdown, scoreResult.total);
+  const influenceEarned = state.influence?.earned || 0;
+  const influenceSpent = (state.influence?.spent || 0) + (state.influence?.pending || 0);
+  renderInfluenceTrack({ influenceEarned, influenceSpent });
   renderPopHousingTrack(state.tracks.population, state.tracks.housing, vagrants);
+  updateInfluenceStatus();
 }
 
 function log(msg) {
@@ -2462,7 +2651,7 @@ function renderGuildOverlay(available = []) {
     !locationReady ||
     (state.diceLocked && !p2pUiState.splitLocked) ||
     state.activationMode ||
-    state.forceForfeit ||
+    forceForfeitActive() ||
     state.pestilence;
   overlay.style.pointerEvents = available.length && !locked ? "auto" : "none";
   overlay.innerHTML = "";
@@ -2587,6 +2776,12 @@ function actionMessage() {
   if (state.pendingSpringhouseTarget) {
     return "Select an adjacent building for Springhouse to reduce worker requirement by 1.";
   }
+  if (state.forceForfeitAdvisory) {
+    return "No valid location pairs; spend Influence or forfeit a plot.";
+  }
+  if (state.activeTurn && state.invalidSelection && state.invalidSelectionMessage) {
+    return state.invalidSelectionMessage;
+  }
   if (phase === TURN_PHASE.PESTILENCE || phase === TURN_PHASE.FORFEIT) {
     return "Forfeit an empty plot.";
   }
@@ -2657,7 +2852,7 @@ function updateMultiplayerButtons() {
     !p2pUiState.splitLocked &&
     state.locationSelection.length === 2 &&
     !state.pestilence &&
-    !state.forceForfeit &&
+    !forceForfeitActive() &&
     !state.activationMode;
   finishSplitBtn.style.display = canFinishSplit ? "inline-block" : "none";
   finishSplitBtn.disabled = !canFinishSplit;
@@ -2850,7 +3045,7 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
   };
 
   const currentLocFromState = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
-  const forcedMode = state.pestilence || state.forceForfeit;
+  const forcedMode = state.pestilence || forceForfeitActive();
   const forcedSplit = forcedMode ? splitForcedDice(state.dice || []) : null;
   const doubleWindrose = shouldRerollDoubleWindrose(state.dice || []);
   const xDice = (state.dice || []).filter((d) => d && d.face === "X");
@@ -2882,18 +3077,48 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
   effectiveLoc = swapped.loc && swapped.loc.length ? swapped.loc : effectiveLoc;
   effectiveBuild = swapped.build && swapped.build.length ? swapped.build : effectiveBuild;
 
+  const influenceSeatOk = !isMultiplayerActive() || p2pUiState.activeSeat === p2pUiState.seatId;
+  const showInfluenceControls =
+    !ignoreState &&
+    !state.diceLocked &&
+    !state.activationMode &&
+    !state.pestilence &&
+    !forceForfeitActive() &&
+    state.locationSelection.length === 2 &&
+    influenceSeatOk;
+
   if (locDicePreview) {
-    renderDicePreview(locDicePreview, clampDice(effectiveLoc), "location", "Select 2 dice for location");
+    renderDicePreview(
+      locDicePreview,
+      clampDice(effectiveLoc),
+      "location",
+      "Select 2 dice for location",
+      { allowInfluence: showInfluenceControls },
+    );
   }
   if (buildDicePreview) {
-    renderDicePreview(buildDicePreview, clampDice(effectiveBuild), "build", "Remaining dice used for build");
+    renderDicePreview(
+      buildDicePreview,
+      clampDice(effectiveBuild),
+      "build",
+      "Remaining dice used for build",
+      { allowInfluence: showInfluenceControls },
+    );
   }
 }
 
 function makeDieBadge(
   die,
   idx,
-  { role = null, locked = false, clickable = true, showRoleStyle = true, forcedLocation = false } = {},
+  {
+    role = null,
+    locked = false,
+    clickable = true,
+    showRoleStyle = true,
+    forcedLocation = false,
+    allowInfluence = false,
+    sourceIndex = idx,
+  } = {},
 ) {
   const badge = document.createElement("div");
   badge.className = "die-badge";
@@ -2910,19 +3135,55 @@ function makeDieBadge(
   }
   if (forcedLocation) badge.title = "Windrose stays in the location pair (acts as 1–5).";
   if (locked) badge.classList.add("dice-locked");
-  badge.dataset.idx = idx;
+  const effectiveIdx = typeof sourceIndex === "number" ? sourceIndex : idx;
+  if (effectiveIdx >= 0) badge.dataset.idx = effectiveIdx;
   const wrap = document.createElement("div");
   wrap.className = "face-wrap";
-  const face = createDieFaceSVG(die);
+  const displayDie = applyInfluenceToDie(state, die) || die;
+  const face = createDieFaceSVG(displayDie);
   wrap.appendChild(face);
   badge.appendChild(wrap);
-  if (clickable && !locked && die.face !== "X") {
-    badge.addEventListener("click", () => onDieClick(idx));
+  if (clickable && !locked && die.face !== "X" && effectiveIdx >= 0) {
+    badge.addEventListener("click", () => onDieClick(effectiveIdx));
+  }
+    if (allowInfluence && isInfluenceEligibleDie(die) && effectiveIdx >= 0) {
+      const canDecrease = canAdjustDieValue(die, -1);
+      const canIncrease = canAdjustDieValue(die, 1);
+      if (canDecrease || canIncrease) {
+        const controls = document.createElement("div");
+        controls.className = "die-influence-controls";
+        badge.classList.add("has-influence-controls");
+      if (canDecrease) {
+        const minusBtn = document.createElement("button");
+        minusBtn.type = "button";
+        minusBtn.className = "influence-btn minus";
+        minusBtn.textContent = "-";
+        minusBtn.title = "Spend 1 Influence to decrease this die by 1.";
+        minusBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          adjustDieWithInfluence(effectiveIdx, -1);
+        });
+        controls.appendChild(minusBtn);
+      }
+      if (canIncrease) {
+        const plusBtn = document.createElement("button");
+        plusBtn.type = "button";
+        plusBtn.className = "influence-btn plus";
+        plusBtn.textContent = "+";
+        plusBtn.title = "Spend 1 Influence to increase this die by 1.";
+        plusBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          adjustDieWithInfluence(effectiveIdx, 1);
+        });
+        controls.appendChild(plusBtn);
+      }
+      badge.appendChild(controls);
+    }
   }
   return badge;
 }
 
-function renderDicePreview(container, dice, role, emptyText) {
+function renderDicePreview(container, dice, role, emptyText, { allowInfluence = false } = {}) {
   if (!container) return;
   container.classList.add("split-preview");
   container.innerHTML = "";
@@ -2931,12 +3192,15 @@ function renderDicePreview(container, dice, role, emptyText) {
     return;
   }
   dice.forEach((die, idx) => {
+    const sourceIndex = dieSourceIndex(die);
     const badge = makeDieBadge(die, idx, {
       role,
       locked: false,
       clickable: false,
       showRoleStyle: false,
       forcedLocation: false,
+      allowInfluence,
+      sourceIndex,
     });
     container.appendChild(badge);
   });
@@ -2960,7 +3224,9 @@ function onDieClick(idx) {
 function updateDiceAssignments() {
   if (!state.dice || !state.dice.length) {
     state.forceForfeit = false;
+    state.forceForfeitAdvisory = false;
     state.invalidSelection = false;
+    state.invalidSelectionMessage = null;
     renderSelectionDice([], []);
     fillBuildings([]);
     highlightLocations();
@@ -2973,8 +3239,24 @@ function updateDiceAssignments() {
     const choice = lockedPairChoice();
     const lockedLoc = choice.locDice;
     const lockedBuild = choice.buildDice;
-    const pairsForBoard = filterAvailablePairs(uniqueLocationPairs(lockedLoc || []), state.board);
-    state.forceForfeit = pairsForBoard.length === 0;
+    const adjustedLockedLoc = applyInfluenceToDice(state, lockedLoc || []);
+    const pairsForBoard = filterAvailablePairs(uniqueLocationPairs(adjustedLockedLoc || []), state.board);
+    const rescuePossible =
+      !pairsForBoard.length &&
+      adjustedLockedLoc?.length === 2 &&
+      canRescueLocationWithInfluence(state, adjustedLockedLoc, state.board, {
+        uniqueLocationPairs,
+        filterAvailablePairs,
+      });
+    state.forceForfeit = pairsForBoard.length === 0 && !rescuePossible;
+    state.forceForfeitAdvisory = rescuePossible && !pairsForBoard.length;
+    if (!pairsForBoard.length && rescuePossible) {
+      state.invalidSelection = true;
+      state.invalidSelectionMessage = "No valid location pairs; spend Influence or forfeit a plot.";
+    } else {
+      state.invalidSelection = false;
+      state.invalidSelectionMessage = null;
+    }
     state.buildDice = lockedBuild;
     renderSelectionDice(lockedLoc, lockedBuild);
     fillBuildings(lockedBuild);
@@ -2993,6 +3275,7 @@ function updateDiceAssignments() {
     state.locationPairs = [];
     state.buildDice = xDice;
     state.forceForfeit = false;
+    state.forceForfeitAdvisory = false;
     renderSelectionDice(windroseOnly, xDice, { forceBuildPreview: true, ignoreState: true });
     fillBuildings([]);
     highlightLocations();
@@ -3034,8 +3317,11 @@ function updateDiceAssignments() {
 
   if (turnHintEl) {
     if (state.activeTurn && state.invalidSelection) {
-      turnHintEl.textContent = "No valid plots for that pair; choose a different location pair.";
-    } else if (state.forceForfeit) {
+      turnHintEl.textContent =
+        state.invalidSelectionMessage || "No valid plots for that pair; choose a different location pair.";
+    } else if (state.forceForfeitAdvisory) {
+      turnHintEl.textContent = "No valid location pairs; spend Influence or forfeit a plot.";
+    } else if (forceForfeitActive()) {
       turnHintEl.textContent = "No valid location pairs; forfeit a plot.";
     } else if (!state.activeTurn) {
       turnHintEl.textContent = isMultiplayerActive()
@@ -3138,7 +3424,8 @@ function soloPairChoice() {
 function soloPairHasValidLocations(diceList = []) {
   if (!Array.isArray(diceList) || diceList.length !== 2) return false;
   if (!Array.isArray(state.board) || !state.board.length) return false;
-  const pairs = filterAvailablePairs(uniqueLocationPairs(diceList), state.board);
+  const adjusted = applyInfluenceToDice(state, diceList);
+  const pairs = filterAvailablePairs(uniqueLocationPairs(adjusted), state.board);
   return pairs.length > 0;
 }
 
@@ -3309,14 +3596,15 @@ function updateScoreOverlay(breakdown, total = 0) {
 function renderPopHousingTrack(pop = 0, housing = 0, vagrants = 0) {
   if (!popHousingOverlay) return;
   popHousingOverlay.innerHTML = "";
-  const grid = document.createElement("div");
-  grid.className = "pop-grid";
+  const track = document.createElement("div");
+  track.className = "pop-track";
   const housingUnits = Math.max(0, Math.floor(housing / 4));
   let remainingPop = Math.max(0, pop);
-
-  for (let r = 0; r < POP_LAYOUT.rows; r++) {
-    for (let c = 0; c < POP_LAYOUT.cols; c++) {
-      const cellIdx = r * POP_LAYOUT.cols + c;
+  let cellIdx = 0;
+  POP_LAYOUT.rows.forEach((cols, rowIdx) => {
+    const rowEl = document.createElement("div");
+    rowEl.className = `pop-row ${rowIdx === 0 ? "top" : "bottom"}`;
+    for (let c = 0; c < cols; c += 1) {
       const cell = document.createElement("div");
       cell.className = "pop-cell";
       if (cellIdx < housingUnits) cell.classList.add("has-housing");
@@ -3324,18 +3612,62 @@ function renderPopHousingTrack(pop = 0, housing = 0, vagrants = 0) {
       const pipGrid = document.createElement("div");
       pipGrid.className = "pip-grid";
       const pipsThisCell = Math.max(0, Math.min(POP_LAYOUT.pipsPerCell, remainingPop));
-      for (let i = 0; i < pipsThisCell; i++) {
+      for (let i = 0; i < POP_LAYOUT.pipsPerCell; i += 1) {
         const pip = document.createElement("div");
         pip.className = "pop-pip";
-        pip.classList.add("filled-pop");
+        const pipIndex = cellIdx * POP_LAYOUT.pipsPerCell + i + 1;
+        const milestone = pipIndex % POPS_PER_INFLUENCE === 0;
+        if (milestone) pip.classList.add("influence-marker");
+        if (i < pipsThisCell) {
+          pip.classList.add("filled-pop");
+          if (milestone) {
+            pip.classList.add("influence-bonus");
+          }
+        }
         pipGrid.appendChild(pip);
       }
       remainingPop -= pipsThisCell;
       cell.appendChild(pipGrid);
-      grid.appendChild(cell);
+      rowEl.appendChild(cell);
+      cellIdx += 1;
     }
+    track.appendChild(rowEl);
+  });
+  popHousingOverlay.appendChild(track);
+}
+
+function renderInfluenceTrack({ influenceEarned = 0, influenceSpent = 0 } = {}) {
+  if (!influenceOverlay) return;
+  influenceOverlay.innerHTML = "";
+  const track = document.createElement("div");
+  track.className = "influence-track";
+  const spentCount = Math.min(influenceEarned, influenceSpent);
+  for (let i = 0; i < INFLUENCE_TRACK_SLOTS; i += 1) {
+    const slot = document.createElement("div");
+    slot.className = "influence-slot";
+    if (i < influenceEarned) {
+      const icon = document.createElement("img");
+      icon.src = ICONS.influenceOutline;
+      icon.alt = "";
+      icon.className = "influence-icon";
+      slot.appendChild(icon);
+      slot.classList.add("earned");
+      if (i < spentCount) {
+        slot.classList.add("spent");
+        const scribble = document.createElement("img");
+        scribble.src = ICONS.influenceScribble;
+        scribble.alt = "";
+        scribble.className = "influence-scribble";
+        slot.appendChild(scribble);
+        slot.title = "Influence spent.";
+      } else {
+        slot.classList.add("available");
+        slot.title = "Influence available.";
+      }
+    }
+    track.appendChild(slot);
   }
-  popHousingOverlay.appendChild(grid);
+  influenceOverlay.appendChild(track);
 }
 
 function renderTurnTrack(filled = 0) {
@@ -3491,5 +3823,6 @@ function toggleQrModal(show) {
       actionMessage,
       renderTurnTrack,
       maybeRollAfterLock,
+      placeBuilding,
     };
   }

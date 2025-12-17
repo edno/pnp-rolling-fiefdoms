@@ -8,11 +8,11 @@
   <meta name="theme-color" content="#e67e22" />
   <title>Rolling Fiefdoms Web Prototype</title>
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="modulepreload" href="app/app.js?v=v3" />
+  <link rel="modulepreload" href="app/app.js?v=v4" />
   <link rel="icon" type="image/svg+xml" href="assets/img/forfeit.svg" />
   <link rel="preload" href="assets/css/fonts.css" as="style" />
   <link rel="preload" href="assets/css/styles.css" as="style" />
-  <link rel="preload" href="resources/rolling-fiefdoms-player-sheet.webp?v=v1.8" as="image" fetchpriority="high" />
+  <link rel="preload" href="resources/rolling-fiefdoms-player-sheet.webp?v=v1.9" as="image" fetchpriority="high" />
   <link rel="preload" href="assets/img/rules.webp" as="image" />
   <link rel="preload" href="assets/img/playersheet.webp" as="image" />
   <link rel="preload" href="assets/img/github.webp" as="image" />
@@ -72,7 +72,7 @@
         <img
           id="sheetBaseImage"
           class="sheet-base"
-          src="resources/rolling-fiefdoms-player-sheet.webp?v=v1.8"
+          src="resources/rolling-fiefdoms-player-sheet.webp?v=v1.9"
           alt=""
           fetchpriority="high"
           decoding="async"
@@ -85,6 +85,7 @@
         <div class="board" id="board"></div>
         <div id="scoreOverlay" class="score-overlay"></div>
         <div id="turnTrackOverlay" class="turn-track-overlay" aria-hidden="true"></div>
+        <div id="influenceOverlay" class="influence-overlay"></div>
         <div id="popHousingOverlay" class="pop-housing-overlay"></div>
         <div id="buildingsOverlay" class="buildings-overlay" aria-label="Select building"></div>
         <div id="guildsOverlay" class="guilds-overlay" aria-label="Select guild"></div>
@@ -96,6 +97,7 @@
         <h2>Turn <span id="turnStatusChip" class="status-chip" aria-live="polite"></span></h2>
         <button id="rollBtn">Roll Dice</button>
         <div id="diceView"></div>
+        <div id="influenceStatus" class="hint influence-status">No Influence available.</div>
         <div id="turnHint" class="hint"></div>
         <button id="finishActivation" style="display:none;">Finish Activation</button>
         <button id="newGameBtn" style="display:none;">Play again</button>
@@ -172,7 +174,7 @@
     </div>
   </footer>
 
-  <script type="module" src="app/app.js?v=v3"></script>
+  <script type="module" src="app/app.js?v=v4"></script>
 
   <div id="p2pQrModal" class="p2p-qr-modal hidden">
     <div class="p2p-qr-dialog">

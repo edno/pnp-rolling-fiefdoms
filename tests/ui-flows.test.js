@@ -206,6 +206,24 @@ describe("p2p invite links (jsdom)", () => {
   });
 });
 
+describe("influence population handling (jsdom)", () => {
+  it("applies influence adjustments when determining split population gain", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { state, placeBuilding } = hooks;
+    state.buildDice = [
+      { label: "X1", face: 2, resolved: 2 },
+      { label: "X2", face: 3, resolved: 3 },
+    ];
+    state.buildChoice = { code: "F", source: "die1", popGain: 3 };
+    state.influenceAdjustments = { X2: { delta: 2 } };
+    state.influenceTarget = "X2";
+    state.influence = { earned: 2, spent: 0, pending: 0 };
+    placeBuilding(0, 0, "F");
+    expect(state.pendingPopulation?.remaining).toBe(5);
+  });
+});
+
 describe("activation prompts (jsdom)", () => {
   it("shows population-selection prompt then remaining pips when a node is selected", async () => {
     await setupApp({ enableHooks: true });

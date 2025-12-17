@@ -13,7 +13,7 @@ import {
   recalcTracks,
   maybeRollAfterLockState,
 } from "../app/game-state.js";
-import { createState, lockDiceSnapshot } from "../app/state-controller.js";
+import { createState, lockDiceSnapshot, resetTurnState } from "../app/state-controller.js";
 import {
   uniqueLocationPairs,
   filterAvailablePairs,
@@ -296,6 +296,192 @@ describe("die selection and location evaluation", () => {
 
     expect(stateA.pestilenceInfo.targetCells).toEqual([]);
     expect(stateB.pestilenceInfo.targetCells).toEqual([]);
+  });
+});
+
+describe("influence integration", () => {
+  it("awards influence every eight population pips", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.populationNodes = [
+      [5, 3, 0, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+    ];
+    state.tracks = { population: 0, housing: 0, influence: 0 };
+    state.influence = { earned: 0, spent: 0 };
+    const first = recalcTracks(state, { computeScore, calcVagrants });
+    expect(first.influence.earned).toBe(1);
+    expect(first.influence.gained).toBe(1);
+    expect(state.tracks.influence).toBe(1);
+
+    state.populationNodes[0][2] = 5;
+    state.populationNodes[0][3] = 3;
+    const second = recalcTracks(state, { computeScore, calcVagrants });
+    expect(second.influence.earned).toBe(2);
+    expect(second.influence.gained).toBe(1);
+    expect(state.tracks.influence).toBe(2);
+
+    state.influenceAdjustments = { N1: { delta: 3 } };
+    state.influenceTarget = "N1";
+    const third = recalcTracks(state, { computeScore, calcVagrants });
+    expect(third.influence.earned).toBe(2);
+    expect(state.influence.pending).toBe(2);
+  });
+
+  it("commits spent influence between turns", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.populationNodes = [
+      [5, 3, 0, 0],
+      [5, 3, 0, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+    ];
+    state.tracks = { population: 0, housing: 0, influence: 0 };
+    recalcTracks(state, { computeScore, calcVagrants });
+    expect(state.influence.earned).toBe(2);
+    state.influenceAdjustments = { N1: { delta: 1 }, N2: { delta: 1 } };
+    recalcTracks(state, { computeScore, calcVagrants });
+    expect(state.influence.pending).toBe(2);
+    resetTurnState(state);
+    expect(state.influence.spent).toBe(2);
+    expect(state.influence.pending).toBe(0);
+  });
+
+  it("allows influence rescue before forcing a forfeit", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.board.forEach((row, r) =>
+      row.forEach((cell, c) => {
+        cell.building = "X";
+        cell.forfeited = false;
+        if (r === 2 && c === 0) cell.building = null;
+      }),
+    );
+    state.locationSelection = [0, 1];
+    state.dice = [
+      { label: "N1", face: 2, resolved: 2 },
+      { label: "N2", face: 1, resolved: 1 },
+      { label: "X1", face: 4, resolved: 4 },
+      { label: "X2", face: 5, resolved: 5 },
+    ];
+    state.influence = { earned: 1, spent: 0, pending: 0 };
+    state.activeTurn = true;
+    const { forceForfeit, message } = evaluateLocationSelection(state, {
+      uniqueLocationPairs,
+      filterAvailablePairs,
+      board: state.board,
+    });
+    expect(forceForfeit).toBe(false);
+    expect(state.invalidSelection).toBe(true);
+    expect(message).toBe("No valid location pairs; spend Influence or forfeit a plot.");
+  });
+
+  it("prompts non-active turns to spend influence before forfeiting", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.board.forEach((row, r) =>
+      row.forEach((cell, c) => {
+        cell.building = "X";
+        cell.forfeited = false;
+        if (r === 2 && c === 0) cell.building = null;
+      }),
+    );
+    state.turnIndex = 1; // next turn becomes non-active
+    state.influence = { earned: 1, spent: 0, pending: 0 };
+    const dice = [
+      { label: "N1", face: 2, resolved: 2 },
+      { label: "N2", face: 1, resolved: 1 },
+      { label: "X1", face: 4, resolved: 4 },
+      { label: "X2", face: 5, resolved: 5 },
+    ];
+    const { messages } = beginTurn(state, dice, state.board, helpers);
+    expect(state.activeTurn).toBe(false);
+    expect(state.forceForfeit).toBe(false);
+    expect(messages).toContain("No valid location pairs; spend Influence or forfeit a plot.");
+  });
+
+  it("lets players spend influence instead of clearing an invalid location pair", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.board.forEach((row) =>
+      row.forEach((cell) => {
+        cell.building = "X";
+      }),
+    );
+    state.board[0][1].building = null;
+    state.dice = [
+      { label: "N1", face: 2, resolved: 2 },
+      { label: "N2", face: 2, resolved: 2 },
+      { label: "N3", face: 1, resolved: 1 },
+      { label: "X1", face: 3, resolved: 3 },
+      { label: "X2", face: 4, resolved: 4 },
+    ];
+    state.locationSelection = [0, 1];
+    state.activeTurn = true;
+    state.influence = { earned: 1, spent: 0, pending: 0 };
+    const { forceForfeit, invalidSelection, message } = evaluateLocationSelection(state, {
+      uniqueLocationPairs,
+      filterAvailablePairs,
+      board: state.board,
+    });
+    expect(forceForfeit).toBe(false);
+    expect(invalidSelection).toBe(true);
+    expect(message).toBe("No valid plots for that pair; spend Influence or choose a different location pair.");
+    expect(state.locationSelection).toEqual([0, 1]);
+    expect(state.invalidSelectionMessage).toBe(message);
+
+    // Player should be able to adjust the chosen dice to try a different pair
+    selectLocationDie(state, 1, {
+      uniqueLocationPairs,
+      filterAvailablePairs,
+      board: state.board,
+    });
+    expect(state.locationSelection).toEqual([0]);
+    selectLocationDie(state, 2, {
+      uniqueLocationPairs,
+      filterAvailablePairs,
+      board: state.board,
+    });
+    expect(new Set(state.locationSelection)).toEqual(new Set([0, 2]));
+  });
+
+  it("uses influence adjustments when evaluating locations", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.dice = [
+      { label: "N1", face: 1, resolved: 1 },
+      { label: "N2", face: 2, resolved: 2 },
+      { label: "X1", face: 4, resolved: 4 },
+      { label: "X2", face: 5, resolved: 5 },
+    ];
+    state.locationSelection = [0, 1];
+    state.activeTurn = true;
+    evaluateLocationSelection(state, { ...helpers, board: emptyBoard() });
+    expect(state.locationPairs).toEqual([[1, 2]]);
+    state.influenceAdjustments = { N2: { delta: 2 } };
+    state.influenceTarget = "N2";
+    evaluateLocationSelection(state, { ...helpers, board: emptyBoard() });
+    expect(state.locationPairs).toEqual([[1, 4]]);
+  });
+
+  it("ignores non-target influence adjustments", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.dice = [
+      { label: "N1", face: 1, resolved: 1 },
+      { label: "N2", face: 2, resolved: 2 },
+      { label: "X1", face: 4, resolved: 4 },
+      { label: "X2", face: 5, resolved: 5 },
+    ];
+    state.locationSelection = [0, 1];
+    state.activeTurn = true;
+    state.influenceAdjustments = { N1: { delta: 1 }, N2: { delta: 2 } };
+    state.influenceTarget = "N1";
+    evaluateLocationSelection(state, { ...helpers, board: emptyBoard() });
+    expect(state.locationPairs).toEqual([[2, 2]]);
   });
 });
 
