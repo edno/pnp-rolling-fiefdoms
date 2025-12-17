@@ -439,7 +439,7 @@ body.theme-dark .sheet-base {
 }
 
 .population-node.selected-pop {
-  border: 2px solid var(--accent) !important;
+  border: 2px solid var(--danger) !important;
 }
 
 .activated-building {
