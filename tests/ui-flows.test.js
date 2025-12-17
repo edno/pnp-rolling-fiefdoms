@@ -284,22 +284,21 @@ describe("blocked build flow (jsdom)", () => {
 });
 
 describe("p2p meeple display (jsdom)", () => {
-  it("shows five meeples and marks connected seats with colors", async () => {
+  it("shows two meeples and marks connected seats with colors", async () => {
     await setupApp({ enableHooks: true });
     const hooks = window.__rfTestHooks;
     hooks.p2pUiState.hostCreated = true;
-    hooks.p2pUiState.connectedSeats = { 1: true, 2: false, 3: false, 4: false, 5: false };
+    hooks.p2pUiState.connectedSeats = { 1: true, 2: false };
     hooks.renderMeeples();
     const container = document.getElementById("p2pMeeples");
     expect(container.classList.contains("hidden")).toBe(false);
     const meeples = container.querySelectorAll(".p2p-meeple");
-    expect(meeples.length).toBe(5);
+    expect(meeples.length).toBe(2);
     expect(meeples[0].dataset.state).toBe("connected");
     expect(meeples[1].dataset.state).toBe("empty");
     hooks.p2pUiState.connectedSeats[2] = true;
     hooks.renderMeeples();
     expect(container.querySelector('[data-seat="2"]').dataset.state).toBe("connected");
-    expect(container.querySelector('[data-seat="3"]').dataset.state).toBe("empty");
   });
 
   it("hides meeples when no host session exists", async () => {

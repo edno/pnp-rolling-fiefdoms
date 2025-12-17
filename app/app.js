@@ -1,3 +1,17 @@
+/**
+ * Rolling Fiefdoms - Main Application
+ * 
+ * TABLE OF CONTENTS:
+ * - Imports & Constants (lines 1-110)
+ * - Helper Functions (lines 115-215) - Utilities for state checks and DOM
+ * - P2P Multiplayer (lines 790-1740) - WebRTC signalling and multiplayer state
+ * - Event Handlers (lines 730-780) - DOM event setup and user interaction  
+ * - Game Logic (lines 1750-2820) - Turn flow, dice rolling, building
+ * - Rendering Functions (lines 2085-2820) - UI rendering and DOM updates
+ * - State Updates (lines 2830-3050) - Track recalculation and sync
+ * - UI Messages & Feedback (lines 3070+) - Action banners and user feedback
+ */
+
 import {
   uniqueLocationPairs,
   buildingOptionsFromDice,
@@ -76,13 +90,10 @@ let controlsReady = false;
 const urlParams = new URLSearchParams(window.location.search);
 const debugMode = urlParams.has("debug");
 let p2pFeatureEnabled = false;
-const MAX_P2P_SEATS = 5;
+const MAX_P2P_SEATS = 2; // Only 2 players supported in current P2P implementation
 const P2P_SEAT_COLORS = {
   1: "#e74c3c", // red
   2: "#2980b9", // blue
-  3: "#27ae60", // green
-  4: "#f1c40f", // yellow
-  5: "#8e44ad", // purple
 };
 const p2pUiState = {
   mode: "idle",
@@ -111,8 +122,45 @@ const p2pUiState = {
   splitUsed: {},
 };
 
+// ============================================================================
+// HELPER FUNCTIONS - Utilities for state checks and DOM manipulation
+// ============================================================================
+
 function isMultiplayerActive() {
   return p2pUiState.signallingActive && p2pUiState.seatsTotal > 1;
+}
+
+function isMyBuildDone() {
+  return isMultiplayerActive() && p2pUiState.buildDone?.[p2pUiState.seatId];
+}
+
+function isMySplitUsed() {
+  return isMultiplayerActive() && p2pUiState.splitUsed?.[p2pUiState.seatId];
+}
+
+function isAwaitingSplit() {
+  return isMultiplayerActive() && !p2pUiState.splitLocked && !state.pestilence && !forceForfeitActive();
+}
+
+function isNonActiveMultiplayer() {
+  return isMultiplayerActive() && p2pUiState.activeSeat !== p2pUiState.seatId;
+}
+
+function clearElement(element) {
+  if (element) element.innerHTML = "";
+}
+
+// Utility for creating DOM elements with attributes (can be used to further reduce createElement boilerplate)
+// eslint-disable-next-line no-unused-vars
+function createEl(tag, { className, textContent, children, ...attrs } = {}) {
+  const el = document.createElement(tag);
+  if (className) el.className = className;
+  if (textContent) el.textContent = textContent;
+  Object.entries(attrs).forEach(([k, v]) => {
+    if (v !== undefined && v !== null) el.setAttribute(k, String(v));
+  });
+  children?.forEach(child => el.appendChild(child));
+  return el;
 }
 
 function awaitingSplitNonActive(snapshotActiveSeat = null) {
@@ -281,7 +329,7 @@ function prepareNextRoll() {
   state.lockedBuildDice = null;
   state.lockedLocationPairs = null;
   state.pendingNextRoll = false;
-  if (diceView) diceView.innerHTML = "";
+  clearElement(diceView);
   updateRollButton();
   updateActionBanner();
   updateMultiplayerButtons();
@@ -414,6 +462,12 @@ const TURN_PHASE = {
   ACTIVATION_DONE: "activation-complete",
 };
 const TOAST_DURATION_MS = 3500;
+const SIGNALLING_RETRY_COUNT = 3;
+const SIGNALLING_RETRY_BACKOFF_MS = 1000;
+const SIGNALLING_MAX_BACKOFF_MS = 5000;
+const SIGNALLING_POLL_TIMEOUT_MS = 20000;
+const SIGNALLING_POLL_INTERVAL_MS = 1200;
+const SIGNALLING_POLL_MAX_INTERVAL_MS = 5000;
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
@@ -617,7 +671,7 @@ function resetState() {
   p2pUiState.inviteVisible = false;
   resetBuildDoneMap();
   resetTurnState(state);
-  if (logEl) logEl.innerHTML = "";
+  clearElement(logEl);
   if (finishActivationBtn) finishActivationBtn.style.display = "none";
   if (newGameBtn) newGameBtn.style.display = "none";
   renderTurnTrack(state.turnTrack);
@@ -680,6 +734,10 @@ preloadSheet().then(async () => {
   init().catch((err) => console.error("Initialization failed:", err));
 });
 
+// ============================================================================
+// EVENT HANDLERS - DOM event setup and user interaction
+// ============================================================================
+
 async function setupControls() {
   const rollBtn = document.getElementById("rollBtn");
   if (rollBtn) {
@@ -738,6 +796,10 @@ async function setupControls() {
     p2pPanel.style.display = "none";
   }
 }
+
+// ============================================================================
+// P2P MULTIPLAYER - WebRTC signalling and multiplayer state management
+// ============================================================================
 
 function captureP2PSnapshot() {
   const snapshotScore = currentScore({ allowPopulationActivation: false });
@@ -801,15 +863,17 @@ function handleP2PStatus(status) {
     p2pUiState.connectedSeats = ensureConnectedSeats(p2pUiState.connectedSeats);
     p2pUiState.connectedSeats[1] = true;
     if (status?.role === "join") {
+      // NOTE: Current P2P implementation only supports 2 players (host + 1 joiner)
+      // For 3+ players, would need mesh networking or relay server
       p2pUiState.seatId = 2;
-      p2pUiState.seatsTotal = Math.max(2, p2pUiState.seatsTotal || 0);
+      p2pUiState.seatsTotal = 2; // Locked to 2 players maximum
       p2pUiState.connectedSeats[2] = true;
       setActiveSeat(p2pUiState.activeSeat || 1);
       if (debugMode) logP2P("Sending state:request to host");
       sendAppMessage("state:request", {});
     } else if (status?.role === "host") {
       p2pUiState.seatId = 1;
-      p2pUiState.seatsTotal = Math.max(2, p2pUiState.seatsTotal || 0);
+      p2pUiState.seatsTotal = 2; // Locked to 2 players maximum
       p2pUiState.connectedSeats[2] = true;
       setActiveSeat(p2pUiState.activeSeat || 1);
       sendAppMessage("session:seat", {
@@ -846,9 +910,9 @@ function updateP2PStatus(hintOverride = null) {
     !status.supported
       ? "Manual P2P is not available in this browser."
       : status.channelOpen
-        ? "Connected via manual P2P."
+        ? "Connected via P2P (2 players maximum)."
         : p2pUiState.awaitingAnswer
-          ? "Hosting: waiting for the peer's answer."
+          ? "Hosting: waiting for 1 player to join (2 players max)."
           : p2pUiState.mode === "answerReady"
             ? "Answer generated. Send it back to the host."
             : p2pUiState.mode === "joining"
@@ -1560,7 +1624,7 @@ function disableP2P(reason = "P2P disabled") {
   renderMeeples();
 }
 
-async function sendSignalBlob(role, compactCode, secret, retries = 3) {
+async function sendSignalBlob(role, compactCode, secret, retries = SIGNALLING_RETRY_COUNT) {
   if (!p2pUiState.signallingUrl || !compactCode) return { ok: false };
   const safeSecret = secret || readP2PSecretOrDefault();
   
@@ -1588,13 +1652,13 @@ async function sendSignalBlob(role, compactCode, secret, retries = 3) {
     }
     // Wait before retry with exponential backoff
     if (attempt < retries) {
-      await new Promise((r) => setTimeout(r, Math.min(1000 * Math.pow(2, attempt - 1), 5000)));
+      await new Promise((r) => setTimeout(r, Math.min(SIGNALLING_RETRY_BACKOFF_MS * Math.pow(2, attempt - 1), SIGNALLING_MAX_BACKOFF_MS)));
     }
   }
   return { ok: false, error: "Max retries exceeded" };
 }
 
-async function pollSignal(role, secret, { timeoutMs = 20000, intervalMs = 1200, maxIntervalMs = 5000 } = {}) {
+async function pollSignal(role, secret, { timeoutMs = SIGNALLING_POLL_TIMEOUT_MS, intervalMs = SIGNALLING_POLL_INTERVAL_MS, maxIntervalMs = SIGNALLING_POLL_MAX_INTERVAL_MS } = {}) {
   if (!p2pUiState.signallingUrl) return null;
   const safeSecret = secret || readP2PSecretOrDefault();
   const start = Date.now();
@@ -1651,8 +1715,9 @@ async function joinViaSignalling(sessionId, secret) {
     return;
   }
   p2pUiState.sessionId = sessionId;
+  // NOTE: Current P2P implementation only supports 2 players (host + 1 joiner)
   p2pUiState.seatId = 2;
-  p2pUiState.seatsTotal = Math.max(2, p2pUiState.seatsTotal || 0);
+  p2pUiState.seatsTotal = 2; // Locked to 2 players maximum
   p2pUiState.hostCreated = true;
   p2pUiState.inviteVisible = true;
   p2pUiState.connectedSeats = ensureConnectedSeats(p2pUiState.connectedSeats);
@@ -1692,8 +1757,12 @@ async function joinViaSignalling(sessionId, secret) {
   }
   p2pUiState.signallingActive = true;
   setP2PMode("connecting");
-  updateP2PStatus("Answer sent via signalling. Waiting for host to connect.");
+  updateP2PStatus("Answer sent via signalling. Waiting for host to connect. (Note: Only 2 players supported)");
 }
+
+// ============================================================================
+// GAME LOGIC - Turn flow, dice rolling, building, and scoring
+// ============================================================================
 
 function rollDice() {
   if (state.activationMode) return;
@@ -1805,7 +1874,7 @@ function rollDice() {
         : nonActiveAutoHintText();
   }
   updateTurnStatusChip();
-  const nonActiveMultiplayer = isMultiplayerActive() && p2pUiState.activeSeat !== p2pUiState.seatId;
+  const nonActiveMultiplayer = isNonActiveMultiplayer();
   if (nonActiveMultiplayer && !state.pestilence && !forceForfeitActive()) {
     state.locationSelection = [];
     state.locationPairs = [];
@@ -2027,12 +2096,16 @@ function resetDieInfluence(idx) {
   refreshDiceVisibility();
 }
 
+// ============================================================================
+// RENDERING FUNCTIONS - UI rendering and DOM updates
+// ============================================================================
+
 function renderDice() {
   if (!diceView) return;
   refreshDiceVisibility();
   const awaitingRoll = state.rollAvailable && (!state.dice || state.dice.length === 0);
   if (state.activationMode || state.activationComplete || awaitingRoll) return;
-  diceView.innerHTML = "";
+  clearElement(diceView);
   if (turnHintEl) {
     if (state.pestilence) {
       turnHintEl.textContent = "Pestilence! Forfeit any empty plot.";
@@ -2165,8 +2238,8 @@ function renderBuildingOverlay(options = [], disabled = false) {
   const hasLockedLocation = p2pUiState.splitLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
   const diceLockedForBuild = state.diceLocked && !p2pUiState.splitLocked;
   // In multiplayer, disable building overlay if this player has already built or used their split
-  const myBuildAlreadyDone = isMultiplayerActive() && p2pUiState.buildDone?.[p2pUiState.seatId];
-  const mySplitUsed = isMultiplayerActive() && p2pUiState.splitUsed?.[p2pUiState.seatId];
+  const myBuildAlreadyDone = isMyBuildDone();
+  const mySplitUsed = isMySplitUsed();
   const forceDisabled =
     disabled ||
     (!hasLockedLocation && state.locationSelection.length !== 2) ||
@@ -2193,7 +2266,7 @@ function renderBuildingOverlay(options = [], disabled = false) {
     const fallback = restrictBuildOptionsForBoard(buildingOptionsFromDice(buildDice), state.board);
     options = fallback;
   }
-  overlay.innerHTML = "";
+  clearElement(overlay);
   const disableOverlay = forceDisabled || !options?.length;
   overlay.classList.toggle("disabled", disableOverlay);
   const optionMap = new Map(options.map((o) => [o.code, o]));
@@ -2220,7 +2293,7 @@ function renderBuildingOverlay(options = [], disabled = false) {
       if (div.classList.contains("disabled")) return;
       const hasLockedLocation = p2pUiState.splitLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
       const diceLockedForBuild = state.diceLocked && !p2pUiState.splitLocked;
-      const awaitingSplitConfirmation = isMultiplayerActive() && !p2pUiState.splitLocked && !state.pestilence && !forceForfeitActive();
+      const awaitingSplitConfirmation = isAwaitingSplit();
       if ((!hasLockedLocation && state.locationSelection.length !== 2) || diceLockedForBuild) return;
       if (awaitingSplitConfirmation) {
         log("Confirm your dice split first before selecting a building.");
@@ -2237,7 +2310,7 @@ function renderBuildingOverlay(options = [], disabled = false) {
 }
 
 function renderBoard() {
-  boardEl.innerHTML = "";
+  clearElement(boardEl);
   const activationMap =
     state.activationMode || state.activationComplete
       ? computeActivationMap(state.board, state.populationNodes, currentWorkerAllocationsForScore())
@@ -2340,9 +2413,9 @@ function renderBoard() {
 
 function onCellClick(r, c) {
   const hasLockedLocation = state.diceLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
-  const awaitingSplit = isMultiplayerActive() && !p2pUiState.splitLocked && !state.pestilence && !forceForfeitActive();
+  const awaitingSplit = isAwaitingSplit();
   const phase = currentTurnPhase();
-  const myBuildAlreadyDone = isMultiplayerActive() && p2pUiState.buildDone?.[p2pUiState.seatId];
+  const myBuildAlreadyDone = isMyBuildDone();
   if (myBuildAlreadyDone && !state.activationMode && !state.pendingPopulation?.remaining) {
     log("Build already completed. Waiting for other players.");
     return;
@@ -2525,8 +2598,8 @@ function highlightLocations() {
   
   // In multiplayer, don't highlight if this player has already built or used their split
   // This check must come BEFORE forfeit highlighting to prevent showing forfeits to players who are done
-  const myBuildAlreadyDone = isMultiplayerActive() && p2pUiState.buildDone?.[p2pUiState.seatId];
-  const mySplitUsed = isMultiplayerActive() && p2pUiState.splitUsed?.[p2pUiState.seatId];
+  const myBuildAlreadyDone = isMyBuildDone();
+  const mySplitUsed = isMySplitUsed();
   if (myBuildAlreadyDone || mySplitUsed) {
     if (debugMode) {
       console.log('[highlightLocations] Player already done, skipping all highlights:', {
@@ -2762,6 +2835,10 @@ function forfeitCell(r, c) {
   autoMarkBuildDoneIfReady({ force: forcedFlow });
 }
 
+// ============================================================================
+// STATE UPDATES - Track recalculation and UI state synchronization
+// ============================================================================
+
 function updateTracks() {
   const { vagrants, scoreResult, influence } = recalcTracks(state, {
     computeScore,
@@ -2902,7 +2979,7 @@ function renderGuildOverlay(available = []) {
     forceForfeitActive() ||
     state.pestilence;
   overlay.style.pointerEvents = available.length && !locked ? "auto" : "none";
-  overlay.innerHTML = "";
+  clearElement(overlay);
   const availableSet = new Set(available);
   guildHitboxes.forEach((hit) => {
     const div = document.createElement("div");
@@ -2998,6 +3075,10 @@ function onPopulationNodeClick(nr, nc) {
 function renderTopTracks() {
   renderDice();
 }
+
+// ============================================================================
+// UI MESSAGES & FEEDBACK - Action banners, turn hints, and user feedback
+// ============================================================================
 
 function actionMessage() {
   if (state.bannerOverride) return state.bannerOverride;
@@ -3331,7 +3412,7 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
   effectiveLoc = swapped.loc && swapped.loc.length ? swapped.loc : effectiveLoc;
   effectiveBuild = swapped.build && swapped.build.length ? swapped.build : effectiveBuild;
 
-  const myBuildNotDone = !p2pUiState.buildDone?.[p2pUiState.seatId];
+  const myBuildNotDone = !isMyBuildDone();
   const mySplitNotUsed = !p2pUiState.splitUsed?.[p2pUiState.seatId];
   const influenceSeatOk = !isMultiplayerActive() || (p2pUiState.splitLocked && myBuildNotDone && mySplitNotUsed);
   const multiplayerSplitConfirmed = isMultiplayerActive() && p2pUiState.splitLocked;
@@ -3460,7 +3541,7 @@ function makeDieBadge(
 function renderDicePreview(container, dice, role, emptyText, { allowInfluence = false } = {}) {
   if (!container) return;
   container.classList.add("split-preview");
-  container.innerHTML = "";
+  clearElement(container);
   if (!dice?.length) {
     container.innerHTML = `<span class="hint">${emptyText}</span>`;
     return;
@@ -3523,7 +3604,7 @@ function updateDiceAssignments() {
     state.influenceSelectionKey = null;
   }
   if (isMultiplayerActive() && p2pUiState.splitLocked) {
-    const myBuildDone = p2pUiState.buildDone?.[p2pUiState.seatId];
+    const myBuildDone = isMyBuildDone();
     const choice = lockedPairChoice();
     const lockedLoc = choice.locDice;
     const lockedBuild = choice.buildDice;
@@ -3874,7 +3955,7 @@ function updateScoreOverlay(breakdown, total = 0) {
     if (key === "reputation") return `${value}`; // reputation spot shows negatives
     return `${Math.abs(value)}`;
   };
-  scoreOverlayEl.innerHTML = "";
+  clearElement(scoreOverlayEl);
   scoringSpots.forEach((spot) => {
       const topPos = spot.y ?? 30;
       const val =
@@ -3900,7 +3981,7 @@ function updateScoreOverlay(breakdown, total = 0) {
 
 function renderPopHousingTrack(pop = 0, housing = 0, vagrants = 0) {
   if (!popHousingOverlay) return;
-  popHousingOverlay.innerHTML = "";
+  clearElement(popHousingOverlay);
   const track = document.createElement("div");
   track.className = "pop-track";
   const housingUnits = Math.max(0, Math.floor(housing / 4));
@@ -3943,7 +4024,7 @@ function renderPopHousingTrack(pop = 0, housing = 0, vagrants = 0) {
 
 function renderInfluenceTrack({ influenceEarned = 0, influenceSpent = 0 } = {}) {
   if (!influenceOverlay) return;
-  influenceOverlay.innerHTML = "";
+  clearElement(influenceOverlay);
   const track = document.createElement("div");
   track.className = "influence-track";
   const spentCount = Math.min(influenceEarned, influenceSpent);
@@ -3978,7 +4059,7 @@ function renderInfluenceTrack({ influenceEarned = 0, influenceSpent = 0 } = {}) 
 function renderTurnTrack(filled = 0) {
   if (!turnTrackOverlay) return;
   const count = Math.max(0, Math.min(TURN_TRACK_LENGTH, Number(filled) || 0));
-  turnTrackOverlay.innerHTML = "";
+  clearElement(turnTrackOverlay);
   for (let i = 0; i < TURN_TRACK_LENGTH; i += 1) {
     const slot = document.createElement("div");
     slot.className = "turn-slot";
@@ -4073,13 +4154,13 @@ function copyInviteLink() {
 function renderMeeples() {
   if (!p2pMeeplesEl) return;
   if (!p2pUiState.hostCreated) {
-    p2pMeeplesEl.innerHTML = "";
+    clearElement(p2pMeeplesEl);
     p2pMeeplesEl.classList.add("hidden");
     return;
   }
   p2pUiState.connectedSeats = ensureConnectedSeats(p2pUiState.connectedSeats);
   p2pMeeplesEl.classList.remove("hidden");
-  p2pMeeplesEl.innerHTML = "";
+  clearElement(p2pMeeplesEl);
   for (let seat = 1; seat <= MAX_P2P_SEATS; seat += 1) {
     const meeple = document.createElement("span");
     const connected = Boolean(p2pUiState.connectedSeats[seat]);
