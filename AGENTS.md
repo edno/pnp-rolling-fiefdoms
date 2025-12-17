@@ -32,6 +32,5 @@
 
 - Turn flow: handling of no-action/blocked builds and pestilence forfeits should be aligned to the rulebook; auto-advance assumptions may be too loose.
 - Worker activation UI/logic needs refinement: worker requirements should be filled one pip at a time, with no double-counting of population across buildings; activation happens only at game end.
-- Dice split/lock UI is unstable: location pair and previews can disappear or allow building selection before a valid pair is set; lock state/visibility needs a stable implementation.
 - Cleanup: remove duplicate/conflicting CSS selectors when encountered.
-- P2P: signalling attempts to auto-send offer/answer via https://signal.rolling-fiefdoms.edno.io (or local http://<host>:8787 when served on LAN); falls back to manual exchange if signalling fails. Gameplay state remains local-only.
+- P2P: signalling resolution (via `/api/config`, URL param, data attribute, or local detection) attempts to auto-send offer/answer with retry logic and exponential backoff; falls back to manual QR/link exchange if unavailable. Gameplay state remains local-only. See `docs/P2P-RELIABILITY.md` for details on reliability improvements.

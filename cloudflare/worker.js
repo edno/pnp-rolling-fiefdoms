@@ -14,9 +14,16 @@ const corsHeaders = {
 export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS") {
-      return new Response("ok", { status: 200, headers: corsHeaders });
+      return new Response(null, {
+        status: 204,
+        headers: {
+          ...corsHeaders,
+          "Access-Control-Max-Age": "86400",
+        },
+      });
     }
     const url = new URL(request.url);
+    
     if (!url.pathname.startsWith("/session/")) {
       return new Response("not found", { status: 404, headers: corsHeaders });
     }

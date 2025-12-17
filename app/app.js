@@ -13,6 +13,16 @@ import {
 } from "./rules.js";
 import { createState, resetTurnState, lockDiceSnapshot } from "./state-controller.js";
 import {
+  ensureBuildDoneMap,
+  ensureSplitUsedMap,
+  resetBuildDoneMap as createResetBuildDoneMap,
+  sanitizeBuildDoneMap,
+  allBuildsMarkedDone as checkAllBuildsMarkedDone,
+  shouldAutoMarkBuildDone,
+  mergeStateMap,
+  validateMultiplayerState as validateMultiplayerStateFromModule,
+} from "./multiplayer-state.js";
+import {
   beginTurn,
   selectLocationDie,
   evaluateLocationSelection,
@@ -65,7 +75,7 @@ const state = createState();
 let controlsReady = false;
 const urlParams = new URLSearchParams(window.location.search);
 const debugMode = urlParams.has("debug");
-const p2pFeatureEnabled = urlParams.has("p2p");
+let p2pFeatureEnabled = false;
 const MAX_P2P_SEATS = 5;
 const P2P_SEAT_COLORS = {
   1: "#e74c3c", // red
@@ -100,9 +110,6 @@ const p2pUiState = {
   lockedPairSwap: false,
   splitUsed: {},
 };
-if (!p2pFeatureEnabled) {
-  p2pUiState.signallingDisabled = true;
-}
 
 function isMultiplayerActive() {
   return p2pUiState.signallingActive && p2pUiState.seatsTotal > 1;
@@ -112,26 +119,6 @@ function awaitingSplitNonActive(snapshotActiveSeat = null) {
   const activeSeat = snapshotActiveSeat ?? p2pUiState.activeSeat;
   const nonActive = isMultiplayerActive() && activeSeat !== p2pUiState.seatId;
   return nonActive && !p2pUiState.splitLocked && !state.pestilence && !forceForfeitActive();
-}
-
-function ensureBuildDoneMap(total = null, seed = null) {
-  const seats = Math.max(1, Number(total || p2pUiState.seatsTotal) || 1);
-  const merged = {};
-  const source = seed || p2pUiState.buildDone || {};
-  for (let i = 1; i <= seats; i += 1) {
-    merged[i] = Boolean(source[i]);
-  }
-  return merged;
-}
-
-function ensureSplitUsedMap(total = null, seed = null) {
-  const seats = Math.max(1, Number(total || p2pUiState.seatsTotal) || 1);
-  const merged = {};
-  const source = seed || p2pUiState.splitUsed || {};
-  for (let i = 1; i <= seats; i += 1) {
-    merged[i] = Boolean(source[i]);
-  }
-  return merged;
 }
 
 function ensureConnectedSeats(seed = null) {
@@ -150,7 +137,8 @@ function currentTurnPhase() {
   if (state.pendingPopulation?.remaining > 0) return TURN_PHASE.POPULATION;
   if (state.pestilence) return TURN_PHASE.PESTILENCE;
   if (forceForfeitActive()) return TURN_PHASE.FORFEIT;
-  if (state.rollAvailable && !debugMode) return TURN_PHASE.AWAIT_ROLL;
+  const allowDebugBypass = debugMode && !isMultiplayerActive();
+  if (state.rollAvailable && !allowDebugBypass) return TURN_PHASE.AWAIT_ROLL;
   if (state.diceLocked || state.locationSelection.length === 2) return TURN_PHASE.BUILDING;
   if (state.dice?.length) return TURN_PHASE.SPLITTING;
   return TURN_PHASE.AWAIT_ROLL;
@@ -174,9 +162,7 @@ function setActiveSeat(nextSeat = 1) {
 
 function resetBuildDoneMap() {
   const total = Math.max(1, Number(p2pUiState.seatsTotal) || 1);
-  const entries = {};
-  for (let i = 1; i <= total; i += 1) entries[i] = false;
-  p2pUiState.buildDone = entries;
+  p2pUiState.buildDone = createResetBuildDoneMap(total);
 }
 
 function nextSeatId() {
@@ -185,12 +171,9 @@ function nextSeatId() {
 }
 
 function allBuildsMarkedDone() {
-  const map = ensureBuildDoneMap();
+  const map = ensureBuildDoneMap(null, null, p2pUiState);
   const total = Math.max(1, Number(p2pUiState.seatsTotal) || 1);
-  for (let i = 1; i <= total; i += 1) {
-    if (!map[i]) return false;
-  }
-  return true;
+  return checkAllBuildsMarkedDone(map, total);
 }
 
 function logP2P(...args) {
@@ -280,7 +263,7 @@ function prepareNextRoll() {
   state.buildDice = [];
   p2pUiState.splitLocked = false;
   p2pUiState.lockedPairSwap = false;
-  p2pUiState.splitUsed = ensureSplitUsedMap();
+  p2pUiState.splitUsed = ensureSplitUsedMap(null, null, p2pUiState);
   Object.keys(p2pUiState.splitUsed).forEach((k) => {
     p2pUiState.splitUsed[k] = false;
   });
@@ -306,6 +289,18 @@ function prepareNextRoll() {
   highlightLocations();
 }
 
+function validateMultiplayerState() {
+  if (!isMultiplayerActive()) return { valid: true };
+  
+  const result = validateMultiplayerStateFromModule({ p2pUiState, state });
+  
+  if (debugMode && !result.valid) {
+    console.warn('[validateMultiplayerState] Inconsistencies detected:', result.errors);
+  }
+  
+  return result;
+}
+
 function shouldRerollDoubleWindrose(dice) {
   if (!Array.isArray(dice) || dice.length < 4) return false;
   const numbered = dice.filter((d) => d?.label?.startsWith("N"));
@@ -318,10 +313,11 @@ function updateRollButton() {
   if (!rollBtn) return;
   const isActiveSeat = p2pUiState.activeSeat === p2pUiState.seatId;
   const hidden = state.activationMode || state.activationComplete || (!isActiveSeat && p2pUiState.seatsTotal > 1);
-  const awaitingRoll = !debugMode && state.rollAvailable;
-  const showButton = !hidden && (awaitingRoll || debugMode);
+  const allowDebugBypass = debugMode && !isMultiplayerActive();
+  const awaitingRoll = !allowDebugBypass && state.rollAvailable;
+  const showButton = !hidden && (awaitingRoll || allowDebugBypass);
   rollBtn.style.display = showButton ? "inline-block" : "none";
-  const enabled = (debugMode || state.rollAvailable) && isActiveSeat;
+  const enabled = (allowDebugBypass || state.rollAvailable) && isActiveSeat;
   rollBtn.disabled = !enabled;
   rollBtn.classList.toggle("dice-locked", !enabled && !debugMode);
   rollBtn.title = enabled ? "Roll dice" : "Roll used; complete the turn to roll again.";
@@ -329,7 +325,8 @@ function updateRollButton() {
 
 function refreshDiceVisibility() {
   const hidden = state.activationMode || state.activationComplete;
-  const awaitingRoll = !debugMode && state.rollAvailable;
+  const allowDebugBypass = debugMode && !isMultiplayerActive();
+  const awaitingRoll = !allowDebugBypass && state.rollAvailable;
   if (diceView) diceView.style.display = hidden || awaitingRoll ? "none" : "";
   updateRollButton();
   updateTurnStatusChip();
@@ -577,7 +574,7 @@ function setupThemeToggle() {
   themeToggleBtn.onclick = () => applyTheme(state.theme === "dark" ? "light" : "dark", true);
 }
 
-function init() {
+async function init() {
   resetState();
   renderBoard();
   updateTracks();
@@ -587,7 +584,7 @@ function init() {
   renderMeeples();
   updateInviteVisibility(p2pUiState.inviteVisible);
   if (!controlsReady) {
-    setupControls();
+    await setupControls();
     controlsReady = true;
   }
 }
@@ -654,16 +651,36 @@ function sheetImageUrl() {
   return new URL(`resources/rolling-fiefdoms-player-sheet.webp?v=${SHEET_VERSION}`, window.location.href).toString();
 }
 
+async function fetchConfig() {
+  try {
+    const response = await fetch("/api/config");
+    if (response.ok) {
+      const config = await response.json();
+      p2pFeatureEnabled = urlParams.has("p2p") || config.p2pEnabled;
+      if (debugMode) console.log("[Config] Loaded from server:", config);
+    } else if (response.status === 404) {
+      // Local development without Cloudflare Pages Functions
+      if (debugMode) console.log("[Config] Running in local mode, using defaults");
+      p2pFeatureEnabled = urlParams.has("p2p");
+    }
+  } catch (err) {
+    // Network error or config unavailable, fall back to URL params only
+    if (debugMode) console.warn("[Config] Fetch failed:", err);
+    p2pFeatureEnabled = urlParams.has("p2p");
+  }
+}
+
 setupThemeToggle();
 registerServiceWorker();
 
-preloadSheet().then(() => {
+preloadSheet().then(async () => {
   document.body.classList.remove("loading");
   if (loadingOverlay) loadingOverlay.remove();
-  init();
+  await fetchConfig();
+  init().catch((err) => console.error("Initialization failed:", err));
 });
 
-function setupControls() {
+async function setupControls() {
   const rollBtn = document.getElementById("rollBtn");
   if (rollBtn) {
     rollBtn.onclick = () => rollDice();
@@ -716,7 +733,7 @@ function setupControls() {
     swapPairBtn.style.display = "none";
   }
   if (p2pFeatureEnabled) {
-    setupP2PControls();
+    await setupP2PControls();
   } else if (p2pPanel) {
     p2pPanel.style.display = "none";
   }
@@ -734,12 +751,13 @@ function captureP2PSnapshot() {
     seatsTotal: p2pUiState.seatsTotal,
     activeSeat: p2pUiState.activeSeat,
     splitLocked: p2pUiState.splitLocked,
-    buildDone: ensureBuildDoneMap(),
+    buildDone: ensureBuildDoneMap(null, null, p2pUiState),
   };
 }
 
 function handleP2PMessage(message) {
   if (!message || typeof message !== "object") return;
+  if (debugMode) logP2P(`Received message type: ${message.type}`);
   if (message.type === "session:seat" && message.payload) {
     const { seatId, seatsTotal, activeSeat } = message.payload;
     if (seatId) p2pUiState.seatId = seatId;
@@ -755,8 +773,12 @@ function handleP2PMessage(message) {
     logP2P("Peer handshake received.");
   } else if (message.type === "state:request") {
     const status = typeof p2p?.getStatus === "function" ? p2p.getStatus() : {};
+    if (debugMode) logP2P(`Received state:request, my role: ${status.role}`);
     if (status.role === "host") {
+      if (debugMode) logP2P("Sending state:full in response to request");
       sendStateSnapshot();
+    } else {
+      if (debugMode) logP2P("Ignoring state:request (not host)");
     }
   } else if (message.type === "state:full" && message.payload?.snapshot) {
     p2pUiState.remoteSnapshot = message.payload.snapshot;
@@ -783,6 +805,7 @@ function handleP2PStatus(status) {
       p2pUiState.seatsTotal = Math.max(2, p2pUiState.seatsTotal || 0);
       p2pUiState.connectedSeats[2] = true;
       setActiveSeat(p2pUiState.activeSeat || 1);
+      if (debugMode) logP2P("Sending state:request to host");
       sendAppMessage("state:request", {});
     } else if (status?.role === "host") {
       p2pUiState.seatId = 1;
@@ -907,6 +930,7 @@ function buildInviteUrl({ sessionId, secret, signallingUrl }) {
     url.search = "";
     const params = new URLSearchParams();
     params.set("p2p", "");
+    if (debugMode) params.set("debug", "");
     if (signallingUrl) params.set("signal", encodeSignalParam(signallingUrl));
     url.search = params.toString();
     const hashParams = new URLSearchParams();
@@ -967,8 +991,7 @@ function maybeLoadInviteFromUrl() {
 function describeRemoteSnapshot(snapshot) {
   if (!snapshot || typeof snapshot !== "object") return "";
   const name = snapshot.fiefdomName ? ` ${snapshot.fiefdomName}` : "";
-  const turn = typeof snapshot.turnIndex === "number" ? ` · Turn ${Math.max(1, Number(snapshot.turnIndex))}` : "";
-  return `${name}${turn}`;
+  return `${name}`;
 }
 
 function deepClone(data) {
@@ -1016,16 +1039,6 @@ function sanitizeLocationPairs(pairs) {
     .map((p) => [p[0], p[1]]);
 }
 
-function sanitizeBuildDoneMap(map, seats = 1) {
-  if (!map || typeof map !== "object") return null;
-  const total = Math.max(1, Number(seats) || 1);
-  const clean = {};
-  for (let i = 1; i <= total; i += 1) {
-    clean[i] = Boolean(map?.[i]);
-  }
-  return clean;
-}
-
 function sanitizeSnapshot(raw) {
   const clone = deepClone(raw);
   if (!clone || typeof clone !== "object") return { ok: false, reason: "invalid object" };
@@ -1065,6 +1078,7 @@ function sanitizeSnapshot(raw) {
       activeSeat: isFiniteNumber(clone.activeSeat) ? clone.activeSeat : null,
       splitLocked: Boolean(clone.splitLocked),
       buildDone: sanitizeBuildDoneMap(clone.buildDone, seatsTotal),
+      splitUsed: sanitizeBuildDoneMap(clone.splitUsed, seatsTotal) || null,
       fiefdomName: typeof clone.fiefdomName === "string" ? clone.fiefdomName : "",
       invalidSelectionMessage: typeof clone.invalidSelectionMessage === "string" ? clone.invalidSelectionMessage : null,
     },
@@ -1094,9 +1108,11 @@ function buildFullSnapshot() {
     seatsTotal: p2pUiState.seatsTotal,
     activeSeat: p2pUiState.activeSeat,
     splitLocked: p2pUiState.splitLocked,
-    buildDone: ensureBuildDoneMap(),
+    buildDone: ensureBuildDoneMap(null, null, p2pUiState),
+    splitUsed: p2pUiState.splitUsed || {},
     forceForfeitAdvisory: state.forceForfeitAdvisory,
     invalidSelectionMessage: state.invalidSelectionMessage,
+    pendingPopulation: state.pendingPopulation,
   };
   return base;
 }
@@ -1110,6 +1126,7 @@ function applyFullSnapshot(snapshot) {
     return;
   }
   const snap = validation.snapshot;
+  if (debugMode) logP2P(`Applying snapshot with ${snap.dice?.length || 0} dice`);
   const seatsTotal = snap.seatsTotal || p2pUiState.seatsTotal;
   p2pUiState.splitUsed = ensureSplitUsedMap(seatsTotal, p2pUiState.splitUsed);
   state.turnIndex = typeof snap.turnIndex === "number" ? snap.turnIndex : state.turnIndex;
@@ -1154,9 +1171,42 @@ function applyFullSnapshot(snapshot) {
   }
   state.pendingNextRoll = Boolean(snap.pendingNextRoll);
   state.bannerOverride = snap.bannerOverride || null;
+  state.pendingPopulation = snap.pendingPopulation || null;
   if (snap.seatsTotal) p2pUiState.seatsTotal = snap.seatsTotal;
-  const incomingBuildDone = snap.buildDone ? ensureBuildDoneMap(seatsTotal, snap.buildDone) : ensureBuildDoneMap(seatsTotal);
-  p2pUiState.buildDone = incomingBuildDone;
+  // Detect if this is a turn reset (new turn starting, no dice rolled yet)
+  const isTurnReset = snap.rollAvailable && (!snap.dice || snap.dice.length === 0);
+  
+  // Merge buildDone: NEVER downgrade local true to false except on turn reset
+  // This ensures player's own build completion is preserved when receiving peer updates
+  const incomingBuildDone = snap.buildDone 
+    ? ensureBuildDoneMap(seatsTotal, snap.buildDone, p2pUiState) 
+    : ensureBuildDoneMap(seatsTotal, p2pUiState.buildDone, p2pUiState);
+  if (isTurnReset) {
+    p2pUiState.buildDone = incomingBuildDone;
+  } else {
+    p2pUiState.buildDone = mergeStateMap(
+      p2pUiState.buildDone,
+      incomingBuildDone,
+      seatsTotal,
+      p2pUiState.seatId
+    );
+  }
+  
+  // Merge splitUsed: NEVER downgrade local true to false except on turn reset
+  // This ensures player's own split usage is preserved when receiving peer updates
+  const incomingSplitUsed = snap.splitUsed
+    ? ensureSplitUsedMap(seatsTotal, snap.splitUsed, p2pUiState)
+    : ensureSplitUsedMap(seatsTotal, p2pUiState.splitUsed, p2pUiState);
+  if (isTurnReset) {
+    p2pUiState.splitUsed = incomingSplitUsed;
+  } else {
+    p2pUiState.splitUsed = mergeStateMap(
+      p2pUiState.splitUsed,
+      incomingSplitUsed,
+      seatsTotal,
+      p2pUiState.seatId
+    );
+  }
   p2pUiState.splitLocked = Boolean(snap.splitLocked);
   if (typeof snap.activeSeat === "number") {
     setActiveSeat(snap.activeSeat);
@@ -1196,10 +1246,23 @@ function applyFullSnapshot(snapshot) {
 
   updateDiceAssignments();
   refreshDiceVisibility();
-  highlightLocations();
+  renderDice();
+  if (state.pendingPopulation) {
+    renderBoard();
+  } else {
+    highlightLocations();
+  }
   updateTurnStatusChip();
   updateMultiplayerButtons();
   p2pUiState.remoteSnapshot = snap;
+  
+  // Validate state consistency after applying snapshot
+  if (debugMode) {
+    const validation = validateMultiplayerState();
+    if (!validation.valid) {
+      console.error('[applyFullSnapshot] State validation failed:', validation.errors);
+    }
+  }
 }
 
 function sendAppMessage(type, payload = {}) {
@@ -1215,7 +1278,9 @@ function sendAppMessage(type, payload = {}) {
 
 function sendStateSnapshot() {
   const snapshot = buildFullSnapshot();
-  sendAppMessage("state:full", { snapshot });
+  if (debugMode) logP2P(`Sending snapshot with ${snapshot.dice?.length || 0} dice`);
+  const result = sendAppMessage("state:full", { snapshot });
+  if (debugMode && !result.ok) logP2P("Failed to send snapshot:", result.error);
 }
 
 function syncStateToPeer() {
@@ -1271,19 +1336,25 @@ async function startP2PHosting() {
       p2pUiState.signallingActive = true;
       setP2PMode("awaitingAnswer", { awaitingAnswer: true });
       updateP2PStatus("Invite ready. Waiting for answer via signalling… (QR/link sharing still works)");
-      pollSignal("host", secret, { timeoutMs: 60000 }).then(async (answerCompact) => {
+      // Add small delay to ensure joiner has time to start polling
+      await new Promise((r) => setTimeout(r, 500));
+      pollSignal("host", secret, { timeoutMs: 90000, intervalMs: 1500 }).then(async (answerCompact) => {
         if (!answerCompact) {
           logP2P("poll timeout waiting for answer");
-          disconnectP2P("Signalling timeout. Resetting P2P.");
+          updateP2PStatus("Signalling timeout. Invite still active via QR/link.");
           return;
         }
         const answerCode = await decompressFromBase64Url(answerCompact).catch(() => null);
-        if (!answerCode) return;
+        if (!answerCode) {
+          logP2P("invalid answer from signalling");
+          return;
+        }
         await p2p.applyAnswer(answerCode, secret);
         updateP2PStatus("Answer received via signalling. Completing link…");
       });
     } else {
-      disableP2P("Signalling unavailable. P2P disabled.");
+      logP2P("Signalling unavailable, falling back to manual mode");
+      updateP2PStatus("Signalling unavailable. Use QR code or share link manually.");
     }
   } catch (err) {
     setP2PMode("idle");
@@ -1323,19 +1394,26 @@ function disconnectP2P(reason = "") {
   renderMeeples();
 }
 
-function setupP2PControls() {
-  if (!p2pFeatureEnabled) return;
+async function setupP2PControls() {
+  if (!p2pFeatureEnabled) {
+    p2pUiState.signallingDisabled = true;
+    return;
+  }
+  // Reset signallingDisabled in case it was set before config loaded
+  p2pUiState.signallingDisabled = false;
   if (!p2pPanel) return;
   if (p2pHintEl) p2pHintEl.style.display = "none";
   updateInviteVisibility(false);
-  p2pUiState.signallingUrl = resolveSignallingUrl();
+  p2pUiState.signallingUrl = await resolveSignallingUrl();
   if (!p2pUiState.signallingUrl) {
     disableP2P("P2P disabled: signalling URL unavailable.");
     return;
   }
   const supported = Boolean(p2p?.supported);
+  if (debugMode) console.log("[P2P] WebRTC supported:", supported);
   const controls = [p2pHostBtn, p2pJoinBtn, p2pApplyBtn, p2pCopyBtn, p2pDisconnectBtn, p2pCodeEl];
   if (!supported) {
+    if (debugMode) console.warn("[P2P] WebRTC not supported - P2P will be limited");
     controls.forEach((el) => {
       if (!el) return;
       el.disabled = true;
@@ -1410,29 +1488,60 @@ function updateP2PControlsVisibility(status = {}) {
   if (p2pDisconnectBtn) p2pDisconnectBtn.disabled = gameStarted;
 }
 
-function resolveSignallingUrl() {
+async function resolveSignallingUrl() {
   const paramUrl = new URLSearchParams(window.location.search).get("signal");
   if (paramUrl) {
     const decoded = decodeSignalParam(paramUrl);
-    return decoded || paramUrl;
+    const result = decoded || paramUrl;
+    if (debugMode) console.log("[P2P] Using signalling URL from ?signal param:", result);
+    return result;
   }
   const dataUrl = document.body?.dataset?.signallingUrl;
-  if (dataUrl) return dataUrl;
+  if (dataUrl) {
+    if (debugMode) console.log("[P2P] Using signalling URL from data attribute:", dataUrl);
+    return dataUrl;
+  }
+  
+  // Try to fetch from API config
+  try {
+    const response = await fetch("/api/config");
+    if (response.ok) {
+      const config = await response.json();
+      if (debugMode) console.log("[P2P] Received config:", config);
+      if (config.signalingUrl) {
+        if (debugMode) console.log("[P2P] Using signalling URL from /api/config:", config.signalingUrl);
+        return config.signalingUrl;
+      }
+    } else {
+      if (debugMode) console.log("[P2P] Config fetch returned status:", response.status);
+    }
+  } catch (err) {
+    // API unavailable, fall through to fallback logic
+    if (debugMode) console.warn("[P2P] Config fetch failed:", err);
+  }
+  
   const host = window.location.hostname || "";
   const isLoopback = host === "localhost" || host === "127.0.0.1";
   const isPrivateIp =
     /^10\./.test(host) ||
     /^192\.168\./.test(host) ||
-    /^172\.(1[6-9]|2\\d|3[0-1])\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
     /^\d{1,3}(\.\d{1,3}){3}$/.test(host) ||
     host.endsWith(".local");
   if (isLoopback || isPrivateIp) {
-    return `http://${host}:8787`;
+    const fallbackUrl = `http://${host}:8787`;
+    if (debugMode) console.log("[P2P] Using fallback signalling URL (local/private IP):", fallbackUrl);
+    return fallbackUrl;
   }
-  return "https://rolling-fiefdoms-signalling.edno.workers.dev";
+  if (debugMode) console.log("[P2P] No signalling URL available (production deployment without config)");
+  return null;
 }
 
 function disableP2P(reason = "P2P disabled") {
+  if (debugMode) {
+    console.log("[P2P] disableP2P called:", reason);
+    console.trace("[P2P] Call stack:");
+  }
   p2pUiState.signallingDisabled = true;
   p2pUiState.signallingActive = false;
   if (p2pUiState.signallingPoll) {
@@ -1451,55 +1560,88 @@ function disableP2P(reason = "P2P disabled") {
   renderMeeples();
 }
 
-async function sendSignalBlob(role, compactCode, secret) {
+async function sendSignalBlob(role, compactCode, secret, retries = 3) {
   if (!p2pUiState.signallingUrl || !compactCode) return { ok: false };
   const safeSecret = secret || readP2PSecretOrDefault();
-  try {
-    const url = new URL(`/session/${p2pUiState.sessionId || "session"}`, p2pUiState.signallingUrl);
-    url.searchParams.set("role", role);
-    url.searchParams.set("secret", safeSecret);
-    logP2P("sending signal", { role, url: url.toString() });
-    const resp = await fetch(url.toString(), {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sdp: compactCode, ice: [] }),
-    });
-    if (!resp.ok) logP2P("signal send failed", resp.status);
-    return { ok: resp.ok, status: resp.status };
-  } catch (err) {
-    logP2P("signal send error", err?.message || err);
-    return { ok: false, error: err?.message };
-  }
-}
-
-async function pollSignal(role, secret, { timeoutMs = 20000, intervalMs = 1200 } = {}) {
-  if (!p2pUiState.signallingUrl) return null;
-  const safeSecret = secret || readP2PSecretOrDefault();
-  const start = Date.now();
-  let timer = null;
-  while (Date.now() - start < timeoutMs) {
+  
+  for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const url = new URL(`/session/${p2pUiState.sessionId || "session"}`, p2pUiState.signallingUrl);
       url.searchParams.set("role", role);
       url.searchParams.set("secret", safeSecret);
-      logP2P("polling signal", { role, url: url.toString() });
-      const resp = await fetch(url.toString());
+      logP2P(`sending signal (attempt ${attempt}/${retries})`, { role, url: url.toString() });
+      const resp = await fetch(url.toString(), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sdp: compactCode, ice: [] }),
+      });
+      if (resp.ok) {
+        return { ok: true, status: resp.status };
+      }
+      logP2P("signal send failed", resp.status);
+      if (resp.status === 403) return { ok: false, status: resp.status }; // Don't retry auth errors
+    } catch (err) {
+      logP2P("signal send error", err?.message || err);
+      if (attempt === retries) {
+        return { ok: false, error: err?.message };
+      }
+    }
+    // Wait before retry with exponential backoff
+    if (attempt < retries) {
+      await new Promise((r) => setTimeout(r, Math.min(1000 * Math.pow(2, attempt - 1), 5000)));
+    }
+  }
+  return { ok: false, error: "Max retries exceeded" };
+}
+
+async function pollSignal(role, secret, { timeoutMs = 20000, intervalMs = 1200, maxIntervalMs = 5000 } = {}) {
+  if (!p2pUiState.signallingUrl) return null;
+  const safeSecret = secret || readP2PSecretOrDefault();
+  const start = Date.now();
+  let timer = null;
+  let currentInterval = intervalMs;
+  let attempts = 0;
+  
+  while (Date.now() - start < timeoutMs) {
+    attempts++;
+    try {
+      const url = new URL(`/session/${p2pUiState.sessionId || "session"}`, p2pUiState.signallingUrl);
+      url.searchParams.set("role", role);
+      url.searchParams.set("secret", safeSecret);
+      if (debugMode) logP2P(`polling signal (attempt ${attempts})`, { role, url: url.toString() });
+      const controller = new AbortController();
+      const fetchTimeout = setTimeout(() => controller.abort(), 10000);
+      const resp = await fetch(url.toString(), {
+        signal: controller.signal,
+      }).finally(() => clearTimeout(fetchTimeout));
       if (resp.status === 200) {
         const data = await resp.json();
-        if (data?.sdp) return data.sdp;
+        if (data?.sdp) {
+          logP2P(`received answer after ${attempts} attempts`);
+          return data.sdp;
+        }
       } else if (resp.status === 403) {
         logP2P("poll forbidden");
         return null;
+      } else if (resp.status === 404) {
+        logP2P("session not found");
+        return null;
       }
     } catch (err) {
-      logP2P("poll error", err?.message || err);
+      if (err.name !== "AbortError") {
+        logP2P("poll error", err?.message || err);
+      }
     }
+    
+    // Exponential backoff: start at intervalMs, double each time up to maxIntervalMs
+    currentInterval = Math.min(currentInterval * 1.5, maxIntervalMs);
+    
     await new Promise((r) => {
-      timer = setTimeout(r, intervalMs);
+      timer = setTimeout(r, currentInterval);
       p2pUiState.signallingPoll = timer;
     });
   }
-  logP2P("poll timeout");
+  logP2P(`poll timeout after ${attempts} attempts`);
   return null;
 }
 
@@ -1523,9 +1665,10 @@ async function joinViaSignalling(sessionId, secret) {
   renderMeeples();
   const safeSecret = secret || readP2PSecretOrDefault();
   updateP2PStatus("Fetching host invite via signalling…");
-  const hostOfferCompact = await pollSignal("join", safeSecret, { timeoutMs: 60000 });
+  const hostOfferCompact = await pollSignal("join", safeSecret, { timeoutMs: 90000, intervalMs: 1500 });
   if (!hostOfferCompact) {
-    disableP2P("Signalling failed to deliver host invite.");
+    updateP2PStatus("Signalling timeout. Check invite link or try manual connection.");
+    logP2P("Failed to receive host offer via signalling");
     return;
   }
   const hostOffer = await decompressFromBase64Url(hostOfferCompact).catch(() => null);
@@ -1535,7 +1678,9 @@ async function joinViaSignalling(sessionId, secret) {
   }
   const result = await p2p.acceptInvite(hostOffer, safeSecret);
   if (result?.error) {
-    disableP2P(result.error || "Failed to accept invite.");
+    logP2P("Failed to send answer via signalling");
+    updateP2PStatus("Signalling unavailable. Connection may not complete automatically.");
+    // Don't disable P2P completely - the WebRTC connection might still work
     return;
   }
   const answerCode = result?.code || "";
@@ -1579,7 +1724,8 @@ function rollDice() {
   state.bannerOverride = null;
   if (!needsDoubleReroll) {
     triggerDiceAnimation();
-    state.rollAvailable = debugMode ? true : false;
+    const allowDebugBypass = debugMode && !isMultiplayerActive();
+    state.rollAvailable = allowDebugBypass ? true : false;
     updateRollButton();
   }
   const { messages } = beginTurn(state, dice, state.board, {
@@ -1928,7 +2074,7 @@ function renderDice() {
 
 function fillBuildings(buildDice) {
   const hasLockedLocation = p2pUiState.splitLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
-  const lockedPairs = Array.isArray(state.lockedLocationPairs) ? state.lockedLocationPairs : [];
+  const lockedPairs = hasLockedLocation ? effectiveLockedLocationPairs() : [];
   const availablePairs = hasLockedLocation ? lockedPairs : state.locationPairs || [];
   const readyForBuild =
     (hasLockedLocation && lockedPairs.length > 0) || (state.locationSelection.length === 2 && availablePairs.length > 0);
@@ -2006,6 +2152,9 @@ function renderBuildingOverlay(options = [], disabled = false) {
   if (!overlay) return;
   const hasLockedLocation = p2pUiState.splitLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
   const diceLockedForBuild = state.diceLocked && !p2pUiState.splitLocked;
+  // In multiplayer, disable building overlay if this player has already built or used their split
+  const myBuildAlreadyDone = isMultiplayerActive() && p2pUiState.buildDone?.[p2pUiState.seatId];
+  const mySplitUsed = isMultiplayerActive() && p2pUiState.splitUsed?.[p2pUiState.seatId];
   const forceDisabled =
     disabled ||
     (!hasLockedLocation && state.locationSelection.length !== 2) ||
@@ -2013,7 +2162,17 @@ function renderBuildingOverlay(options = [], disabled = false) {
     state.activationMode ||
     forceForfeitActive() ||
     state.forceForfeitAdvisory ||
-    state.pestilence;
+    state.pestilence ||
+    myBuildAlreadyDone ||
+    mySplitUsed;
+  
+  if (debugMode && isMultiplayerActive() && (myBuildAlreadyDone || mySplitUsed)) {
+    console.log('[renderBuildingOverlay] Player already done, disabling overlay:', {
+      seatId: p2pUiState.seatId,
+      buildDone: myBuildAlreadyDone,
+      splitUsed: mySplitUsed
+    });
+  }
   const buildDice =
     hasLockedLocation && state.lockedBuildDice?.length === 2
       ? (lockedPairChoice().buildDice || state.lockedBuildDice)
@@ -2049,7 +2208,12 @@ function renderBuildingOverlay(options = [], disabled = false) {
       if (div.classList.contains("disabled")) return;
       const hasLockedLocation = p2pUiState.splitLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
       const diceLockedForBuild = state.diceLocked && !p2pUiState.splitLocked;
+      const awaitingSplitConfirmation = isMultiplayerActive() && !p2pUiState.splitLocked && !state.pestilence && !forceForfeitActive();
       if ((!hasLockedLocation && state.locationSelection.length !== 2) || diceLockedForBuild) return;
+      if (awaitingSplitConfirmation) {
+        log("Confirm your dice split first before selecting a building.");
+        return;
+      }
       document.querySelectorAll(".building-hit.selected").forEach((el) => el.classList.remove("selected"));
       div.classList.add("selected");
       handleBuildingChoice();
@@ -2166,6 +2330,11 @@ function onCellClick(r, c) {
   const hasLockedLocation = state.diceLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
   const awaitingSplit = isMultiplayerActive() && !p2pUiState.splitLocked && !state.pestilence && !forceForfeitActive();
   const phase = currentTurnPhase();
+  const myBuildAlreadyDone = isMultiplayerActive() && p2pUiState.buildDone?.[p2pUiState.seatId];
+  if (myBuildAlreadyDone && !state.activationMode && !state.pendingPopulation?.remaining) {
+    log("Build already completed. Waiting for other players.");
+    return;
+  }
   if (state.locationSelection.length < 2 && !hasLockedLocation && !state.pestilence && !forceForfeitActive() && !state.activationMode) {
     log("Split the dice first, then pick a plot.");
     return;
@@ -2341,6 +2510,22 @@ function highlightLocations() {
     });
     return;
   }
+  
+  // In multiplayer, don't highlight if this player has already built or used their split
+  // This check must come BEFORE forfeit highlighting to prevent showing forfeits to players who are done
+  const myBuildAlreadyDone = isMultiplayerActive() && p2pUiState.buildDone?.[p2pUiState.seatId];
+  const mySplitUsed = isMultiplayerActive() && p2pUiState.splitUsed?.[p2pUiState.seatId];
+  if (myBuildAlreadyDone || mySplitUsed) {
+    if (debugMode) {
+      console.log('[highlightLocations] Player already done, skipping all highlights:', {
+        seatId: p2pUiState.seatId,
+        buildDone: myBuildAlreadyDone,
+        splitUsed: mySplitUsed
+      });
+    }
+    return;
+  }
+  
   if (state.forceForfeit || state.forceForfeitAdvisory) {
     boardEl.querySelectorAll(".cell").forEach((cell) => {
       const r = parseInt(cell.dataset.row, 10);
@@ -2357,7 +2542,7 @@ function highlightLocations() {
     });
     return;
   }
-  if (state.pestilence || state.pendingPopulation?.remaining > 0) return;
+  // Regular location highlighting for building placement
   const showLockedHighlight =
     p2pUiState.splitLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
   const locPairs = showLockedHighlight ? effectiveLockedLocationPairs() : state.locationPairs;
@@ -2444,21 +2629,26 @@ function placeBuilding(r, c, code) {
   const displayLabel =
     code === "G"
       ? (() => {
-          const map = { GF: "FG", GQ: "QG", GW: "WG", GM: "MG" };
+          const map = { GF: "FG", GQ: "QG", GW: "WG" };
           const raw = (buildingLabel || "G").toUpperCase();
           return map[raw] || raw;
         })()
       : code;
   log(`Placed ${displayLabel} at row ${r + 1}, col ${c + 1}`);
   if (isMultiplayerActive()) {
-    const map = ensureSplitUsedMap();
+    const map = ensureSplitUsedMap(null, null, p2pUiState);
     map[p2pUiState.seatId] = true;
     p2pUiState.splitUsed = map;
+    
+    if (debugMode) {
+      console.log('[placeBuilding] Set splitUsed for seat', p2pUiState.seatId, ':', p2pUiState.splitUsed);
+      validateMultiplayerState();
+    }
   } else {
     state.splitUsedForBuild = true;
   }
-  p2pUiState.lockedPairSwap = false;
   updateDiceAssignments();
+  updateMultiplayerButtons();
   // Reset guild selection after placement
   if (code !== "G") {
     state.selectedGuildType = null;
@@ -2476,6 +2666,9 @@ function placeBuilding(r, c, code) {
   }
   if (popGain > 0) {
     beginPopulationPlacement(r, c, popGain);
+    if (isMultiplayerActive()) {
+      syncStateToPeer();
+    }
   } else if (!springResolved) {
     autoMarkBuildDoneIfReady({ force: true });
     autoAdvance();
@@ -2742,7 +2935,13 @@ function nodesForCell(r, c) {
 }
 
 function beginPopulationPlacement(r, c, count) {
+  if (debugMode) {
+    console.log('[beginPopulationPlacement] Starting with count =', count, 'at', r, c);
+  }
   const result = startPopulationPlacement(state, [r, c], count, { nodesForCell });
+  if (debugMode) {
+    console.log('[beginPopulationPlacement] After startPopulationPlacement:', result, 'state.pendingPopulation =', state.pendingPopulation);
+  }
   if (!result.started) {
     if (result.message) log(result.message);
     autoAdvance();
@@ -3120,13 +3319,18 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
   effectiveLoc = swapped.loc && swapped.loc.length ? swapped.loc : effectiveLoc;
   effectiveBuild = swapped.build && swapped.build.length ? swapped.build : effectiveBuild;
 
-  const influenceSeatOk = !isMultiplayerActive() || p2pUiState.activeSeat === p2pUiState.seatId;
+  const myBuildNotDone = !p2pUiState.buildDone?.[p2pUiState.seatId];
+  const mySplitNotUsed = !p2pUiState.splitUsed?.[p2pUiState.seatId];
+  const influenceSeatOk = !isMultiplayerActive() || (p2pUiState.splitLocked && myBuildNotDone && mySplitNotUsed);
+  const multiplayerSplitConfirmed = isMultiplayerActive() && p2pUiState.splitLocked;
+  const singlePlayerDiceNotLocked = !isMultiplayerActive() && !state.diceLocked;
+  const hasInfluenceAdjustments = !influenceAdjustmentsEmpty();
   const showInfluenceControls =
     !ignoreState &&
-    !state.diceLocked &&
+    (multiplayerSplitConfirmed || singlePlayerDiceNotLocked) &&
     !state.activationMode &&
     !state.pestilence &&
-    !forceForfeitActive() &&
+    (!forceForfeitActive() || hasInfluenceAdjustments) &&
     state.locationSelection.length === 2 &&
     influenceSeatOk;
 
@@ -3307,9 +3511,27 @@ function updateDiceAssignments() {
     state.influenceSelectionKey = null;
   }
   if (isMultiplayerActive() && p2pUiState.splitLocked) {
+    const myBuildDone = p2pUiState.buildDone?.[p2pUiState.seatId];
     const choice = lockedPairChoice();
     const lockedLoc = choice.locDice;
     const lockedBuild = choice.buildDice;
+    
+    // If this player has already built, skip forfeit evaluation and just wait
+    if (myBuildDone) {
+      state.forceForfeit = false;
+      state.forceForfeitAdvisory = false;
+      state.invalidSelection = false;
+      state.invalidSelectionMessage = null;
+      state.buildDice = lockedBuild;
+      renderSelectionDice(lockedLoc, lockedBuild);
+      fillBuildings(lockedBuild);
+      highlightLocations();
+      updateActionBanner();
+      renderDice();
+      updateMultiplayerButtons();
+      return;
+    }
+    
     const adjustedLockedLoc = applyInfluenceToDice(state, lockedLoc || []);
     const pairsForBoard = filterAvailablePairs(uniqueLocationPairs(adjustedLockedLoc || []), state.board);
     const rescuePossible =
@@ -3571,7 +3793,7 @@ function markBuildDone() {
   if (!isMultiplayerActive()) return;
   const allowForced = state.pestilence || state.forceForfeit;
   if (!p2pUiState.splitLocked && !allowForced) return;
-  const merged = ensureBuildDoneMap();
+  const merged = ensureBuildDoneMap(null, null, p2pUiState);
   merged[p2pUiState.seatId] = true;
   p2pUiState.buildDone = merged;
   updateMultiplayerButtons();
@@ -3583,12 +3805,12 @@ function markBuildDone() {
 }
 
 function autoMarkBuildDoneIfReady({ force = false } = {}) {
-  const ready =
-    isMultiplayerActive() &&
-    ((p2pUiState.splitLocked || state.pestilence || state.forceForfeit) || force) &&
-    !p2pUiState.buildDone?.[p2pUiState.seatId] &&
-    !state.pendingPopulation?.remaining &&
-    !state.pendingSpringhouseTarget;
+  const ready = shouldAutoMarkBuildDone({
+    force,
+    isMultiplayerActive: isMultiplayerActive(),
+    p2pUiState,
+    state,
+  });
   if (ready) {
     markBuildDone();
   }
@@ -3895,5 +4117,6 @@ function toggleQrModal(show) {
       renderTurnTrack,
       maybeRollAfterLock,
       placeBuilding,
+      validateMultiplayerState,
     };
   }
