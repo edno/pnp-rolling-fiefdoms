@@ -356,7 +356,6 @@ function toggleFullscreen() {
 const boardEl = document.getElementById("board");
 const diceView = document.getElementById("diceView");
 const turnHintEl = document.getElementById("turnHint");
-const influenceStatusEl = document.getElementById("influenceStatus");
 const locDicePreview = document.getElementById("locDicePreview");
 const buildDicePreview = document.getElementById("buildDicePreview");
 const logEl = document.getElementById("log");
@@ -1870,23 +1869,6 @@ function resetDieInfluence(idx) {
   refreshDiceVisibility();
 }
 
-function updateInfluenceStatus() {
-  if (!influenceStatusEl) return;
-  const earned = Math.max(0, state.influence?.earned || 0);
-  const committed = Math.min(earned, Math.max(0, state.influence?.spent || 0));
-  const pending = Math.max(0, Math.min(state.influence?.pending || 0, Math.max(0, earned - committed)));
-  const spentTotal = Math.min(earned, committed + pending);
-  const available = Math.max(0, earned - spentTotal);
-  if (!earned) {
-    influenceStatusEl.textContent = "No Influence available.";
-    influenceStatusEl.classList.add("muted");
-    return;
-  }
-  influenceStatusEl.classList.remove("muted");
-  const spentText = spentTotal ? ` · ${spentTotal} spent` : "";
-  influenceStatusEl.textContent = `${available} Influence available${spentText}`;
-}
-
 function renderDice() {
   if (!diceView) return;
   refreshDiceVisibility();
@@ -2591,7 +2573,6 @@ function updateTracks() {
   const influenceSpent = (state.influence?.spent || 0) + (state.influence?.pending || 0);
   renderInfluenceTrack({ influenceEarned, influenceSpent });
   renderPopHousingTrack(state.tracks.population, state.tracks.housing, vagrants);
-  updateInfluenceStatus();
 }
 
 function log(msg) {

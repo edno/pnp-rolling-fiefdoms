@@ -1197,14 +1197,6 @@ select {
   font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
-.influence-status {
-  margin-top: 6px;
-}
-
-.influence-status.muted {
-  opacity: 0.7;
-}
-
 .controls-inline {
   display: flex;
   flex-wrap: wrap;
