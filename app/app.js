@@ -2012,6 +2012,7 @@ function renderBuildingOverlay(options = [], disabled = false) {
     diceLockedForBuild ||
     state.activationMode ||
     forceForfeitActive() ||
+    state.forceForfeitAdvisory ||
     state.pestilence;
   const buildDice =
     hasLockedLocation && state.lockedBuildDice?.length === 2

@@ -1758,6 +1758,38 @@ describe("influence controls (jsdom)", () => {
     const logs = latestLogs();
     expect(logs.some((msg) => msg.includes("Influence adjustments reset after changing dice selection."))).toBe(true);
   });
+
+  it("disables building selection while influence rescue is pending", async () => {
+    await setupApp({
+      numbered: [2, 3, 4, 4],
+      x: [5, 5, 5, 5],
+      enableHooks: true,
+      p2p: false,
+    });
+    clickRoll();
+    await flushMicrotasks();
+    const hooks = window.__rfTestHooks;
+    hooks.state.influence.earned = 2;
+    hooks.state.influence.spent = 0;
+    hooks.state.influence.pending = 0;
+    hooks.state.board[1][2].building = "F";
+    hooks.state.board[2][1].building = "Q";
+    hooks.updateDiceAssignments();
+    await flushMicrotasks();
+    clickDie(0);
+    clickDie(1);
+    await flushMicrotasks();
+    let available = document.querySelectorAll(".building-hit.available");
+    expect(available.length).toBe(0);
+    const minusBtn = document.querySelector("#locDicePreview .influence-btn.minus");
+    expect(minusBtn).toBeTruthy();
+    minusBtn.click();
+    await flushMicrotasks();
+    hooks.updateDiceAssignments();
+    await flushMicrotasks();
+    available = document.querySelectorAll(".building-hit.available");
+    expect(available.length).toBeGreaterThan(0);
+  });
 });
 
 describe("score overlay display (jsdom)", () => {
