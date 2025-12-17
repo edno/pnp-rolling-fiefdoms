@@ -491,7 +491,6 @@ function registerServiceWorker() {
               const isSafeToUpdate = !state.activationMode && 
                                      !state.diceLocked && 
                                      !state.diceRolling && 
-                                     !animationInProgress &&
                                      !rollingInProgress;
               
               if (isSafeToUpdate) {
@@ -519,8 +518,6 @@ function registerServiceWorker() {
     });
   });
 }
-
-let lastThemeSaveTimestamp = 0;
 
 function readStoredTheme() {
   try {
@@ -566,13 +563,7 @@ function applyTheme(theme, persist = false) {
   document.body.classList.toggle("theme-dark", normalized === "dark");
   if (persist) {
     try {
-      const now = Date.now();
-      const payload = JSON.stringify({
-        timestamp: now,
-        value: normalized
-      });
       localStorage.setItem(THEME_STORAGE_KEY, normalized);
-      lastThemeSaveTimestamp = now;
     } catch (err) {
       console.warn("Could not store theme preference", err);
     }
@@ -1909,23 +1900,21 @@ function describeDice(dice) {
     .join(", ");
 }
 
-let animationInProgress = false;
-
 function triggerDiceAnimation() {
   if (!diceView) return;
-  animationInProgress = true;
   state.diceRolling = true;
   diceView.classList.add("dice-rolling");
   const rollingMsg = "Rolling dice...";
   state.bannerOverride = rollingMsg;
   updateActionBanner();
+  // Use 0ms delay in test mode to avoid blocking test interactions
+  const animDuration = (typeof window !== "undefined" && window.__RF_ENABLE_TEST_HOOKS__) ? 0 : 1200;
   const animTimeout = setTimeout(() => {
     state.diceRolling = false;
-    animationInProgress = false;
     diceView.classList.remove("dice-rolling");
     if (state.bannerOverride === rollingMsg) state.bannerOverride = null;
     updateActionBanner();
-  }, 1200);
+  }, animDuration);
   // Store for potential cleanup
   if (typeof window !== "undefined") window.__diceAnimTimeout = animTimeout;
 }
@@ -2421,7 +2410,10 @@ function renderBoard() {
 }
 
 function onCellClick(r, c) {
-  if (animationInProgress) return;
+  // Allow pestilence/forfeit clicks even during animation (they are mandatory actions)
+  const isPestilenceOrForfeit = state.pestilence || state.forceForfeit || state.forceForfeitAdvisory;
+  if (state.diceRolling && !isPestilenceOrForfeit) return;
+  
   const hasLockedLocation = state.diceLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
   const awaitingSplit = isAwaitingSplit();
   const phase = currentTurnPhase();
@@ -2461,7 +2453,7 @@ function onCellClick(r, c) {
     applySpringhouseTarget([r, c]);
     return;
   }
-  if (state.pestilence || state.forceForfeit || state.forceForfeitAdvisory) {
+  if (isPestilenceOrForfeit) {
     const cell = state.board[r][c];
     if (cell.building || cell.forfeited) {
       log("Choose an empty plot to forfeit.");
@@ -3261,7 +3253,7 @@ function renderPopulationNodes() {
         node.appendChild(pipGrid);
       }
       node.onclick = () => {
-        if (animationInProgress) return;
+        if (state.diceRolling) return;
         onPopulationNodeClick(r, c);
       };
       grid.appendChild(node);
@@ -3394,7 +3386,7 @@ function makeDieBadge(
   badge.appendChild(wrap);
   if (clickable && !locked && die.face !== "X" && effectiveIdx >= 0) {
     badge.addEventListener("click", () => {
-      if (animationInProgress) return;
+      if (state.diceRolling) return;
       onDieClick(effectiveIdx);
     });
   }
