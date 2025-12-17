@@ -1850,8 +1850,11 @@ function describeDice(dice) {
     .join(", ");
 }
 
+let animationInProgress = false;
+
 function triggerDiceAnimation() {
   if (!diceView) return;
+  animationInProgress = true;
   state.diceRolling = true;
   diceView.classList.add("dice-rolling");
   const rollingMsg = "Rolling dice...";
@@ -1859,6 +1862,7 @@ function triggerDiceAnimation() {
   updateActionBanner();
   setTimeout(() => {
     state.diceRolling = false;
+    animationInProgress = false;
     diceView.classList.remove("dice-rolling");
     if (state.bannerOverride === rollingMsg) state.bannerOverride = null;
     updateActionBanner();
@@ -2356,6 +2360,7 @@ function renderBoard() {
 }
 
 function onCellClick(r, c) {
+  if (animationInProgress) return;
   const hasLockedLocation = state.diceLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
   const awaitingSplit = isAwaitingSplit();
   const phase = currentTurnPhase();
@@ -3194,7 +3199,10 @@ function renderPopulationNodes() {
         });
         node.appendChild(pipGrid);
       }
-      node.onclick = () => onPopulationNodeClick(r, c);
+      node.onclick = () => {
+        if (animationInProgress) return;
+        onPopulationNodeClick(r, c);
+      };
       grid.appendChild(node);
     }
   }
@@ -3324,7 +3332,10 @@ function makeDieBadge(
   wrap.appendChild(face);
   badge.appendChild(wrap);
   if (clickable && !locked && die.face !== "X" && effectiveIdx >= 0) {
-    badge.addEventListener("click", () => onDieClick(effectiveIdx));
+    badge.addEventListener("click", () => {
+      if (animationInProgress) return;
+      onDieClick(effectiveIdx);
+    });
   }
   if (allowInfluence && isInfluenceEligibleDie(die) && effectiveIdx >= 0) {
     const canDecrease = canAdjustDieValue(die, -1);
