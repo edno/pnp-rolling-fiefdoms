@@ -3717,12 +3717,20 @@ function finishDiceSplit() {
   }
   const locationDice = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
   const buildDice = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
-  state.lockedLocationDice = locationDice;
-  state.lockedBuildDice = buildDice;
-  state.lockedLocationPairs = (state.locationPairs || []).map((p) => p.slice());
-  state.diceLocked = true;
-  p2pUiState.splitLocked = true;
-  p2pUiState.lockedPairSwap = false;
+  
+  // Batch state updates atomically before sync
+  Object.assign(state, {
+    lockedLocationDice: locationDice,
+    lockedBuildDice: buildDice,
+    lockedLocationPairs: (state.locationPairs || []).map((p) => p.slice()),
+    diceLocked: true,
+  });
+  
+  Object.assign(p2pUiState, {
+    splitLocked: true,
+    lockedPairSwap: false,
+  });
+  
   resetBuildDoneMap();
   renderSelectionDice(locationDice, buildDice);
   updateMultiplayerButtons();
