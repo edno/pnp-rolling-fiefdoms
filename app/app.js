@@ -710,14 +710,15 @@ async function initializeApp() {
       await document.fonts.ready;
     }
     
-    document.body.classList.remove("loading");
-    if (loadingOverlay) loadingOverlay.remove();
-    
     // Fetch config
     await fetchConfig();
     
     // Initialize the game
     await init();
+    
+    // Remove loading state only after everything is ready
+    document.body.classList.remove("loading");
+    if (loadingOverlay) loadingOverlay.remove();
   } catch (err) {
     console.error("Initialization failed:", err);
     // Show error to user
