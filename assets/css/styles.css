@@ -244,7 +244,9 @@ body.theme-dark .action-banner {
   color: var(--muted);
 }
 
-.loading main {
+.loading header,
+.loading main,
+.loading .site-footer {
   visibility: hidden;
   pointer-events: none;
 }
@@ -252,7 +254,7 @@ body.theme-dark .action-banner {
 .loading-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(255, 255, 255, 0.8);
+  background: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -264,7 +266,7 @@ body.theme-dark .action-banner {
 }
 
 body.theme-dark .loading-overlay {
-  background: rgba(15, 18, 24, 0.88);
+  background: #0f1218;
 }
 
 .spinner {
