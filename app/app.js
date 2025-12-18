@@ -3755,15 +3755,37 @@ function soloPairHasValidLocations(diceList = []) {
   return pairs.length > 0;
 }
 
+function soloPairCanBeRescued(diceList = []) {
+  if (!Array.isArray(diceList) || diceList.length !== 2) return false;
+  if (!Array.isArray(state.board) || !state.board.length) return false;
+  return canRescueLocationWithInfluence(state, diceList, state.board, {
+    uniqueLocationPairs,
+    filterAvailablePairs,
+  });
+}
+
 function soloSwapAvailable() {
   if (isMultiplayerActive()) return false;
   if (state.activeTurn || state.pestilence || state.activationMode) return false;
   const choice = soloPairChoice();
   if (!choice.baseLocIdx || !choice.baseBuildIdx) return false;
+  if (!choice.swapAllowed) return false;
+  
   const baseValid = soloPairHasValidLocations(choice.baseLocDice);
   const altValid = soloPairHasValidLocations(choice.baseBuildDice);
-  if (!baseValid || !altValid) return false;
-  return Boolean(choice.swapAllowed);
+  
+  // Show swap if both are already valid
+  if (baseValid && altValid) return true;
+  
+  // Show swap if at least one is valid or could be rescued with influence
+  const baseCanBeRescued = !baseValid && soloPairCanBeRescued(choice.baseLocDice);
+  const altCanBeRescued = !altValid && soloPairCanBeRescued(choice.baseBuildDice);
+  
+  // At least one arrangement must be valid or rescuable
+  if (!baseValid && !baseCanBeRescued && !altValid && !altCanBeRescued) return false;
+  
+  // Show swap if either arrangement is valid/rescuable
+  return (baseValid || baseCanBeRescued) && (altValid || altCanBeRescued);
 }
 
 function nonActiveAutoHintText() {

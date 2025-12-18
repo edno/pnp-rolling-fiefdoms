@@ -10,7 +10,9 @@ export function clampDieValue(value) {
 
 export function isInfluenceEligibleDie(die) {
   if (!die) return false;
-  if (die.face === "windrose" || die.face === "X") return false;
+  if (die.face === "windrose") return false;
+  // X dice with resolved numeric values are eligible for influence
+  if (die.face === "X" && typeof die.resolved !== "number") return false;
   return typeof die.resolved === "number";
 }
 

@@ -69,12 +69,20 @@ export function canRescueLocationWithInfluence(
 function canRescueAnyLocationPair(state, board, helpers) {
   if (!Array.isArray(state.dice) || state.dice.length < 2) return false;
   if (influenceBudget(state) <= 0) return false;
-  const numbered = state.dice
+  // Include both N dice and X dice with resolved values
+  const eligibleDice = state.dice
     .map((die, idx) => ({ die, idx }))
-    .filter(({ die }) => die && isNumberedDie(die));
-  for (let i = 0; i < numbered.length; i += 1) {
-    for (let j = i + 1; j < numbered.length; j += 1) {
-      const diceList = [numbered[i].die, numbered[j].die];
+    .filter(({ die }) => {
+      if (!die) return false;
+      // Include N dice
+      if (isNumberedDie(die)) return true;
+      // Include X dice with resolved numeric values (they can be adjusted with influence)
+      if (die.face === "X" && typeof die.resolved === "number") return true;
+      return false;
+    });
+  for (let i = 0; i < eligibleDice.length; i += 1) {
+    for (let j = i + 1; j < eligibleDice.length; j += 1) {
+      const diceList = [eligibleDice[i].die, eligibleDice[j].die];
       if (
         canRescueLocationWithInfluence(state, diceList, board, helpers)
       ) {
