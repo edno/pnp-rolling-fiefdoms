@@ -28,6 +28,11 @@ body.theme-dark {
   box-sizing: border-box;
 }
 
+a {
+  border: none;
+  outline: none;
+}
+
 body {
   margin: 0;
   font-family: "Shadows Into Light", "Segoe UI", system-ui, -apple-system,
