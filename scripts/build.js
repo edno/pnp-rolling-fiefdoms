@@ -11,6 +11,9 @@ const root = path.resolve(__dirname, "..");
 const outDir = path.join(root, "dist");
 const staticEntries = ["index.html", "assets", "resources", "robots.txt", "manifest.webmanifest"];
 
+// Parse CLI flags
+const enableSourcemaps = process.argv.includes("--sourcemap");
+
 // File extensions to compress with Brotli
 const compressibleExtensions = [".js", ".css", ".html", ".svg", ".json", ".txt", ".webmanifest", ".xml", ".map"];
 
@@ -142,12 +145,16 @@ async function run() {
     bundle: true,
     format: "esm",
     minify: true,
-    sourcemap: true,
+    sourcemap: enableSourcemaps,
     target: "es2020",
     outdir: path.join(outDir, "app"),
     entryNames: "[name]",
     logLevel: "info",
   });
+
+  if (enableSourcemaps) {
+    console.log("\n⚠️  Source maps enabled (adds ~438KB to bundle)");
+  }
 
   await build({
     entryPoints: [path.join(root, "sw.js")],
