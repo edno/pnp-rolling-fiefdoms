@@ -978,6 +978,58 @@ describe("forfeit timing in solo (jsdom)", () => {
   });
 });
 
+describe("active forfeit handling (jsdom)", () => {
+  it("clears highlights and preserves locked dice after forfeiting a plot", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.state.activeTurn = true;
+    hooks.state.rollAvailable = false;
+    hooks.state.board.forEach((row, r) =>
+      row.forEach((cell, c) => {
+        cell.building = null;
+        cell.forfeited = false;
+        cell.springBoost = 0;
+      }),
+    );
+    const blockedPairs = [
+      [1, 1], // (2,2)
+      [1, 2],
+      [2, 1], // (2,3)
+      [1, 4],
+      [4, 1], // (2,5)
+      [2, 4],
+      [4, 2], // (3,5)
+    ];
+    blockedPairs.forEach(([r, c]) => {
+      hooks.state.board[r][c].building = "F";
+    });
+    hooks.state.dice = [
+      { face: 2, resolved: 2, label: "N1" },
+      { face: 2, resolved: 2, label: "N2" },
+      { face: 5, resolved: 5, label: "X1" },
+      { face: 3, resolved: 3, label: "X2" },
+    ];
+    hooks.state.locationSelection = [2, 3];
+    hooks.state.autoLocationSelection = [2, 3];
+    hooks.state.forcedLocationDice = [];
+    hooks.updateDiceAssignments();
+    expect(hooks.state.forceForfeit).toBe(true);
+    clickBoardCell(4, 3);
+    await flushMicrotasks();
+    expect(hooks.state.board[4][3].forfeited).toBe(true);
+    const highlights = document.querySelectorAll(".cell.highlight");
+    expect(highlights.length).toBe(0);
+    const locPreviewLabels = Array.from(document.querySelectorAll("#locDicePreview .die-face-label")).map(
+      (el) => el.textContent,
+    );
+    expect(locPreviewLabels).toEqual(["X1", "X2"]);
+    const buildPreviewLabels = Array.from(document.querySelectorAll("#buildDicePreview .die-face-label")).map(
+      (el) => el.textContent,
+    );
+    expect(buildPreviewLabels).toEqual(["N1", "N2"]);
+  });
+});
+
 describe("solo non-active swap control (jsdom)", () => {
   it("shows swap button and swaps dice when allowed", async () => {
     await setupApp({ enableHooks: true });

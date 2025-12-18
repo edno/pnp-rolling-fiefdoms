@@ -2173,11 +2173,39 @@ function renderDice() {
   row.className = "dice-row";
   const turnLocked = state.diceLocked || state.activationMode || state.pestilence || forceForfeitActive();
   if (turnLocked) row.classList.add("dice-locked");
+  const baseSelection = Array.isArray(state.locationSelection) ? state.locationSelection.slice() : [];
+  const storedLocationDice =
+    state.diceLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2
+      ? state.lockedLocationDice
+      : Array.isArray(state.lastLocationDice) && state.lastLocationDice.length === 2
+        ? state.lastLocationDice
+        : null;
+  const storedBuildDice =
+    state.diceLocked && Array.isArray(state.lockedBuildDice) && state.lockedBuildDice.length === 2
+      ? state.lockedBuildDice
+      : Array.isArray(state.lastBuildDice) && state.lastBuildDice.length === 2
+        ? state.lastBuildDice
+        : null;
+  const lockedLocIdx = storedLocationDice
+    ? storedLocationDice.map((die) => dieSourceIndex(die)).filter((idx) => idx >= 0)
+    : null;
+  const lockedBuildIdx = storedBuildDice
+    ? storedBuildDice.map((die) => dieSourceIndex(die)).filter((idx) => idx >= 0)
+    : null;
+  const effectiveLocSelection =
+    Array.isArray(lockedLocIdx) && lockedLocIdx.length === 2 ? lockedLocIdx : baseSelection;
+  const buildSelection =
+    lockedBuildIdx && lockedBuildIdx.length === 2 && effectiveLocSelection.length === 2
+      ? lockedBuildIdx
+      : effectiveLocSelection.length === 2
+        ? state.dice.map((_, idx) => idx).filter((idx) => !effectiveLocSelection.includes(idx))
+        : [];
   state.dice.forEach((die, idx) => {
-    const isLocation = state.locationSelection.includes(idx);
+    const isLocation = effectiveLocSelection.includes(idx);
     // X dice with resolved numeric values can be location dice
     const isXWithoutNumber = die.face === "X" && typeof die.resolved !== "number";
-    const isBuildAssigned = state.locationSelection.length === 2 || isXWithoutNumber;
+    const isBuildAssigned =
+      effectiveLocSelection.length === 2 ? buildSelection.includes(idx) : baseSelection.length === 2 || isXWithoutNumber;
     const locked = turnLocked;
     const badge = makeDieBadge(die, idx, {
       role: isLocation ? "location" : isBuildAssigned ? "build" : null,
@@ -2867,6 +2895,11 @@ function forfeitCell(r, c) {
   }
   const forcedFlow = state.pestilence || forceForfeitActive();
   cell.forfeited = true;
+  state.forceForfeit = false;
+  state.forceForfeitAdvisory = false;
+  state.forceForfeitHighlight = false;
+  state.invalidSelection = false;
+  state.invalidSelectionMessage = null;
   lockDiceSnapshot(state, { markPendingNextRoll: true, uniqueLocationPairs });
   updateDiceAssignments();
   renderBoard();
@@ -2875,14 +2908,9 @@ function forfeitCell(r, c) {
   // Resolve pestilence/forfeit state so the turn can advance
   state.pestilence = false;
   state.pestilenceInfo = null;
-  state.forceForfeit = false;
   refreshScoreOverlay();
-  const next = maybeRollAfterLock();
-  if (next === "roll") {
-    prepareNextRoll();
-  } else {
-    autoAdvance();
-  }
+  maybeRollAfterLock();
+  autoAdvance();
   autoMarkBuildDoneIfReady({ force: forcedFlow });
 }
 
