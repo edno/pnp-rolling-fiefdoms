@@ -3,7 +3,7 @@
   src: url("../fonts/Shadows_Into_Light/ShadowsIntoLight-Regular.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
-  font-display: fallback;
+  font-display: optional;
 }
 
 @font-face {
@@ -11,7 +11,7 @@
   src: url("../fonts/Lobster_Two/LobsterTwo-Regular.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
-  font-display: fallback;
+  font-display: optional;
 }
 
 @font-face {
@@ -19,7 +19,7 @@
   src: url("../fonts/Lobster_Two/LobsterTwo-Bold.woff2") format("woff2");
   font-weight: 700;
   font-style: normal;
-  font-display: fallback;
+  font-display: optional;
 }
 
 
@@ -29,7 +29,7 @@
   src: url("../fonts/QT_Black_Forest/QTBlackForest.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
-  font-display: fallback;
+  font-display: optional;
 }
 
 @font-face {
@@ -37,7 +37,7 @@
   src: url("../fonts/Roboto/Roboto-VariableFont_wdth,wght.woff2") format("woff2");
   font-weight: 100 900;
   font-style: normal;
-  font-display: fallback;
+  font-display: optional;
 }
 
 @font-face {
@@ -45,5 +45,5 @@
   src: url("../fonts/Roboto/Roboto-Italic-VariableFont_wdth,wght.woff2") format("woff2");
   font-weight: 100 900;
   font-style: italic;
-  font-display: fallback;
+  font-display: optional;
 }
