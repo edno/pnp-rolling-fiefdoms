@@ -2,6 +2,22 @@
 
 This directory contains Cloudflare Pages Functions that provide API endpoints for the application.
 
+## Middleware
+
+### `_middleware.js`
+Global middleware that intercepts all requests to serve pre-compressed Brotli files when available and supported by the browser.
+
+**How It Works:**
+- Checks if the browser supports Brotli encoding (`Accept-Encoding: br`)
+- Attempts to serve `.br` version of requested files
+- Falls back to original file if `.br` doesn't exist
+- Sets proper `Content-Encoding` and `Content-Type` headers
+- Adds `Vary: Accept-Encoding` for proper caching
+
+**Skipped Routes:**
+- `/api/*` - API endpoints
+- `/session/*` - WebRTC signalling endpoints
+
 ## Functions
 
 ### `/api/config`

@@ -7,6 +7,33 @@
    - Build command: `npm run build`
    - Build output directory: `dist`
 
+## Performance Optimization
+
+### Brotli Compression
+
+The build process automatically pre-compresses all text-based assets (JS, CSS, HTML, SVG, etc.) with Brotli compression at quality level 11.
+
+**Compression Results:**
+- JavaScript files: ~70-75% size reduction (e.g., 122KB → 32KB)
+- CSS files: ~80-85% size reduction  
+- HTML files: ~75-80% size reduction
+- SVG images: ~55-75% size reduction
+
+**How It Works:**
+
+1. **Build Time**: `npm run build` creates `.br` files alongside originals in `dist/`
+2. **Cloudflare Pages**: Automatically serves `.br` files via middleware in `functions/_middleware.js`
+3. **Local Dev**: The dev server (`npm run serve --dist`) also serves `.br` files when the browser supports Brotli
+4. **Browser Support**: All modern browsers support Brotli (Chrome, Firefox, Safari, Edge)
+
+**Benefits:**
+- **Faster initial page loads** - 3-4x smaller file transfers
+- **Reduced bandwidth costs** - especially important for mobile users
+- **Better cache efficiency** - smaller files in service worker cache
+- **No runtime overhead** - compression happens once at build time
+
+No additional configuration is needed - the middleware handles content negotiation automatically.
+
 ## P2P Configuration
 
 To enable P2P multiplayer functionality, you need to configure signalling:

@@ -2,8 +2,9 @@
 /* eslint-env node */
 /* eslint-disable no-console */
 const { createServer } = require("node:http");
-const { readFile, stat } = require("node:fs/promises");
+const { readFile, stat, access } = require("node:fs/promises");
 const path = require("node:path");
+const zlib = require("node:zlib");
 
 const args = new Set(process.argv.slice(2));
 const useDist = args.has("--dist");
@@ -21,7 +22,17 @@ const mime = {
   ".jpeg": "image/jpeg",
   ".svg": "image/svg+xml",
   ".ico": "image/x-icon",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
 };
+
+async function fileExists(filePath) {
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 async function ensureRootExists() {
   try {
@@ -63,11 +74,30 @@ const server = createServer(async (req, res) => {
       res.writeHead(403).end("Directory listing not allowed");
       return;
     }
+    
     const ext = path.extname(filePath).toLowerCase();
     const contentType = mime[ext] || "application/octet-stream";
-    const data = await readFile(filePath);
-    res.writeHead(200, { "Content-Type": contentType });
-    res.end(data);
+    
+    // Check if browser supports Brotli and if .br file exists (only in dist mode)
+    const acceptEncoding = req.headers["accept-encoding"] || "";
+    const supportsBrotli = acceptEncoding.includes("br");
+    const brotliPath = filePath + ".br";
+    
+    if (useDist && supportsBrotli && await fileExists(brotliPath)) {
+      // Serve pre-compressed Brotli file
+      const data = await readFile(brotliPath);
+      res.writeHead(200, { 
+        "Content-Type": contentType,
+        "Content-Encoding": "br",
+        "Vary": "Accept-Encoding",
+      });
+      res.end(data);
+    } else {
+      // Serve original file
+      const data = await readFile(filePath);
+      res.writeHead(200, { "Content-Type": contentType });
+      res.end(data);
+    }
   } catch (err) {
     const status = err.code === "ENOENT" ? 404 : 500;
     res.writeHead(status, { "Content-Type": "text/plain; charset=utf-8" });
