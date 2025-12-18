@@ -478,6 +478,13 @@ body.theme-dark .sheet-base {
   justify-self: center;
   align-self: center;
   pointer-events: auto;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pop-node-grid .population-node.market-claimed {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 3px var(--accent), 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 10;
 }
 
 .node-pip-grid {

@@ -276,6 +276,7 @@ export function computeScore(board, populationNodes, workerAllocations = null, o
 
   const activation = computeActivationMap(board, populationNodes, workerAllocations, options);
   const marketAllocations = resolveMarketAllocations(board, populationNodes, activation);
+  const nodeToMarket = buildNodeToMarketMap(board, populationNodes, activation);
 
   let scores = {
     cottages: scoreCottages(board, populationNodes),
@@ -357,7 +358,22 @@ export function computeScore(board, populationNodes, workerAllocations = null, o
     scores.guilds +
     scores.vagrants;
 
-  return { total, breakdown: scores, pop: popTotal, housing, forfeits: forfeitsCount };
+  // Build per-market details
+  const marketDetails = [];
+  marketAllocations.forEach((points, marketKey) => {
+    const [r, c] = marketKey.split(',').map(Number);
+    marketDetails.push({ row: r, col: c, points });
+  });
+
+  return {
+    total,
+    breakdown: scores,
+    pop: popTotal,
+    housing,
+    forfeits: forfeitsCount,
+    marketDetails,
+    nodeToMarket,
+  };
 }
 
 function scoreCottages(board, populationNodes) {
@@ -421,6 +437,37 @@ function resolveMarketAllocations(board, populationNodes, activation = new Map()
     }
   }
   return allocations;
+}
+
+function buildNodeToMarketMap(board, populationNodes, activation = new Map()) {
+  const nodeMap = new Map();
+  if (!Array.isArray(populationNodes) || !populationNodes.length) return nodeMap;
+  const nodeRows = populationNodes.length;
+  const nodeCols = populationNodes[0]?.length || 0;
+  for (let nr = 0; nr < nodeRows; nr++) {
+    for (let nc = 0; nc < nodeCols; nc++) {
+      const popVal = populationNodes[nr][nc] || 0;
+      if (!popVal) continue;
+      const candidateMarkets = [];
+      [
+        [nr, nc],
+        [nr + 1, nc],
+        [nr, nc + 1],
+        [nr + 1, nc + 1],
+      ].forEach(([br, bc]) => {
+        const cell = board[br]?.[bc];
+        if (!cell || cell.building !== "M" || cell.forfeited || cell.activationForfeit) return;
+        if (activation && !activation.get(key(br, bc))) return;
+        candidateMarkets.push([br, bc]);
+      });
+      if (!candidateMarkets.length) continue;
+      candidateMarkets.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+      const [mr, mc] = candidateMarkets[0];
+      const nodeKey = key(nr, nc);
+      nodeMap.set(nodeKey, { marketRow: mr, marketCol: mc, pop: popVal });
+    }
+  }
+  return nodeMap;
 }
 
 function adjHasBuilding(board, r, c, code) {

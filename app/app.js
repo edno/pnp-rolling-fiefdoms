@@ -2345,6 +2345,27 @@ function renderBuildingOverlay(options = [], disabled = false) {
   });
 }
 
+function highlightMarketClaims(marketRow, marketCol) {
+  if (!state.currentNodeToMarket) return;
+  
+  // Find all nodes claimed by this market
+  state.currentNodeToMarket.forEach((data, nodeKey) => {
+    if (data.marketRow === marketRow && data.marketCol === marketCol) {
+      const [nr, nc] = nodeKey.split(',').map(Number);
+      const nodeEl = document.querySelector(`.population-node[data-node-row="${nr}"][data-node-col="${nc}"]`);
+      if (nodeEl) {
+        nodeEl.classList.add('market-claimed');
+      }
+    }
+  });
+}
+
+function clearMarketHighlights() {
+  document.querySelectorAll('.population-node.market-claimed').forEach(node => {
+    node.classList.remove('market-claimed');
+  });
+}
+
 function renderBoard() {
   clearElement(boardEl);
   const activationMap =
@@ -2382,6 +2403,11 @@ function renderBoard() {
         if (data.activationForfeit) {
           cell.classList.add("forfeit");
           cell.classList.add("disabled");
+        }
+        // Add market hover to highlight claimed nodes
+        if (data.building === "M") {
+          cell.onmouseenter = () => highlightMarketClaims(r, c);
+          cell.onmouseleave = () => clearMarketHighlights();
         }
         if (state.activationMode && state.activationSelection.building?.[0] === r && state.activationSelection.building?.[1] === c) {
           cell.classList.add("selected-building");
@@ -3913,11 +3939,11 @@ function currentScore({ allowPopulationActivation } = {}) {
 
 function refreshScoreOverlay(scoreResult = null) {
   const result = scoreResult || currentScore();
-  updateScoreOverlay(result.breakdown, result.total);
+  updateScoreOverlay(result.breakdown, result.total, result.marketDetails, result.nodeToMarket);
   return result;
 }
 
-function updateScoreOverlay(breakdown, total = 0) {
+function updateScoreOverlay(breakdown, total = 0, marketDetails = [], nodeToMarket = new Map()) {
   if (!scoreOverlayEl) return;
   const formatScoreValue = (value, key) => {
     if (typeof value !== "number") return "0";
@@ -3943,8 +3969,20 @@ function updateScoreOverlay(breakdown, total = 0) {
     chip.style.left = `${spot.x}px`;
     chip.style.top = `${topPos}px`;
     chip.textContent = formatScoreValue(val, spot.key); // board art includes negatives for most spots
+    
+    // Add market details tooltip
+    if (spot.key === "market" && marketDetails.length > 0) {
+      chip.title = marketDetails
+        .map(m => `Row ${m.row + 1}, Col ${m.col + 1}: ${m.points}pts`)
+        .join('\n');
+    }
+    
     scoreOverlayEl.appendChild(chip);
   });
+  
+  // Store for hover interactions
+  state.currentMarketDetails = marketDetails;
+  state.currentNodeToMarket = nodeToMarket;
 }
 
 
