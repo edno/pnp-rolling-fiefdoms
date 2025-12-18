@@ -704,6 +704,12 @@ async function initializeApp() {
   try {
     // Wait for sheet to preload before continuing
     await preloadSheet();
+    
+    // Wait for fonts to load to prevent layout shifts
+    if (document.fonts && document.fonts.ready) {
+      await document.fonts.ready;
+    }
+    
     document.body.classList.remove("loading");
     if (loadingOverlay) loadingOverlay.remove();
     
