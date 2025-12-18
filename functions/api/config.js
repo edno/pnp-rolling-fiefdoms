@@ -7,7 +7,7 @@ export async function onRequest(context) {
 
   const config = {
     signalingUrl,
-    p2pEnabled: env.P2P_ENABLED !== "false",
+    p2pEnabled: env.P2P_ENABLED === "true",
   };
 
   return new Response(JSON.stringify(config), {
