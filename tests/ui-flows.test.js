@@ -1045,6 +1045,61 @@ describe("solo non-active swap control (jsdom)", () => {
     expect(turnHint.textContent).not.toContain("Use the swap button to swap pairs");
   });
 
+  it("keeps the swap button usable after multiple toggles when influence can rescue the roll", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = false;
+    hooks.p2pUiState.seatsTotal = 1;
+    hooks.state.activeTurn = false;
+    hooks.state.rollAvailable = false;
+    hooks.state.dice = [
+      { face: 1, resolved: 1, label: "N1" },
+      { face: 2, resolved: 2, label: "N2" },
+      { face: 3, resolved: 3, label: "X1" },
+      { face: 4, resolved: 4, label: "X2" },
+    ];
+    hooks.state.locationSelection = [0, 1];
+    hooks.state.autoLocationSelection = [0, 1];
+    hooks.state.forcedLocationDice = [];
+    hooks.state.influence = { earned: 1, spent: 0 };
+    hooks.state.influenceAdjustments = {};
+    const blocked = [
+      [0, 1],
+      [1, 0],
+      [0, 2],
+      [2, 0],
+      [0, 3],
+      [3, 0],
+      [1, 2],
+      [2, 1],
+      [1, 3],
+      [3, 1],
+      [2, 3],
+      [3, 2],
+    ];
+    blocked.forEach(([r, c]) => {
+      hooks.state.board[r][c].building = "F";
+    });
+    hooks.updateDiceAssignments();
+    const swapBtn = document.getElementById("swapPairBtn");
+    expect(swapBtn).toBeTruthy();
+    expect(swapBtn.style.display).toBe("inline-block");
+    expect(hooks.state.forceForfeitAdvisory).toBe(true);
+    expect(hooks.state.locationSelection).toEqual([0, 1]);
+    swapBtn.click();
+    await flushMicrotasks();
+    expect(hooks.state.locationSelection).toEqual([2, 3]);
+    expect(hooks.state.nonActiveSwap).toBe(true);
+    swapBtn.click();
+    await flushMicrotasks();
+    expect(hooks.state.locationSelection).toEqual([0, 1]);
+    expect(hooks.state.nonActiveSwap).toBe(false);
+    swapBtn.click();
+    await flushMicrotasks();
+    expect(hooks.state.locationSelection).toEqual([2, 3]);
+    expect(hooks.state.nonActiveSwap).toBe(true);
+  });
+
   it("hides swap button when event dice have an X face", async () => {
     await setupApp({ enableHooks: true });
     const hooks = window.__rfTestHooks;

@@ -570,7 +570,7 @@ describe("influence integration", () => {
       { label: "N1", face: 4, resolved: 4 },
       { label: "N2", face: 4, resolved: 4 },
       { label: "X1", face: 3, resolved: 3 },
-      { label: "X2", face: "X" },
+      { label: "X2", face: "X", resolved: null },
     ];
     state.locationSelection = [0, 1]; // N1, N2 selected
     state.activeTurn = true;
@@ -583,8 +583,8 @@ describe("influence integration", () => {
       filterAvailablePairs,
       board: state.board,
     });
-    expect(beforeInfluence.forceForfeit).toBe(true);
-    expect(state.invalidSelection).toBe(false);
+    expect(beforeInfluence.forceForfeit).toBe(false);
+    expect(state.invalidSelection).toBe(true);
     
     // Apply influence to adjust X1 from 3 to 2
     state.influenceAdjustments = { X1: { delta: -1 } };
@@ -618,7 +618,7 @@ describe("influence integration", () => {
       { label: "N1", face: 2, resolved: 2 },
       { label: "N2", face: 2, resolved: 2 },
       { label: "X1", face: 3, resolved: 3 },
-      { label: "X2", face: "X" },
+      { label: "X2", face: "X", resolved: null },
     ];
     state.locationSelection = [0, 1]; // N1, N2 selected
     state.activeTurn = true;

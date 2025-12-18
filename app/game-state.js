@@ -20,6 +20,14 @@ const isNDie = (die) => {
   return die.face !== "X";
 };
 
+const isXDie = (die) => {
+  if (!die) return false;
+  if (typeof die.label === "string") return die.label.startsWith("X");
+  return die.face === "X";
+};
+
+const isResolvedXDie = (die) => isXDie(die) && typeof die?.resolved === "number";
+
 function forcedLocationDiceIndices(dice) {
   if (!Array.isArray(dice)) return [];
   return dice.reduce((acc, die, idx) => {
@@ -81,7 +89,7 @@ function canRescueAnyLocationPair(state, board, helpers) {
       // Include N dice
       if (isNDie(die)) return true;
       // Include X dice with resolved numeric values (they can be adjusted with influence)
-      if (die.face === "X" && typeof die.resolved === "number") return true;
+      if (isResolvedXDie(die)) return true;
       return false;
     });
   for (let i = 0; i < eligibleDice.length; i += 1) {
@@ -202,6 +210,7 @@ export function selectLocationDie(state, dieIndex, { uniqueLocationPairs, filter
 
 export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAvailablePairs, board }) {
   mergeForcedLocationDice(state);
+  const prevSelection = Array.isArray(state.locationSelection) ? state.locationSelection.slice() : [];
   const prevForce = state.forceForfeit;
   const locationDiceRaw = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
   const buildDiceRaw =
@@ -248,6 +257,7 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
   const generalRescue = !state.diceLocked
     ? canRescueAnyLocationPair(state, board, { uniqueLocationPairs, filterAvailablePairs })
     : false;
+  const hadGeneralRescue = generalRescue;
 
   if (!state.diceLocked && allPairs.length === 0) {
     if (state.activeTurn) {
@@ -262,7 +272,7 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
           if (!die) return false;
           if (isNDie(die)) return true;
           // Include X dice with resolved numeric values
-          if (die.face === "X" && typeof die.resolved === "number") return true;
+          if (isResolvedXDie(die)) return true;
           return false;
         })
         .map(({ idx }) => idx);
@@ -272,8 +282,11 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
       ].filter((idx, pos, arr) => arr.indexOf(idx) === pos && validLocationDice.includes(idx));
       const filled = preferred.slice(0, 2);
       const fallback = validLocationDice.filter((idx) => !filled.includes(idx)).slice(0, 2 - filled.length);
-      state.locationSelection = filled.concat(fallback).slice(0, 2);
-      state.nonActiveSwap = false;
+      const nextSelection = filled.concat(fallback).slice(0, 2);
+      const selectionChanged =
+        nextSelection.length !== prevSelection.length || nextSelection.some((val, idx) => val !== prevSelection[idx]);
+      state.locationSelection = nextSelection;
+      if (selectionChanged) state.nonActiveSwap = false;
     }
     locationPairs = [];
     if (generalRescue) {
@@ -309,7 +322,7 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
         } else if (!prevForce) {
           message = "No valid plots for that pair; choose a different location pair.";
         }
-      } else {
+      } else if (!hadGeneralRescue) {
         forceForfeit = true;
         if (!prevForce) message = "No valid location pairs; forfeit a plot.";
       }
