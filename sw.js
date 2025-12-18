@@ -9,6 +9,7 @@ const ASSETS = [
   `/app/app.js?v=${APP_VERSION}`,
   "/assets/css/styles.css",
   "/assets/css/fonts.css",
+  /* LAZY_CHUNKS_PLACEHOLDER */
   "/assets/fonts/Shadows_Into_Light/ShadowsIntoLight-Regular.woff2",
   "/assets/fonts/Lobster_Two/LobsterTwo-Regular.woff2",
   "/assets/fonts/Lobster_Two/LobsterTwo-Bold.woff2",

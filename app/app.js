@@ -63,9 +63,25 @@ import {
 } from "./influence.js";
 import { splitForcedDice } from "./dice-display.js";
 import { createDieFaceSVG } from "./dice-face.js";
-import { createManualP2P } from "./p2p.js";
-import { createQrDataUrl } from "./qr.js";
 import { compressToBase64Url, decompressFromBase64Url } from "./compact.js";
+
+// Lazy-loaded modules for performance (loaded on demand)
+let createManualP2P = null;
+let createQrDataUrl = null;
+const loadP2P = async () => {
+  if (!createManualP2P) {
+    const module = await import("./p2p.js");
+    createManualP2P = module.createManualP2P;
+  }
+  return createManualP2P;
+};
+const loadQR = async () => {
+  if (!createQrDataUrl) {
+    const module = await import("./qr.js");
+    createQrDataUrl = module.createQrDataUrl;
+  }
+  return createQrDataUrl;
+};
 import {
   boardEl,
   diceView,
@@ -330,12 +346,20 @@ function parseSessionLink(value) {
   }
 }
 
-const p2p = createManualP2P({
-  onLog: (msg) => logP2P(msg),
-  onStatus: (status) => handleP2PStatus(status),
-  onMessage: (message) => handleP2PMessage(message),
-  captureState: () => captureP2PSnapshot(),
-});
+// P2P is initialized lazily when first needed
+let p2p = null;
+async function ensureP2P() {
+  if (!p2p) {
+    const factory = await loadP2P();
+    p2p = factory({
+      onLog: (msg) => logP2P(msg),
+      onStatus: (status) => handleP2PStatus(status),
+      onMessage: (message) => handleP2PMessage(message),
+      captureState: () => captureP2PSnapshot(),
+    });
+  }
+  return p2p;
+}
 
 function prepareNextRoll() {
   state.rollAvailable = true;
@@ -990,14 +1014,15 @@ function buildInviteUrl({ sessionId, secret, signallingUrl }) {
   }
 }
 
-function renderP2PQr(link) {
+async function renderP2PQr(link) {
   if (!p2pQrImg || !p2pQrCaption) return;
   if (!link) {
     p2pUiState.lastInviteLink = "";
     p2pUiState.lastQrDataUrl = "";
     return;
   }
-  const dataUrl = createQrDataUrl(link, { size: 400, margin: 6, errorCorrection: "L" });
+  const qrGenerator = await loadQR();
+  const dataUrl = qrGenerator(link, { size: 400, margin: 6, errorCorrection: "L" });
   p2pUiState.lastInviteLink = link;
   p2pUiState.lastQrDataUrl = dataUrl || "";
   if (p2pShowQrBtn) p2pShowQrBtn.disabled = !dataUrl;
@@ -1312,10 +1337,11 @@ function applyFullSnapshot(snapshot) {
   }
 }
 
-function sendAppMessage(type, payload = {}) {
-  if (!p2p?.sendMessage) return { ok: false };
+async function sendAppMessage(type, payload = {}) {
+  const p2pInstance = p2p || await ensureP2P();
+  if (!p2pInstance?.sendMessage) return { ok: false };
   try {
-    const res = p2p.sendMessage(type, payload);
+    const res = p2pInstance.sendMessage(type, payload);
     return res;
   } catch (err) {
     logP2P("send message failed", err?.message || err);
@@ -1336,7 +1362,8 @@ function syncStateToPeer() {
 }
 
 async function startP2PHosting() {
-  if (!p2p?.supported) {
+  const p2pInstance = await ensureP2P();
+  if (!p2pInstance?.supported) {
     updateP2PStatus("Manual P2P is not supported here.");
     return;
   }
@@ -1352,7 +1379,7 @@ async function startP2PHosting() {
   setP2PMode("hosting", { awaitingAnswer: true });
   updateP2PStatus("Building invite…");
   try {
-    const { code, error } = await p2p.startHosting(readP2PSecret());
+    const { code, error } = await p2pInstance.startHosting(readP2PSecret());
     if (error) {
       setP2PMode("idle");
       updateP2PStatus(error);
@@ -1396,7 +1423,7 @@ async function startP2PHosting() {
           logP2P("invalid answer from signalling");
           return;
         }
-        await p2p.applyAnswer(answerCode, secret);
+        await p2pInstance.applyAnswer(answerCode, secret);
         updateP2PStatus("Answer received via signalling. Completing link…");
       });
     } else {
@@ -1412,7 +1439,9 @@ async function startP2PHosting() {
 }
 
 function disconnectP2P(reason = "") {
-  if (p2p?.disconnect) p2p.disconnect(reason);
+  if (p2p?.disconnect) {
+    p2p.disconnect(reason);
+  }
   if (p2pUiState.signallingPoll) {
     clearTimeout(p2pUiState.signallingPoll);
     p2pUiState.signallingPoll = null;
@@ -1725,7 +1754,8 @@ async function joinViaSignalling(sessionId, secret) {
     disableP2P("Invalid host invite from signalling.");
     return;
   }
-  const result = await p2p.acceptInvite(hostOffer, safeSecret);
+  const p2pInstance = await ensureP2P();
+  const result = await p2pInstance.acceptInvite(hostOffer, safeSecret);
   if (result?.error) {
     logP2P("Failed to send answer via signalling");
     updateP2PStatus("Signalling unavailable. Connection may not complete automatically.");
@@ -1771,7 +1801,7 @@ function rollDice() {
   // Also cancel if WebRTC is not available
   const isFirstRoll = state.turnIndex === 0;
   const isHostingAlone = p2pUiState.mode === "host" && !p2pUiState.channelOpen && p2pUiState.awaitingAnswer;
-  const webrtcUnavailable = p2pUiState.mode === "host" && p2p && !p2p.supported;
+  const webrtcUnavailable = p2pUiState.mode === "host" && p2p && !p2p?.supported;
   if (isFirstRoll && (isHostingAlone || webrtcUnavailable)) {
     const reason = webrtcUnavailable ? "WebRTC not available" : "Starting solo game";
     logP2P(`${reason} - canceling P2P hosting`);

@@ -189,7 +189,7 @@ async function run() {
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
 
-  await build({
+  const result = await build({
     entryPoints: [path.join(root, "app/app.js")],
     bundle: true,
     format: "esm",
@@ -198,15 +198,38 @@ async function run() {
     target: "es2020",
     outdir: path.join(outDir, "app"),
     entryNames: "[name]",
+    chunkNames: "[name]-[hash]",
+    splitting: true,
     logLevel: "info",
+    metafile: true,
   });
 
   if (enableSourcemaps) {
     console.log("\n⚠️  Source maps enabled (adds ~438KB to bundle)");
   }
 
+  // Write metafile for bundle analysis
+  await writeFile(path.join(outDir, "meta.json"), JSON.stringify(result.metafile));
+
+  // Extract lazy chunk names from metafile
+  const lazyChunks = Object.keys(result.metafile.outputs)
+    .filter(file => file.includes("/app/") && !file.endsWith("app.js") && file.endsWith(".js"))
+    .map(file => `/${path.relative(outDir, file)}`);
+  
+  console.log(`\nFound ${lazyChunks.length} lazy chunk(s):`, lazyChunks.join(", "));
+
+  // Read sw.js, inject chunk names, write to temp location
+  const swSource = await readFile(path.join(root, "sw.js"), "utf8");
+  const chunkLines = lazyChunks.map(chunk => `  "${chunk}",`).join("\n");
+  const swWithChunks = swSource.replace(
+    "/* LAZY_CHUNKS_PLACEHOLDER */",
+    chunkLines
+  );
+  const swTempPath = path.join(outDir, "sw-temp.js");
+  await writeFile(swTempPath, swWithChunks);
+
   await build({
-    entryPoints: [path.join(root, "sw.js")],
+    entryPoints: [swTempPath],
     minify: true,
     sourcemap: false,
     target: "es2020",
@@ -214,6 +237,9 @@ async function run() {
     outfile: path.join(outDir, "sw.js"),
     logLevel: "info",
   });
+
+  // Clean up temp file
+  await rm(swTempPath);
 
   for (const entry of staticEntries) {
     await copyStatic(entry);
