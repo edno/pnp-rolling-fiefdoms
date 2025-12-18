@@ -1,5 +1,5 @@
 /* eslint-env serviceworker */
-const CACHE_VERSION = "v1.21";
+const CACHE_VERSION = "v1.22";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
 const APP_VERSION = "v4";
 const SHEET_VERSION = "v1.9";
@@ -69,16 +69,22 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
-  // For navigation requests, use network-first to avoid perceived redirect
+  // For navigation requests, use cache-first (with background update)
   if (event.request.mode === "navigate") {
     event.respondWith(
-      fetch(event.request)
-        .then((resp) => {
-          const copy = resp.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => {});
-          return resp;
-        })
-        .catch(() => caches.match("/index.html") || caches.match(event.request))
+      caches.match("/index.html").then((cached) => {
+        // Serve cached version immediately
+        const fetchPromise = fetch(event.request)
+          .then((resp) => {
+            const copy = resp.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => {});
+            return resp;
+          })
+          .catch(() => cached || caches.match(event.request));
+        
+        // Return cached if available, otherwise wait for network
+        return cached || fetchPromise;
+      })
     );
     return;
   }
