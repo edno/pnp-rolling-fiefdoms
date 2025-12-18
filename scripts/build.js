@@ -254,8 +254,17 @@ async function run() {
   console.log("\nOptimizing WebP images...");
   await optimizeImagesInDirectory(outDir);
 
-  console.log("\nCompressing assets with Brotli...");
-  await compressDirectory(outDir);
+  // Note: Brotli compression is opt-in for local development
+  // Cloudflare Pages automatically compresses assets in production
+  // Use --brotli flag to generate .br files for local dev server testing
+  const enableBrotli = process.argv.includes("--brotli");
+  
+  if (enableBrotli) {
+    console.log("\nCompressing assets with Brotli (for local dev)...");
+    await compressDirectory(outDir);
+  } else {
+    console.log("\nSkipping Brotli compression (production mode)");
+  }
 
   console.log(`\nBuild complete. Output in ${outDir}`);
 }
