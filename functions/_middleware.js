@@ -1,8 +1,16 @@
 // Cloudflare Pages middleware to serve pre-compressed Brotli files
-// This runs for all requests and serves .br files when available and supported
+// NOTE: This middleware is not needed on Cloudflare Pages (automatic compression)
+// and not functional in wrangler pages dev (env.ASSETS not available).
+// Keeping for backwards compatibility but effectively disabled.
 
 export async function onRequest(context) {
   const { request, next, env } = context;
+  
+  // Skip middleware entirely in local dev (no env.ASSETS)
+  // In production, Cloudflare handles compression automatically
+  return next();
+  
+  /* Original code kept for reference
   const url = new URL(request.url);
   
   // Only handle GET requests for static assets
@@ -28,6 +36,11 @@ export async function onRequest(context) {
   brotliUrl.pathname = url.pathname + ".br";
   
   try {
+    // env.ASSETS is only available in production, not in wrangler pages dev
+    if (!env.ASSETS) {
+      return next();
+    }
+    
     const brotliResponse = await env.ASSETS.fetch(brotliUrl);
     
     if (brotliResponse.ok) {
@@ -64,4 +77,5 @@ export async function onRequest(context) {
   
   // Serve original file
   return next();
+  */
 }
