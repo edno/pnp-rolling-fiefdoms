@@ -10,11 +10,13 @@
     "serve": "node scripts/serve.js",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "build": "npm run clean && node scripts/build.js",
-    "wrangler:dev": "npx --yes wrangler dev cloudflare/worker.js --ip 0.0.0.0 --persist-to=.wrangler-state --config cloudflare/wrangler.toml"
+    "wrangler:dev": "npx --yes wrangler dev cloudflare/worker.js --ip 0.0.0.0 --persist-to=.wrangler-state --config cloudflare/wrangler.toml",
+    "prepare": "husky"
   },
   "devDependencies": {
     "esbuild": "^0.25.12",
     "eslint": "^8.56.0",
+    "husky": "^9.1.7",
     "jsdom": "^27.2.0",
     "vitest": "^4.0.14"
   }

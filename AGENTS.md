@@ -1,24 +1,24 @@
 # Agent Working Agreement
 
-1) **Read the artifacts first**: Before starting any task, read the rulebook (`rolling-fiefdoms-rulebook.pdf`) and the player sheet (`rolling-fiefdoms-player-sheet.webp`) to establish the rules context. Then read the existing code (notably `app.js`, `rules.js`, and tests) to understand current logic and gaps.
+1) **Test baseline FIRST**: Before making ANY code changes, run `npm test` to establish a baseline. Record the number of passing tests. This is your responsibility, not negotiable.
 
-2) **Rule changes require tests**: Any change that affects rules, scoring, or turn flow must include a new test or an update to existing tests. Do not leave rule logic untested.
+2) **Test after EVERY significant change**: Run `npm test` after each major change. If tests that were passing now fail, YOUR changes broke them. Fix them immediately.
 
-3) **All checks must pass**: After changes, ensure `npm test` (lint + vitest) passes. Lint must be clean.
+3) **Read the artifacts first**: Before starting any task, read the rulebook (`rolling-fiefdoms-rulebook.pdf`) and the player sheet (`rolling-fiefdoms-player-sheet.webp`) to establish the rules context. Then read the existing code (notably `app.js`, `rules.js`, and tests) to understand current logic and gaps.
 
-4) **Handle errors gracefully**: Code should defensively handle undefined/null and unexpected states without crashing.
+4) **Rule changes require tests**: Any change that affects rules, scoring, or turn flow must include a new test or an update to existing tests. Do not leave rule logic untested.
 
-5) **Keep the log useful**: Maintain a clear, chronological log (newest first) to help users trace actions.
+6) **Handle errors gracefully**: Code should defensively handle undefined/null and unexpected states without crashing.
 
-6) **Do not bypass rules**: Do not introduce shortcuts that skip or relax rule requirements without explicit direction; align behavior with the rulebook.
+7) **Keep the log useful**: Maintain a clear, chronological log (newest first) to help users trace actions.
 
-7) **Keep TODO / Known Gaps up to date**: Remove implemented tasks, add known gaps and pending tasks in the Appendix: TODO / Known Gaps.
+8) **Do not bypass rules**: Do not introduce shortcuts that skip or relax rule requirements without explicit direction; align behavior with the rulebook.
 
-8) **Document clarifications**: Any clarification provided by the user and not documented in the code or in the rulebook should be documented in the Appendix: Current clarifications.
+10) **Document clarifications**: Any clarification provided by the user and not documented in the code or in the rulebook should be documented in the Appendix: Current clarifications.
 
-9) **No duplicate entries in CSS**: CSS files should not have duplicates entries that can override each other, ie each selector should have only a unique CSS style entry
+11) **No duplicate entries in CSS**: CSS files should not have duplicates entries that can override each other, ie each selector should have only a unique CSS style entry
 
-10) **Clean up temporary files**: After completing a task remove any temporary file generated, also remove any screenshot shared by the user for debugging or illustrating a request.
+12) **Clean up temporary files**: After completing a task remove any temporary file generated, also remove any screenshot shared by the user for debugging or illustrating a request.
 
 ## Appendix: Current clarifications
 
