@@ -450,8 +450,8 @@ describe("influence integration", () => {
     state.dice = [
       { label: "N1", face: 1, resolved: 1 },
       { label: "N2", face: 4, resolved: 4 },
-      { label: "X1", face: "X", resolved: 2 },
-      { label: "X2", face: "X", resolved: 5 },
+      { label: "X1", face: 2, resolved: 2 },
+      { label: "X2", face: 5, resolved: 5 },
     ];
     state.locationSelection = [2, 3];
     state.activeTurn = true;
