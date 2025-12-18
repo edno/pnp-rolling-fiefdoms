@@ -3824,7 +3824,7 @@ function soloSwapAvailable() {
   // At least one arrangement must be valid or rescuable
   if (!baseValid && !baseCanBeRescued && !altValid && !altCanBeRescued) return false;
   
-  // Show swap if either arrangement is valid/rescuable
+  // Show swap if either arrangement is valid/rescued
   return (baseValid || baseCanBeRescued) && (altValid || altCanBeRescued);
 }
 
