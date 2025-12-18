@@ -1,5 +1,5 @@
 /* eslint-env serviceworker */
-const CACHE_VERSION = "v1.17";
+const CACHE_VERSION = "v1.18";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
 const APP_VERSION = "v4";
 const SHEET_VERSION = "v1.9";
@@ -12,8 +12,6 @@ const ASSETS = [
   "/assets/fonts/Shadows_Into_Light/ShadowsIntoLight-Regular.woff2",
   "/assets/fonts/Lobster_Two/LobsterTwo-Regular.woff2",
   "/assets/fonts/Lobster_Two/LobsterTwo-Bold.woff2",
-  "/assets/fonts/Lobster_Two/LobsterTwo-Italic.woff2",
-  "/assets/fonts/Lobster_Two/LobsterTwo-BoldItalic.woff2",
   "/assets/fonts/QT_Black_Forest/QTBlackForest.woff2",
   "/assets/fonts/Roboto/Roboto-VariableFont_wdth,wght.woff2",
   "/assets/fonts/Roboto/Roboto-Italic-VariableFont_wdth,wght.woff2",
