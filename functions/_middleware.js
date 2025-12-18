@@ -4,7 +4,7 @@
 // Keeping for backwards compatibility but effectively disabled.
 
 export async function onRequest(context) {
-  const { request, next, env } = context;
+  const { next } = context;
   
   // Skip middleware entirely in local dev (no env.ASSETS)
   // In production, Cloudflare handles compression automatically
