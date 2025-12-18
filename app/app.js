@@ -789,8 +789,6 @@ async function setupControls() {
   }
   if (p2pFeatureEnabled) {
     await setupP2PControls();
-  } else if (p2pPanel) {
-    p2pPanel.style.display = "none";
   }
 }
 
@@ -1484,6 +1482,8 @@ async function setupP2PControls() {
   // Reset signallingDisabled in case it was set before config loaded
   p2pUiState.signallingDisabled = false;
   if (!p2pPanel) return;
+  // Show the panel now that P2P is enabled
+  p2pPanel.classList.remove("hidden");
   if (p2pHintEl) p2pHintEl.style.display = "none";
   updateInviteVisibility(false);
   p2pUiState.signallingUrl = await resolveSignallingUrl();
@@ -1640,7 +1640,7 @@ function disableP2P(reason = "P2P disabled") {
   updateP2PStatus(reason);
   updateInviteVisibility(false);
   renderMeeples();
-  if (p2pPanel) p2pPanel.style.display = "none";
+  if (p2pPanel) p2pPanel.classList.add("hidden");
 }
 
 async function sendSignalBlob(role, compactCode, secret, retries = SIGNALLING_RETRY_COUNT) {

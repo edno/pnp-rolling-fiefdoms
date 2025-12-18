@@ -49,7 +49,7 @@ const baseHtml = `
   <input id="fiefdomInput" />
   <div id="buildingsOverlay"></div>
   <div id="guildsOverlay"></div>
-  <div id="p2pPanel" class="panel p2p-panel">
+  <div id="p2pPanel" class="panel p2p-panel hidden">
     <h2 class="panel-title-with-meeples"><span>Multiplayer game</span><div id="p2pMeeples" class="hidden"></div></h2>
     <div id="p2pStatus"></div>
     <textarea id="p2pCode"></textarea>
@@ -168,7 +168,7 @@ describe("p2p feature flag (jsdom)", () => {
     await setupApp({ p2p: false });
     const panel = document.getElementById("p2pPanel");
     expect(panel).toBeTruthy();
-    expect(panel.style.display).toBe("none");
+    expect(panel.classList.contains("hidden")).toBe(true);
   });
 });
 
