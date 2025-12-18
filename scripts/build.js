@@ -245,6 +245,17 @@ async function run() {
     await copyStatic(entry);
   }
 
+  // Copy _headers if it exists
+  const headersPath = path.join(root, "public/_headers");
+  try {
+    await cp(headersPath, path.join(outDir, "_headers"));
+    console.log("✓ Copied _headers for Cloudflare optimization");
+  } catch (err) {
+    if (err?.code !== "ENOENT") {
+      console.warn("⚠ Could not copy _headers:", err.message);
+    }
+  }
+
   console.log("\nCleaning up unnecessary files...");
   await cleanupUnnecessaryFiles(outDir);
 

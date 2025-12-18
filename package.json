@@ -12,7 +12,8 @@
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "build": "npm run clean && node scripts/build.js",
     "build:debug": "npm run clean && node scripts/build.js --sourcemap --brotli",
-    "wrangler:dev": "npx --yes wrangler dev cloudflare/worker.js --ip 0.0.0.0 --persist-to=.wrangler-state --config cloudflare/wrangler.toml",
+    "worker:dev": "npx --yes wrangler dev cloudflare/worker.js --ip 0.0.0.0 --persist-to=.wrangler-state --config cloudflare/wrangler.toml",
+    "page:dev": "npx --yes wrangler pages dev dist --port 4173 --ip 0.0.0.0",
     "prepare": "husky"
   },
   "devDependencies": {

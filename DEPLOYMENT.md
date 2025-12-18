@@ -41,8 +41,38 @@ The build process automatically optimizes WebP images using Sharp with quality 8
 - **Reduced bandwidth costs** - especially important for mobile users
 - **Better cache efficiency** - smaller files in service worker cache
 
-**Note**: The `functions/_middleware.js` file is kept for compatibility but is not needed on Cloudflare Pages since the platform handles compression native
-No additional configuration is needed - the middleware handles content negotiation automatically.
+**Note**: The `functions/_middleware.js` file is kept for compatibility but is not needed on Cloudflare Pages since the platform handles compression natively.
+
+### Cloudflare Optimizations
+
+The project includes a `public/_headers` file that configures:
+
+**Caching Strategy:**
+- Static assets (JS/CSS/fonts/images): 1 year cache with `immutable`
+- Service worker: No cache (allows instant updates)
+- HTML: No cache (always fresh)
+
+**Security Headers:**
+- `X-Content-Type-Options: nosniff` - Prevents MIME type sniffing
+- `X-Frame-Options: DENY` - Prevents clickjacking
+- `X-XSS-Protection` - Browser XSS protection
+- `Referrer-Policy` - Controls referrer information
+- `Permissions-Policy` - Restricts browser features
+
+**Additional Cloudflare Dashboard Settings (recommended):**
+1. **Speed** → **Optimization**:
+   - Auto Minify: Enable HTML, CSS, JavaScript
+   - Brotli compression: Enabled by default
+   - Early Hints: Enable for faster resource loading
+   - HTTP/3 (with QUIC): Enable for better performance
+
+2. **Caching** → **Configuration**:
+   - Browser Cache TTL: Respect Existing Headers (default)
+   - Always Online: Enable (serves cached version if origin is down)
+
+3. **Network**:
+   - WebSockets: Enable (needed for P2P signalling)
+   - HTTP/2: Enabled by default
 
 ## P2P Configuration
 

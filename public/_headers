@@ -1,0 +1,42 @@
+# Cloudflare Pages Headers Configuration
+# https://developers.cloudflare.com/pages/configuration/headers/
+
+# Cache static assets for 1 year (immutable)
+/app/*.js
+  Cache-Control: public, max-age=31536000, immutable
+  
+/assets/css/*.css
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/img/*.svg
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/img/*.webp
+  Cache-Control: public, max-age=31536000, immutable
+
+/resources/*.webp
+  Cache-Control: public, max-age=31536000, immutable
+
+# Service worker - short cache to enable updates
+/sw.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+# HTML - no cache (always check for updates)
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Security headers
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  X-XSS-Protection: 1; mode=block
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=()
+
+# Note: Auto Minify and Brotli/Gzip compression are handled automatically by Cloudflare
