@@ -5,6 +5,7 @@ const path = require("node:path");
 const { mkdir, rm, cp, readFile, writeFile, readdir, stat } = require("node:fs/promises");
 const { build } = require("esbuild");
 const brotli = require("brotli");
+const sharp = require("sharp");
 
 const root = path.resolve(__dirname, "..");
 const outDir = path.join(root, "dist");
@@ -21,6 +22,48 @@ async function copyStatic(entry) {
   } catch (err) {
     const reason = err?.code === "ENOENT" ? "missing source" : err.message || err;
     throw new Error(`Unable to copy ${entry}: ${reason}`);
+  }
+}
+
+async function optimizeWebP(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext !== ".webp") return;
+  
+  const fileStats = await stat(filePath);
+  // Skip very small images - not worth optimizing
+  if (fileStats.size < 10240) return; // 10KB threshold
+  
+  try {
+    const originalSize = fileStats.size;
+    const image = sharp(filePath);
+    const metadata = await image.metadata();
+    
+    // Optimize with quality 80, smart subsample, and effort 6 (good balance)
+    await image
+      .webp({
+        quality: 80,
+        effort: 6, // 0-6, higher is slower but better compression
+        smartSubsample: true,
+      })
+      .toFile(filePath + ".tmp");
+    
+    const optimizedStats = await stat(filePath + ".tmp");
+    const optimizedSize = optimizedStats.size;
+    
+    if (optimizedSize < originalSize) {
+      // Replace original with optimized version
+      await rm(filePath);
+      await cp(filePath + ".tmp", filePath);
+      await rm(filePath + ".tmp");
+      
+      const savings = ((1 - optimizedSize / originalSize) * 100).toFixed(1);
+      console.log(`  ✓ ${path.relative(outDir, filePath)} → ${(optimizedSize / 1024 / 1024).toFixed(2)}MB (${savings}% smaller, ${metadata.width}x${metadata.height})`);
+    } else {
+      // Keep original if it's already optimal
+      await rm(filePath + ".tmp");
+    }
+  } catch (err) {
+    console.warn(`  ⚠ Failed to optimize ${path.relative(outDir, filePath)}: ${err.message}`);
   }
 }
 
@@ -62,6 +105,18 @@ async function compressDirectory(dirPath) {
   }
 }
 
+async function optimizeImagesInDirectory(dirPath) {
+  const entries = await readdir(dirPath, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      await optimizeImagesInDirectory(fullPath);
+    } else if (entry.isFile()) {
+      await optimizeWebP(fullPath);
+    }
+  }
+}
+
 async function run() {
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
@@ -91,6 +146,9 @@ async function run() {
   for (const entry of staticEntries) {
     await copyStatic(entry);
   }
+
+  console.log("\nOptimizing WebP images...");
+  await optimizeImagesInDirectory(outDir);
 
   console.log("\nCompressing assets with Brotli...");
   await compressDirectory(outDir);

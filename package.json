@@ -8,6 +8,7 @@
     "lint": "eslint . --ext .js",
     "test": "npm run lint && vitest run",
     "serve": "node scripts/serve.js",
+    "serve:dist": "node scripts/serve.js --dist",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "build": "npm run clean && node scripts/build.js",
     "wrangler:dev": "npx --yes wrangler dev cloudflare/worker.js --ip 0.0.0.0 --persist-to=.wrangler-state --config cloudflare/wrangler.toml",
@@ -18,6 +19,7 @@
     "eslint": "^8.56.0",
     "husky": "^9.1.7",
     "jsdom": "^27.2.0",
+    "sharp": "^0.33.5",
     "vitest": "^4.0.14"
   },
   "dependencies": {

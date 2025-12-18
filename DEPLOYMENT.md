@@ -9,10 +9,21 @@
 
 ## Performance Optimization
 
+### Image Optimization
+
+The build process automatically optimizes WebP images using Sharp with quality 80 and smart subsampling.
+
+**Optimization Results:**
+- Player sheet (5.4MB → 1.1MB): **80% size reduction**
+- Small UI images (<10KB): Skipped (not worth reprocessing)
+- Visual quality: Maintained at high quality (80) for crisp display
+
 ### Brotli Compression
 
 The build process automatically pre-compresses all text-based assets (JS, CSS, HTML, SVG, etc.) with Brotli compression at quality level 11.
 
+   - Optimizes all WebP images >10KB with Sharp (quality 80)
+   - Creates `.br` files alongside text asset
 **Compression Results:**
 - JavaScript files: ~70-75% size reduction (e.g., 122KB → 32KB)
 - CSS files: ~80-85% size reduction  
