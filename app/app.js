@@ -2175,11 +2175,13 @@ function renderDice() {
   if (turnLocked) row.classList.add("dice-locked");
   state.dice.forEach((die, idx) => {
     const isLocation = state.locationSelection.includes(idx);
-    const isBuildAssigned = state.locationSelection.length === 2 || die.face === "X";
+    // X dice with resolved numeric values can be location dice
+    const isXWithoutNumber = die.face === "X" && typeof die.resolved !== "number";
+    const isBuildAssigned = state.locationSelection.length === 2 || isXWithoutNumber;
     const locked = turnLocked;
     const badge = makeDieBadge(die, idx, {
       role: isLocation ? "location" : isBuildAssigned ? "build" : null,
-      locked: locked || turnLocked || die.face === "X",
+      locked: locked || turnLocked || isXWithoutNumber,
       clickable: !turnLocked,
       showRoleStyle: !turnLocked,
       forcedLocation: (state.forcedLocationDice || []).includes(idx),
@@ -3626,7 +3628,8 @@ function updateDiceAssignments() {
     const windroseOnly = (state.forcedLocationDice || [])
       .map((idx) => state.dice[idx])
       .filter((d) => d && d.face === "windrose");
-    const xDice = (state.dice || []).filter((d) => d && d.face === "X");
+    // Only X dice without resolved numbers are build dice
+    const xDice = (state.dice || []).filter((d) => d && d.face === "X" && typeof d.resolved !== "number");
     state.locationSelection = (state.forcedLocationDice || []).filter((idx) => state.dice[idx]?.face === "windrose");
     state.locationPairs = [];
     state.buildDice = xDice;
@@ -3645,7 +3648,8 @@ function updateDiceAssignments() {
     const windroseOnly = (state.forcedLocationDice || [])
       .map((idx) => state.dice[idx])
       .filter((d) => d && d.face === "windrose");
-    const xDice = (state.dice || []).filter((d) => d && d.face === "X");
+    // Only X dice without resolved numbers are build dice
+    const xDice = (state.dice || []).filter((d) => d && d.face === "X" && typeof d.resolved !== "number");
     state.locationSelection = (state.forcedLocationDice || []).filter((idx) => state.dice[idx]?.face === "windrose");
     state.locationPairs = [];
     state.buildDice = xDice;
@@ -3713,16 +3717,17 @@ function updateDiceAssignments() {
 }
 
 function computeSwapChoice(baseLoc = [], baseBuild = [], swapFlag = false) {
-  const locHasX = baseLoc.some((d) => d?.face === "X");
-  const buildHasX = baseBuild.some((d) => d?.face === "X");
+  // X dice with resolved numbers can be location dice, only X without numbers need swap
+  const locHasXWithoutNumber = baseLoc.some((d) => d?.face === "X" && typeof d?.resolved !== "number");
+  const buildHasXWithoutNumber = baseBuild.some((d) => d?.face === "X" && typeof d?.resolved !== "number");
   const locHasWindrose = baseLoc.some((d) => d?.face === "windrose");
   const buildHasWindrose = baseBuild.some((d) => d?.face === "windrose");
 
   let forcedSwap = false;
-  if (locHasX && !buildHasX) forcedSwap = true;
+  if (locHasXWithoutNumber && !buildHasXWithoutNumber) forcedSwap = true;
   if (!locHasWindrose && buildHasWindrose) forcedSwap = true;
 
-  const swapAllowed = !locHasX && !buildHasX && !forcedSwap && !(locHasWindrose && !buildHasWindrose);
+  const swapAllowed = !locHasXWithoutNumber && !buildHasXWithoutNumber && !forcedSwap && !(locHasWindrose && !buildHasWindrose);
   const doSwap = forcedSwap || (swapAllowed && swapFlag);
   return {
     locDice: doSwap ? baseBuild : baseLoc,

@@ -818,3 +818,96 @@ describe("auto advance and tracks", () => {
     expect(state.diceLocked).toBe(true);
   });
 });
+
+describe("X dice with numeric values as location dice", () => {
+  it("allows selecting X die with resolved numeric value as location die", () => {
+    const state = createState();
+    state.activeTurn = true;
+    state.dice = [
+      { label: "N1", face: 2, resolved: 2 },
+      { label: "N2", face: 3, resolved: 3 },
+      { label: "X1", face: "X", resolved: 4 },
+      { label: "X2", face: "X", resolved: 5 },
+    ];
+    state.locationSelection = [];
+    state.board = emptyBoard();
+
+    // Should allow selecting N1
+    selectLocationDie(state, 0, { ...helpers, board: state.board });
+    expect(state.locationSelection).toContain(0);
+    expect(state.locationSelection.length).toBe(1);
+
+    // Should allow selecting X1 (has resolved value)
+    const result2 = selectLocationDie(state, 2, { ...helpers, board: state.board });
+    expect(result2.invalidSelection).toBe(false);
+    expect(state.locationSelection).toContain(2);
+    expect(state.locationSelection.length).toBe(2);
+  });
+
+  it("blocks selecting X die without resolved numeric value", () => {
+    const state = createState();
+    state.activeTurn = true;
+    state.dice = [
+      { label: "N1", face: 2, resolved: 2 },
+      { label: "N2", face: 3, resolved: 3 },
+      { label: "X1", face: "X", resolved: null },
+      { label: "X2", face: "X", resolved: null },
+    ];
+    state.locationSelection = [0];
+    state.board = emptyBoard();
+
+    // Should not allow selecting X1 (no resolved value)
+    const before = state.locationSelection.length;
+    selectLocationDie(state, 2, { ...helpers, board: state.board });
+    expect(state.locationSelection.length).toBe(before);
+  });
+
+  it("correctly identifies location vs build dice when X has numeric value", () => {
+    const state = createState();
+    state.activeTurn = true;
+    state.dice = [
+      { label: "N1", face: 2, resolved: 2 },
+      { label: "N2", face: 3, resolved: 3 },
+      { label: "X1", face: "X", resolved: 4 },
+      { label: "X2", face: "X", resolved: 5 },
+    ];
+    state.board = emptyBoard();
+
+    // Select N1 and X1 as location pair
+    selectLocationDie(state, 0, { ...helpers, board: state.board });
+    selectLocationDie(state, 2, { ...helpers, board: state.board });
+
+    expect(state.locationSelection).toEqual([0, 2]);
+    // Build dice should be N2 and X2
+    const buildDice = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
+    expect(buildDice.length).toBe(2);
+    expect(buildDice[0].label).toBe("N2");
+    expect(buildDice[1].label).toBe("X2");
+  });
+
+  it("allows influence adjustment on X die selected as location die", () => {
+    const state = createState();
+    state.activeTurn = true;
+    state.dice = [
+      { label: "N1", face: 2, resolved: 2 },
+      { label: "N2", face: 3, resolved: 3 },
+      { label: "X1", face: "X", resolved: 4 },
+      { label: "X2", face: "X", resolved: 5 },
+    ];
+    state.board = emptyBoard();
+    state.influence = { earned: 2, spent: 0, pending: 0 };
+
+    // Select N1 and X2 as location pair
+    selectLocationDie(state, 0, { ...helpers, board: state.board });
+    selectLocationDie(state, 3, { ...helpers, board: state.board });
+
+    // Apply influence to X2
+    state.influenceAdjustments = { X2: { delta: -1 } };
+    state.influenceTarget = "X2";
+
+    evaluateLocationSelection(state, { ...helpers, board: state.board });
+
+    // Should have valid location pairs with influence applied
+    expect(state.locationPairs.length).toBeGreaterThan(0);
+  });
+});

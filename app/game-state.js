@@ -239,16 +239,23 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
         ? state.locationSelection.slice(0, 2)
         : [];
     } else {
-      const numberedDice = state.dice
+      // Allow both N dice and X dice with resolved numbers for non-active turns
+      const validLocationDice = state.dice
         .map((die, idx) => ({ die, idx }))
-        .filter(({ die }) => die && isNDie(die))
+        .filter(({ die }) => {
+          if (!die) return false;
+          if (isNDie(die)) return true;
+          // Include X dice with resolved numeric values
+          if (die.face === "X" && typeof die.resolved === "number") return true;
+          return false;
+        })
         .map(({ idx }) => idx);
       const preferred = [
         ...(state.locationSelection || []),
         ...(state.forcedLocationDice || []),
-      ].filter((idx, pos, arr) => arr.indexOf(idx) === pos && numberedDice.includes(idx));
+      ].filter((idx, pos, arr) => arr.indexOf(idx) === pos && validLocationDice.includes(idx));
       const filled = preferred.slice(0, 2);
-      const fallback = numberedDice.filter((idx) => !filled.includes(idx)).slice(0, 2 - filled.length);
+      const fallback = validLocationDice.filter((idx) => !filled.includes(idx)).slice(0, 2 - filled.length);
       state.locationSelection = filled.concat(fallback).slice(0, 2);
       state.nonActiveSwap = false;
     }
