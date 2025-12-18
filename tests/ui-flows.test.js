@@ -544,7 +544,7 @@ describe("p2p split preview isolation (jsdom)", () => {
     });
     await flushMicrotasks();
     expect(document.querySelectorAll("#locDicePreview .die-badge").length).toBe(0);
-    expect(document.querySelectorAll("#buildDicePreview .die-badge").length).toBe(1);
+    expect(document.querySelectorAll("#buildDicePreview .die-badge").length).toBe(0);
   });
 
   it("honors swapped location pairs when placing a building", async () => {
@@ -1923,6 +1923,28 @@ describe("split previews and build gating (jsdom)", () => {
     hooks.state.activationComplete = false;
     hooks.renderSelectionDice();
     expect(document.querySelectorAll("#locDicePreview .die-badge").length).toBe(0);
+    expect(document.querySelectorAll("#buildDicePreview .die-badge").length).toBe(0);
+  });
+
+  it("keeps build preview empty until two location dice are selected", async () => {
+    await setupApp({
+      numbered: [{ face: "windrose", resolved: 1, choices: [1, 2, 3, 4, 5] }, 4],
+      x: [1, 1],
+      enableHooks: true,
+    });
+    const hooks = window.__rfTestHooks;
+    clickRoll();
+    await flushMicrotasks();
+    hooks.state.locationSelection = [0];
+    hooks.state.forcedLocationDice = [0];
+    hooks.state.forceForfeit = true;
+    hooks.state.forceForfeitAdvisory = false;
+    hooks.state.forceForfeitHighlight = true;
+    hooks.state.lockedLocationDice = null;
+    hooks.state.lockedBuildDice = null;
+    hooks.state.lockedLocationPairs = null;
+    hooks.updateDiceAssignments();
+    expect(document.querySelectorAll("#locDicePreview .die-badge").length).toBe(1);
     expect(document.querySelectorAll("#buildDicePreview .die-badge").length).toBe(0);
   });
 });

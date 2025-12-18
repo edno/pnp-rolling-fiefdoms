@@ -3357,7 +3357,6 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
   const forcedMode = state.pestilence || forceForfeitActive();
   const forcedSplit = forcedMode ? splitForcedDice(state.dice || []) : null;
   const doubleWindrose = shouldRerollDoubleWindrose(state.dice || []);
-  const xDice = (state.dice || []).filter((d) => d && d.face === "X");
 
   let effectiveLoc =
     (doubleWindrose
@@ -3369,18 +3368,19 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
         []);
 
   const currentBuildFromState = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
+  const buildReady = state.locationSelection.length === 2 || forceBuildPreview;
   let effectiveBuild =
     doubleWindrose
       ? []
       : (forcedSplit && forcedSplit.buildDice.length)
         ? forcedSplit.buildDice
-        : state.locationSelection.length === 2 || forceBuildPreview
+        : buildReady
           ? (buildDice && buildDice.length && buildDice) ||
             (currentBuildFromState.length && currentBuildFromState) ||
             (state.lockedBuildDice && state.lockedBuildDice.length && state.lockedBuildDice) ||
             (state.lastBuildDice && state.lastBuildDice.length && state.lastBuildDice) ||
             []
-          : xDice;
+          : [];
 
   const swapped = respectSwap();
   effectiveLoc = swapped.loc && swapped.loc.length ? swapped.loc : effectiveLoc;
