@@ -2931,6 +2931,10 @@ function autoAdvance() {
 
 function enterActivationMode() {
   if (state.activationMode) return;
+  // Advance turn track for the final turn when entering activation
+  if (!isMultiplayerActive()) {
+    advanceTurnTrack();
+  }
   startActivationState(state);
   autoForfeitUnfillable(false);
   if (finishActivationBtn) finishActivationBtn.style.display = "block";
