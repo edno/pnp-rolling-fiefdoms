@@ -401,7 +401,6 @@ body.theme-dark .sheet-base {
   height: 50px;
   border-radius: 8px;
   background: var(--background);
-  border: 1px dotted #7a7a7a;
   position: relative;
   cursor: pointer;
   z-index: 5;
