@@ -117,6 +117,22 @@ async function optimizeImagesInDirectory(dirPath) {
   }
 }
 
+async function cleanupUnnecessaryFiles(dirPath) {
+  const entries = await readdir(dirPath, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      await cleanupUnnecessaryFiles(fullPath);
+    } else if (entry.isFile()) {
+      // Remove text files from font directories
+      if (fullPath.includes("/fonts/") && path.extname(fullPath).toLowerCase() === ".txt") {
+        await rm(fullPath);
+        console.log(`  ✓ Removed ${path.relative(outDir, fullPath)}`);
+      }
+    }
+  }
+}
+
 async function run() {
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
@@ -146,6 +162,9 @@ async function run() {
   for (const entry of staticEntries) {
     await copyStatic(entry);
   }
+
+  console.log("\nCleaning up unnecessary files...");
+  await cleanupUnnecessaryFiles(outDir);
 
   console.log("\nOptimizing WebP images...");
   await optimizeImagesInDirectory(outDir);
