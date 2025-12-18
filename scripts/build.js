@@ -6,6 +6,7 @@ const { mkdir, rm, cp, readFile, writeFile, readdir, stat } = require("node:fs/p
 const { build } = require("esbuild");
 const brotli = require("brotli");
 const sharp = require("sharp");
+const { optimize } = require("svgo");
 
 const root = path.resolve(__dirname, "..");
 const outDir = path.join(root, "dist");
@@ -64,6 +65,42 @@ async function optimizeWebP(filePath) {
     } else {
       // Keep original if it's already optimal
       await rm(filePath + ".tmp");
+    }
+  } catch (err) {
+    console.warn(`  ⚠ Failed to optimize ${path.relative(outDir, filePath)}: ${err.message}`);
+  }
+}
+
+async function optimizeSVG(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext !== ".svg") return;
+  
+  try {
+    const svgContent = await readFile(filePath, "utf8");
+    const originalSize = Buffer.byteLength(svgContent);
+    
+    const result = optimize(svgContent, {
+      path: filePath,
+      multipass: true,
+      plugins: [
+        {
+          name: "preset-default",
+          params: {
+            overrides: {
+              removeViewBox: false, // Keep viewBox for scaling
+              cleanupIds: false, // Keep IDs if they're used
+            },
+          },
+        },
+      ],
+    });
+    
+    const optimizedSize = Buffer.byteLength(result.data);
+    
+    if (optimizedSize < originalSize) {
+      await writeFile(filePath, result.data, "utf8");
+      const savings = ((1 - optimizedSize / originalSize) * 100).toFixed(1);
+      console.log(`  ✓ ${path.relative(outDir, filePath)} → ${(optimizedSize / 1024).toFixed(1)}KB (${savings}% smaller)`);
     }
   } catch (err) {
     console.warn(`  ⚠ Failed to optimize ${path.relative(outDir, filePath)}: ${err.message}`);
@@ -136,6 +173,18 @@ async function cleanupUnnecessaryFiles(dirPath) {
   }
 }
 
+async function optimizeSVGsInDirectory(dirPath) {
+  const entries = await readdir(dirPath, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      await optimizeSVGsInDirectory(fullPath);
+    } else if (entry.isFile()) {
+      await optimizeSVG(fullPath);
+    }
+  }
+}
+
 async function run() {
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
@@ -172,6 +221,9 @@ async function run() {
 
   console.log("\nCleaning up unnecessary files...");
   await cleanupUnnecessaryFiles(outDir);
+
+  console.log("\nOptimizing SVG images...");
+  await optimizeSVGsInDirectory(outDir);
 
   console.log("\nOptimizing WebP images...");
   await optimizeImagesInDirectory(outDir);
