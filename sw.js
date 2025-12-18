@@ -1,5 +1,5 @@
 /* eslint-env serviceworker */
-const CACHE_VERSION = "v1.25";
+const CACHE_VERSION = "v1.26";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
 const APP_VERSION = "v4";
 const SHEET_VERSION = "v1.9";
@@ -69,24 +69,11 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
-  // For navigation requests, serve cached index.html or fetch it
+  // For navigation requests, don't intercept - let browser handle naturally
+  // Only provide offline fallback if network fails
   if (event.request.mode === "navigate") {
     event.respondWith(
-      caches.match("/index.html").then((cached) => {
-        if (cached) {
-          // Update cache in background
-          fetch("/index.html")
-            .then((resp) => {
-              if (resp.ok) {
-                caches.open(CACHE_NAME).then((cache) => cache.put("/index.html", resp));
-              }
-            })
-            .catch(() => {});
-          return cached;
-        }
-        // No cache, fetch directly (let browser handle redirects naturally)
-        return fetch("/index.html");
-      })
+      fetch(event.request).catch(() => caches.match("/index.html"))
     );
     return;
   }
