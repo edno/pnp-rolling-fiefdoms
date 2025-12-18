@@ -9,10 +9,12 @@ import {
 } from "./influence.js";
 
 const WINDROSE_FACE = "windrose";
-const isNumberedDie = (die) => {
+
+// Check if die is labeled with "N" (N-type dice for auto-assignment)
+const isNDie = (die) => {
   if (!die) return false;
   if (typeof die.label === "string") return die.label.startsWith("N");
-  // Fallback for unlabeled dice: treat non-X faces as numbered
+  // Fallback for unlabeled dice: treat non-X faces as N-type
   return die.face !== "X";
 };
 
@@ -75,7 +77,7 @@ function canRescueAnyLocationPair(state, board, helpers) {
     .filter(({ die }) => {
       if (!die) return false;
       // Include N dice
-      if (isNumberedDie(die)) return true;
+      if (isNDie(die)) return true;
       // Include X dice with resolved numeric values (they can be adjusted with influence)
       if (die.face === "X" && typeof die.resolved === "number") return true;
       return false;
@@ -98,7 +100,7 @@ function autoAssignLocationDice(dice, forced = []) {
   const selection = [...forcedSet];
   const candidates = dice
     .map((die, idx) => ({ die, idx }))
-    .filter(({ die }) => die && isNumberedDie(die));
+    .filter(({ die }) => die && isNDie(die));
   for (const { idx } of candidates) {
     if (selection.length >= 2) break;
     if (!selection.includes(idx)) selection.push(idx);
@@ -179,7 +181,9 @@ export function selectLocationDie(state, dieIndex, { uniqueLocationPairs, filter
     return { invalidSelection: false };
   }
   const die = state.dice[dieIndex];
-  if (!die || die.face === "X") return { invalidSelection: false };
+  // Allow any die with a numeric value (1-5) to be selected, including X dice when they show numbers
+  // Block X dice that show the "X" face (no resolved numeric value)
+  if (!die || (die.face === "X" && typeof die.resolved !== "number")) return { invalidSelection: false };
   if ((state.forcedLocationDice || []).includes(dieIndex)) {
     return { invalidSelection: false, message: "Windrose dice must stay in the location pair." };
   }
@@ -208,7 +212,7 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
   const locationDice = applyInfluenceToDice(state, locationDiceRaw);
   const numberedDice = applyInfluenceToDice(
     state,
-    state.dice.filter((d) => d && isNumberedDie(d)),
+    state.dice.filter((d) => d && isNDie(d)),
   );
   // Include X dice that have influence adjustments in the location pool for rescue calculations
   const influenceAdjustedDice = state.influenceTarget
@@ -237,7 +241,7 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
     } else {
       const numberedDice = state.dice
         .map((die, idx) => ({ die, idx }))
-        .filter(({ die }) => die && isNumberedDie(die))
+        .filter(({ die }) => die && isNDie(die))
         .map(({ idx }) => idx);
       const preferred = [
         ...(state.locationSelection || []),
