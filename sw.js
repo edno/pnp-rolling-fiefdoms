@@ -1,5 +1,5 @@
 /* eslint-env serviceworker */
-const CACHE_VERSION = "v1.22";
+const CACHE_VERSION = "v1.23";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
 const APP_VERSION = "v4";
 const SHEET_VERSION = "v1.9";
@@ -74,7 +74,7 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       caches.match("/index.html").then((cached) => {
         // Serve cached version immediately
-        const fetchPromise = fetch(event.request)
+        const fetchPromise = fetch(event.request, { redirect: "follow" })
           .then((resp) => {
             const copy = resp.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => {});
