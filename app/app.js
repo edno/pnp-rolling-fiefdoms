@@ -2145,11 +2145,11 @@ function renderDice() {
   if (turnHintEl) {
     if (state.pestilence) {
       turnHintEl.textContent = "Pestilence! Forfeit any empty plot.";
-    } else if (state.forceForfeitAdvisory && !state.forceForfeit) {
-      turnHintEl.textContent = "No valid location pairs; spend Influence or forfeit a plot.";
     } else if (state.activeTurn && state.invalidSelection) {
       turnHintEl.textContent =
         state.invalidSelectionMessage || "No valid plots for that pair; choose a different location pair.";
+    } else if (state.forceForfeitAdvisory && !state.forceForfeit) {
+      turnHintEl.textContent = "No valid location pairs; spend Influence or forfeit a plot.";
     } else if (forceForfeitActive()) {
       turnHintEl.textContent = "No valid location pairs; forfeit a plot.";
     } else if (!state.activeTurn) {
@@ -2666,7 +2666,7 @@ function highlightLocations() {
     return;
   }
   
-  if (state.forceForfeit || state.forceForfeitAdvisory) {
+  if (state.forceForfeitHighlight) {
     forEachCell((cell) => {
       const r = parseInt(cell.dataset.row, 10);
       const c = parseInt(cell.dataset.col, 10);
@@ -3338,6 +3338,11 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
     const build = clampDice(forceBuildPreview ? buildDice || [] : buildDice || []);
     if (locDicePreview) renderDicePreview(locDicePreview, loc, "location", "Select 2 dice for location");
     if (buildDicePreview) renderDicePreview(buildDicePreview, build, "build", "Remaining dice used for build");
+    return;
+  }
+  if (state.activationMode || state.activationComplete) {
+    if (locDicePreview) renderDicePreview(locDicePreview, [], "location", "Select 2 dice for location");
+    if (buildDicePreview) renderDicePreview(buildDicePreview, [], "build", "Remaining dice used for build");
     return;
   }
   const respectSwap = () => {

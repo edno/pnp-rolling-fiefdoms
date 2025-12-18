@@ -1908,6 +1908,23 @@ describe("split previews and build gating (jsdom)", () => {
     expect(locPreview.querySelectorAll(".die-badge").length).toBe(2);
     expect(buildPreview.querySelectorAll(".die-badge").length).toBe(2);
   });
+
+  it("hides dice previews during activation mode", async () => {
+    await setupApp({ numbered: [1, 2, 3, 4], x: [2, 5], enableHooks: true });
+    clickRoll();
+    await flushMicrotasks();
+    clickDie(0);
+    clickDie(1);
+    await flushMicrotasks();
+    const hooks = window.__rfTestHooks;
+    expect(document.querySelectorAll("#locDicePreview .die-badge").length).toBe(2);
+    expect(document.querySelectorAll("#buildDicePreview .die-badge").length).toBe(2);
+    hooks.state.activationMode = true;
+    hooks.state.activationComplete = false;
+    hooks.renderSelectionDice();
+    expect(document.querySelectorAll("#locDicePreview .die-badge").length).toBe(0);
+    expect(document.querySelectorAll("#buildDicePreview .die-badge").length).toBe(0);
+  });
 });
 
 describe("building after split lock (jsdom)", () => {

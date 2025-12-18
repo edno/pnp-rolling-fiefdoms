@@ -9,6 +9,8 @@ import {
 } from "./influence.js";
 
 const WINDROSE_FACE = "windrose";
+const SELECT_LOCATION_DICE_PROMPT = "Select two location dice in the Turn panel.";
+const INFLUENCE_FORFEIT_MESSAGE = "No valid location pairs; spend Influence or forfeit a plot.";
 
 // Check if die is labeled with "N" (N-type dice for auto-assignment)
 const isNDie = (die) => {
@@ -156,11 +158,7 @@ export function beginTurn(
     state.forceForfeit = allPairs.length === 0 && !advisory;
     state.forceForfeitAdvisory = advisory;
     if (allPairs.length === 0) {
-      messages.push(
-        state.forceForfeit
-          ? "No valid location pairs; forfeit a plot."
-          : "No valid location pairs; spend Influence or forfeit a plot.",
-      );
+      messages.push(state.forceForfeit ? "No valid location pairs; forfeit a plot." : INFLUENCE_FORFEIT_MESSAGE);
     }
   } else {
     state.locationSelection = state.forcedLocationDice.slice();
@@ -221,7 +219,25 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
   const poolWithInfluence = influenceAdjustedDice.length
     ? [...numberedDice, ...influenceAdjustedDice]
     : numberedDice;
-  const locationPool = state.activeTurn ? poolWithInfluence : (locationDice.length ? locationDice : poolWithInfluence);
+  const locationPool = (() => {
+    if (!state.activeTurn) {
+      return locationDice.length ? locationDice : poolWithInfluence;
+    }
+    if (!locationDice.length) {
+      return poolWithInfluence;
+    }
+    const merged = [...poolWithInfluence];
+    locationDice.forEach((die) => {
+      if (!die) return;
+      const exists = merged.some((entry) => {
+        if (!entry) return false;
+        if (entry.label && die.label) return entry.label === die.label;
+        return entry === die;
+      });
+      if (!exists) merged.push(die);
+    });
+    return merged;
+  })();
   const allPairs = filterAvailablePairs(uniqueLocationPairs(locationPool), board);
   let locationPairs = [];
   let forceForfeit = state.diceLocked ? state.forceForfeit : allPairs.length === 0;
@@ -264,7 +280,9 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
       forceForfeit = false;
       rescueHint = true;
       invalidSelection = true;
-      message = "No valid location pairs; spend Influence or forfeit a plot.";
+      const selectionCount = Array.isArray(state.locationSelection) ? state.locationSelection.length : 0;
+      const showSelectPrompt = state.activeTurn && selectionCount < 2;
+      message = showSelectPrompt ? SELECT_LOCATION_DICE_PROMPT : INFLUENCE_FORFEIT_MESSAGE;
     } else {
       forceForfeit = true;
       invalidSelection = false;
@@ -318,7 +336,7 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
       forceForfeit = false;
       rescueHint = true;
       if (!invalidSelection) invalidSelection = true;
-      message = "No valid location pairs; spend Influence or forfeit a plot.";
+      message = INFLUENCE_FORFEIT_MESSAGE;
     }
   }
 
@@ -327,6 +345,11 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
   state.forceForfeitAdvisory = rescueHint;
   state.invalidSelection = invalidSelection;
   state.invalidSelectionMessage = invalidSelection ? message : null;
+  const selectionComplete =
+    (Array.isArray(state.locationSelection) && state.locationSelection.length === 2) ||
+    (state.diceLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2);
+  state.forceForfeitHighlight =
+    Boolean(forceForfeit) || (Boolean(rescueHint) && selectionComplete && !invalidSelection);
   if (!state.activeTurn && !state.diceLocked && forceForfeit) {
     const swapped = autoSelectValidNonActivePair(state, { uniqueLocationPairs, filterAvailablePairs, board });
     if (swapped) {

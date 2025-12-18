@@ -52,6 +52,7 @@ const baseState = {
   nonActiveSwap: false,
   invalidSelectionMessage: null,
   forceForfeitAdvisory: false,
+  forceForfeitHighlight: false,
 };
 
 function commitPendingInfluence(state) {
@@ -104,6 +105,7 @@ export function resetTurnState(state) {
   state.influenceAdjustments = {};
   state.influenceTarget = null;
   state.influenceSelectionKey = null;
+  state.forceForfeitHighlight = false;
   // rollAvailable intentionally not reset here to preserve per-turn lock until explicitly re-enabled
 }
 

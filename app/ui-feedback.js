@@ -76,12 +76,12 @@ export function actionMessage(state, p2pUiState, currentPhase, options = {}) {
     return "Select an adjacent building for Springhouse to reduce worker requirement by 1.";
   }
 
-  if (state.forceForfeitAdvisory) {
-    return "No valid location pairs; spend Influence or forfeit a plot.";
-  }
-
   if (state.activeTurn && state.invalidSelection && state.invalidSelectionMessage) {
     return state.invalidSelectionMessage;
+  }
+
+  if (state.forceForfeitAdvisory) {
+    return "No valid location pairs; spend Influence or forfeit a plot.";
   }
 
   if (phase === TURN_PHASE.PESTILENCE || phase === TURN_PHASE.FORFEIT) {

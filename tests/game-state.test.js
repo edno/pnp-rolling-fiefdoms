@@ -209,6 +209,7 @@ describe("die selection and location evaluation", () => {
     const result = evaluateLocationSelection(state, { ...helpers, board: fullBoard });
     expect(result.forceForfeit).toBe(true);
     expect(state.forceForfeit).toBe(true);
+    expect(state.forceForfeitHighlight).toBe(true);
   });
 
   it("keeps auto-assigned dice visible on non-active forced forfeits", () => {
@@ -401,6 +402,73 @@ describe("influence integration", () => {
     expect(state.activeTurn).toBe(false);
     expect(state.forceForfeit).toBe(false);
     expect(messages).toContain("No valid location pairs; spend Influence or forfeit a plot.");
+  });
+
+  it("prompts active turns to select location dice when influence can rescue before choosing dice", () => {
+    const state = createState();
+    const board = emptyBoard();
+    board.forEach((row) =>
+      row.forEach((cell) => {
+        cell.building = "X";
+      }),
+    );
+    board[0][3].building = null;
+    state.board = board;
+    state.influence = { earned: 1, spent: 0, pending: 0 };
+    const dice = [
+      { label: "N1", face: 2, resolved: 2 },
+      { label: "N2", face: 4, resolved: 4 },
+      { label: "X1", face: 3, resolved: 3 },
+      { label: "X2", face: 5, resolved: 5 },
+    ];
+    beginTurn(state, dice, board, helpers);
+    const { message, forceForfeit } = evaluateLocationSelection(state, {
+      uniqueLocationPairs,
+      filterAvailablePairs,
+      board,
+    });
+    expect(state.activeTurn).toBe(true);
+    expect(forceForfeit).toBe(false);
+    expect(state.forceForfeitAdvisory).toBe(true);
+    expect(state.invalidSelection).toBe(true);
+    expect(message).toBe("Select two location dice in the Turn panel.");
+    expect(state.invalidSelectionMessage).toBe("Select two location dice in the Turn panel.");
+    expect(state.forceForfeitHighlight).toBe(false);
+  });
+
+  it("accepts influenced X dice as a valid location pair on active turns", () => {
+    const state = createState();
+    const board = emptyBoard();
+    board.forEach((row) =>
+      row.forEach((cell) => {
+        cell.building = "X";
+      }),
+    );
+    board[2][4].building = null; // row 3, col 5
+    board[4][2].building = null; // row 5, col 3
+    state.board = board;
+    state.dice = [
+      { label: "N1", face: 1, resolved: 1 },
+      { label: "N2", face: 4, resolved: 4 },
+      { label: "X1", face: "X", resolved: 2 },
+      { label: "X2", face: "X", resolved: 5 },
+    ];
+    state.locationSelection = [2, 3];
+    state.activeTurn = true;
+    state.influence = { earned: 1, spent: 0, pending: 0 };
+    state.influenceTarget = "X1";
+    state.influenceAdjustments = { X1: { delta: 1 } };
+    const { forceForfeit, invalidSelection, message } = evaluateLocationSelection(state, {
+      uniqueLocationPairs,
+      filterAvailablePairs,
+      board: state.board,
+    });
+    expect(forceForfeit).toBe(false);
+    expect(invalidSelection).toBe(false);
+    expect(state.forceForfeitAdvisory).toBe(false);
+    expect(message).toBeNull();
+    expect(state.locationPairs.length).toBeGreaterThan(0);
+    expect(state.forceForfeitHighlight).toBe(false);
   });
 
   it("lets players spend influence instead of clearing an invalid location pair", () => {
