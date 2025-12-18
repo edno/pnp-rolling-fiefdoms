@@ -221,13 +221,40 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
     state,
     state.dice.filter((d) => d && isNDie(d)),
   );
+  const resolvedXDice = applyInfluenceToDice(
+    state,
+    state.dice.filter((d) => d && isResolvedXDie(d)),
+  );
   // Include X dice that have influence adjustments in the location pool for rescue calculations
   const influenceAdjustedDice = state.influenceTarget
     ? applyInfluenceToDice(state, state.dice.filter(d => d && d.label === state.influenceTarget))
     : [];
-  const poolWithInfluence = influenceAdjustedDice.length
-    ? [...numberedDice, ...influenceAdjustedDice]
-    : numberedDice;
+  const basePool = numberedDice.slice();
+  if (state.activeTurn && locationDice.length < 2 && resolvedXDice.length) {
+    resolvedXDice.forEach((die) => {
+      if (!die) return;
+      const exists = basePool.some((entry) => {
+        if (!entry) return false;
+        if (entry.label && die.label) return entry.label === die.label;
+        return entry === die;
+      });
+      if (!exists) basePool.push(die);
+    });
+  }
+  const poolWithInfluence = (() => {
+    if (!influenceAdjustedDice.length) return basePool;
+    const merged = basePool.slice();
+    influenceAdjustedDice.forEach((die) => {
+      if (!die) return;
+      const exists = merged.some((entry) => {
+        if (!entry) return false;
+        if (entry.label && die.label) return entry.label === die.label;
+        return entry === die;
+      });
+      if (!exists) merged.push(die);
+    });
+    return merged;
+  })();
   const locationPool = (() => {
     if (!state.activeTurn) {
       return locationDice.length ? locationDice : poolWithInfluence;

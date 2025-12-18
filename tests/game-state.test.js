@@ -646,7 +646,38 @@ describe("influence integration", () => {
     expect(after.forceForfeit).toBe(false);
   });
 
-  it("does not include unselected X dice without influence in location pool", () => {
+  it("keeps active turns playable when only windrose plus resolved X dice can reach an open plot", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    // Close every plot except row 5, col 1 (pair [1,5])
+    for (let r = 0; r < 5; r += 1) {
+      for (let c = 0; c < 5; c += 1) {
+        if (!(r === 4 && c === 0)) state.board[r][c].building = "B";
+      }
+    }
+    state.dice = [
+      { label: "N1", face: "windrose", resolved: 0, choices: [1, 2, 3, 4, 5] },
+      { label: "N2", face: 4, resolved: 4 },
+      { label: "X1", face: 4, resolved: 4 },
+      { label: "X2", face: 5, resolved: 5 },
+    ];
+    state.forcedLocationDice = [0];
+    state.locationSelection = [0];
+    state.activeTurn = true;
+    state.influence = { earned: 0, spent: 0, pending: 0 };
+
+    const result = evaluateLocationSelection(state, {
+      uniqueLocationPairs,
+      filterAvailablePairs,
+      board: state.board,
+    });
+
+    expect(result.forceForfeit).toBe(false);
+    expect(state.invalidSelection).toBe(false);
+    expect(state.invalidSelectionMessage).toBeNull();
+  });
+
+  it("keeps resolved X dice available when fewer than two dice are selected", () => {
     const state = createState();
     state.board = emptyBoard();
     // Block all positions for pair [1,1]
@@ -661,18 +692,17 @@ describe("influence integration", () => {
       { label: "X1", face: 2, resolved: 2 }, // Has resolved value but not adjusted
       { label: "X2", face: 2, resolved: 2 },
     ];
-    state.locationSelection = [0, 1]; // N1, N2 selected
+    state.locationSelection = [0]; // Only N1 selected so far
     state.activeTurn = true;
     state.influence = { earned: 0, spent: 0, pending: 0 };
-    
-    // Without influence on X dice, should force forfeit since [1,1] is blocked
-    // and X dice should not auto-rescue
+
+    // Only the selected N dice form blocked pairs; resolved X dice should still provide options.
     const result = evaluateLocationSelection(state, {
       uniqueLocationPairs,
       filterAvailablePairs,
       board: state.board,
     });
-    expect(result.forceForfeit).toBe(true);
+    expect(result.forceForfeit).toBe(false);
     expect(state.invalidSelection).toBe(false);
   });
 
