@@ -409,8 +409,8 @@ function popAround(r, c, popGrid) {
 }
 
 function resolveMarketAllocations(board, populationNodes, activation = new Map()) {
-  const allocations = new Map();
-  if (!Array.isArray(populationNodes) || !populationNodes.length) return allocations;
+  const rawTotals = new Map();
+  if (!Array.isArray(populationNodes) || !populationNodes.length) return new Map();
   const nodeRows = populationNodes.length;
   const nodeCols = populationNodes[0]?.length || 0;
   for (let nr = 0; nr < nodeRows; nr++) {
@@ -430,12 +430,16 @@ function resolveMarketAllocations(board, populationNodes, activation = new Map()
         candidateMarkets.push([br, bc]);
       });
       if (!candidateMarkets.length) continue;
-      candidateMarkets.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-      const [mr, mc] = candidateMarkets[0];
-      const mKey = key(mr, mc);
-      allocations.set(mKey, (allocations.get(mKey) || 0) + popVal);
+      candidateMarkets.forEach(([mr, mc]) => {
+        const mKey = key(mr, mc);
+        rawTotals.set(mKey, (rawTotals.get(mKey) || 0) + popVal);
+      });
     }
   }
+  const allocations = new Map();
+  rawTotals.forEach((val, marketKey) => {
+    allocations.set(marketKey, Math.floor(val / 2));
+  });
   return allocations;
 }
 
@@ -461,10 +465,12 @@ function buildNodeToMarketMap(board, populationNodes, activation = new Map()) {
         candidateMarkets.push([br, bc]);
       });
       if (!candidateMarkets.length) continue;
-      candidateMarkets.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-      const [mr, mc] = candidateMarkets[0];
       const nodeKey = key(nr, nc);
-      nodeMap.set(nodeKey, { marketRow: mr, marketCol: mc, pop: popVal });
+      const current = nodeMap.get(nodeKey) || [];
+      candidateMarkets.forEach(([mr, mc]) => {
+        current.push({ marketRow: mr, marketCol: mc, pop: popVal });
+      });
+      nodeMap.set(nodeKey, current);
     }
   }
   return nodeMap;
@@ -664,8 +670,8 @@ function scoreBuildingCell(board, populationNodes, activation, r, c, { marketAll
       return base + bonus;
     }
     case "M": {
-      if (marketAllocations && marketAllocations.has(key(r, c))) {
-        return marketAllocations.get(key(r, c));
+      if (marketAllocations) {
+        return marketAllocations.get(key(r, c)) || 0;
       }
       return popAround(r, c, populationNodes);
     }

@@ -2382,11 +2382,12 @@ function highlightMarketClaims(marketRow, marketCol) {
   
   // Find all nodes claimed by this market
   state.currentNodeToMarket.forEach((data, nodeKey) => {
-    if (data.marketRow === marketRow && data.marketCol === marketCol) {
+    const claims = Array.isArray(data) ? data : data ? [data] : [];
+    if (claims.some((entry) => entry.marketRow === marketRow && entry.marketCol === marketCol)) {
       const [nr, nc] = nodeKey.split(',').map(Number);
       const nodeEl = document.querySelector(`.population-node[data-node-row="${nr}"][data-node-col="${nc}"]`);
       if (nodeEl) {
-        nodeEl.classList.add('market-claimed');
+        nodeEl.classList.add("market-claimed");
       }
     }
   });
