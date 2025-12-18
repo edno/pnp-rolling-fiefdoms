@@ -240,7 +240,7 @@ body.theme-dark .action-banner {
 }
 
 .loading main {
-  opacity: 0.3;
+  visibility: hidden;
   pointer-events: none;
 }
 
@@ -290,6 +290,7 @@ main {
   padding: 16px;
   align-items: start;
   position: relative;
+  min-height: calc(100vh - var(--footer-height) - 100px);
 }
 
 .board-panel {
@@ -309,6 +310,7 @@ main {
   padding-top: 71%; /* image aspect ratio approx 1086/767 */
   border-radius: 8px;
   overflow: hidden;
+  contain: layout style paint;
 }
 
 .sheet > :not(.sheet-base) {
@@ -699,6 +701,7 @@ body.theme-dark .sheet-base {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  content-visibility: auto;
 }
 
 .panel h2 {
