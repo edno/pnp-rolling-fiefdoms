@@ -69,6 +69,21 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
+  // For navigation requests, use network-first to avoid perceived redirect
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request)
+        .then((resp) => {
+          const copy = resp.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => {});
+          return resp;
+        })
+        .catch(() => caches.match("/index.html") || caches.match(event.request))
+    );
+    return;
+  }
+
+  // For assets, use cache-first
   event.respondWith(
     caches
       .match(event.request)
@@ -80,13 +95,8 @@ self.addEventListener("fetch", (event) => {
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => {});
             return resp;
           })
-          .catch(() => {
-            if (event.request.mode === "navigate") {
-              return caches.match("/index.html");
-            }
-            return caches.match(event.request);
-          });
+          .catch(() => caches.match(event.request));
       })
-      .catch(() => (event.request.mode === "navigate" ? caches.match("/index.html") : undefined)),
+      .catch(() => undefined),
   );
 });
