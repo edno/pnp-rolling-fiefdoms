@@ -1090,11 +1090,11 @@ describe("solo non-active swap control (jsdom)", () => {
     expect(hooks.state.nonActiveSwap).toBe(true);
     expect(hooks.state.locationPairs).toEqual([[2, 5]]);
     const swapBtn = document.getElementById("swapPairBtn");
-    expect(swapBtn.style.display).toBe("none");
-    expect(swapBtn.disabled).toBe(true);
+    expect(swapBtn.style.display).toBe("inline-block");
+    expect(swapBtn.disabled).toBe(false);
     const turnHint = document.getElementById("turnHint");
     expect(turnHint.textContent).toContain("Non-active turn. Dice automatically assigned.");
-    expect(turnHint.textContent).not.toContain("Use the swap button to swap pairs");
+    expect(turnHint.textContent).toContain("Use the swap button to swap pairs.");
   });
 
   it("keeps the swap button usable after multiple toggles when influence can rescue the roll", async () => {
@@ -1176,7 +1176,7 @@ describe("solo non-active swap control (jsdom)", () => {
     expect(swapBtn.disabled).toBe(true);
   });
 
-  it("hides swap button when the alternate pair would immediately forfeit", async () => {
+  it("hides swap button when no valid location pairs remain and no rescue is possible", async () => {
     await setupApp({ enableHooks: true });
     const hooks = window.__rfTestHooks;
     hooks.p2pUiState.signallingActive = false;
@@ -1193,16 +1193,62 @@ describe("solo non-active swap control (jsdom)", () => {
     hooks.state.locationSelection = [0, 1];
     hooks.state.autoLocationSelection = [0, 1];
     hooks.state.forcedLocationDice = [];
-    // Block both permutations of the alternate pair (3,4)
-    hooks.state.board[2][3].forfeited = true;
-    hooks.state.board[3][2].forfeited = true;
+    hooks.state.influence = { earned: 0, spent: 0 };
+    hooks.state.influenceAdjustments = {};
+    const blocked = [
+      [1, 4],
+      [4, 1],
+      [2, 3],
+      [3, 2],
+    ];
+    blocked.forEach(([r, c]) => {
+      hooks.state.board[r][c].forfeited = true;
+    });
     hooks.updateDiceAssignments();
     const swapBtn = document.getElementById("swapPairBtn");
     expect(swapBtn.style.display).toBe("none");
     expect(swapBtn.disabled).toBe(true);
+  });
+
+  it("shows the swap button when influence can rescue only the alternate pair after a duplicate roll", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.p2pUiState.signallingActive = false;
+    hooks.p2pUiState.seatsTotal = 1;
+    hooks.state.activeTurn = false;
+    hooks.state.rollAvailable = false;
+    hooks.state.dice = [
+      { face: 1, resolved: 1, label: "N1" },
+      { face: 2, resolved: 2, label: "N2" },
+      { face: 3, resolved: 3, label: "X1" },
+      { face: 3, resolved: 3, label: "X2" },
+    ];
+    hooks.state.locationSelection = [0, 1];
+    hooks.state.autoLocationSelection = [0, 1];
+    hooks.state.forcedLocationDice = [];
+    hooks.state.influence = { earned: 1, spent: 0 };
+    hooks.state.influenceAdjustments = {};
+    const baseBlocks = [
+      [0, 1],
+      [1, 0],
+      [0, 0],
+      [1, 1],
+      [0, 2],
+      [2, 0],
+      [1, 2],
+      [2, 1],
+    ];
+    baseBlocks.forEach(([r, c]) => {
+      hooks.state.board[r][c].building = "F";
+    });
+    hooks.state.board[2][2].building = "F";
+    hooks.updateDiceAssignments();
+    expect(hooks.state.forceForfeitAdvisory).toBe(true);
+    const swapBtn = document.getElementById("swapPairBtn");
+    expect(swapBtn.style.display).toBe("inline-block");
+    expect(swapBtn.disabled).toBe(false);
     const turnHint = document.getElementById("turnHint");
-    expect(turnHint.textContent).toContain("Non-active turn. Dice automatically assigned.");
-    expect(turnHint.textContent).not.toContain("Use the swap button to swap pairs");
+    expect(turnHint.textContent).toContain("Use the swap button to swap pairs.");
   });
 
   it("adds swap guidance to non-active hint when swap is available", async () => {
@@ -2053,6 +2099,23 @@ describe("split previews and build gating (jsdom)", () => {
     hooks.updateDiceAssignments();
     expect(document.querySelectorAll("#locDicePreview .die-badge").length).toBe(1);
     expect(document.querySelectorAll("#buildDicePreview .die-badge").length).toBe(0);
+  });
+
+  it("removes die highlighting when a selected location die is deselected", async () => {
+    await setupApp({ numbered: [1, 2, 3, 4], x: [2, 5] });
+    clickRoll();
+    await flushMicrotasks();
+    let die0 = document.querySelector('.die-badge[data-idx="0"]');
+    expect(die0).toBeTruthy();
+    expect(die0.classList.contains("location-selected")).toBe(false);
+    clickDie(0);
+    await flushMicrotasks();
+    die0 = document.querySelector('.die-badge[data-idx="0"]');
+    expect(die0.classList.contains("location-selected")).toBe(true);
+    clickDie(0);
+    await flushMicrotasks();
+    die0 = document.querySelector('.die-badge[data-idx="0"]');
+    expect(die0.classList.contains("location-selected")).toBe(false);
   });
 });
 

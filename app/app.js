@@ -2174,18 +2174,20 @@ function renderDice() {
   const turnLocked = state.diceLocked || state.activationMode || state.pestilence || forceForfeitActive();
   if (turnLocked) row.classList.add("dice-locked");
   const baseSelection = Array.isArray(state.locationSelection) ? state.locationSelection.slice() : [];
-  const storedLocationDice =
-    state.diceLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2
+  const storedLocationDice = turnLocked
+    ? state.diceLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2
       ? state.lockedLocationDice
       : Array.isArray(state.lastLocationDice) && state.lastLocationDice.length === 2
         ? state.lastLocationDice
-        : null;
-  const storedBuildDice =
-    state.diceLocked && Array.isArray(state.lockedBuildDice) && state.lockedBuildDice.length === 2
+        : null
+    : null;
+  const storedBuildDice = turnLocked
+    ? state.diceLocked && Array.isArray(state.lockedBuildDice) && state.lockedBuildDice.length === 2
       ? state.lockedBuildDice
       : Array.isArray(state.lastBuildDice) && state.lastBuildDice.length === 2
         ? state.lastBuildDice
-        : null;
+        : null
+    : null;
   const lockedLocIdx = storedLocationDice
     ? storedLocationDice.map((die) => dieSourceIndex(die)).filter((idx) => idx >= 0)
     : null;
@@ -3842,18 +3844,12 @@ function soloSwapAvailable() {
   const baseValid = soloPairHasValidLocations(choice.baseLocDice);
   const altValid = soloPairHasValidLocations(choice.baseBuildDice);
   
-  // Show swap if both are already valid
-  if (baseValid && altValid) return true;
-  
-  // Show swap if at least one is valid or could be rescued with influence
   const baseCanBeRescued = !baseValid && soloPairCanBeRescued(choice.baseLocDice);
   const altCanBeRescued = !altValid && soloPairCanBeRescued(choice.baseBuildDice);
-  
-  // At least one arrangement must be valid or rescuable
-  if (!baseValid && !baseCanBeRescued && !altValid && !altCanBeRescued) return false;
-  
-  // Show swap if either arrangement is valid/rescued
-  return (baseValid || baseCanBeRescued) && (altValid || altCanBeRescued);
+  const basePossible = baseValid || baseCanBeRescued;
+  const altPossible = altValid || altCanBeRescued;
+  if (!basePossible && !altPossible) return false;
+  return true;
 }
 
 function nonActiveAutoHintText() {
