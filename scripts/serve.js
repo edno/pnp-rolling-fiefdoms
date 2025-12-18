@@ -4,7 +4,6 @@
 const { createServer } = require("node:http");
 const { readFile, stat, access } = require("node:fs/promises");
 const path = require("node:path");
-const zlib = require("node:zlib");
 
 const args = new Set(process.argv.slice(2));
 const useDist = args.has("--dist");
