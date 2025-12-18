@@ -894,8 +894,8 @@ describe("X dice with numeric values as location dice", () => {
     state.dice = [
       { label: "N1", face: 2, resolved: 2 },
       { label: "N2", face: 3, resolved: 3 },
-      { label: "X1", face: "X", resolved: 4 },
-      { label: "X2", face: "X", resolved: 5 },
+      { label: "X1", face: 4, resolved: 4 },
+      { label: "X2", face: 5, resolved: 5 },
     ];
     state.locationSelection = [];
     state.board = emptyBoard();
@@ -936,8 +936,8 @@ describe("X dice with numeric values as location dice", () => {
     state.dice = [
       { label: "N1", face: 2, resolved: 2 },
       { label: "N2", face: 3, resolved: 3 },
-      { label: "X1", face: "X", resolved: 4 },
-      { label: "X2", face: "X", resolved: 5 },
+      { label: "X1", face: 4, resolved: 4 },
+      { label: "X2", face: 5, resolved: 5 },
     ];
     state.board = emptyBoard();
 
@@ -959,8 +959,8 @@ describe("X dice with numeric values as location dice", () => {
     state.dice = [
       { label: "N1", face: 2, resolved: 2 },
       { label: "N2", face: 3, resolved: 3 },
-      { label: "X1", face: "X", resolved: 4 },
-      { label: "X2", face: "X", resolved: 5 },
+      { label: "X1", face: 4, resolved: 4 },
+      { label: "X2", face: 5, resolved: 5 },
     ];
     state.board = emptyBoard();
     state.influence = { earned: 2, spent: 0, pending: 0 };
