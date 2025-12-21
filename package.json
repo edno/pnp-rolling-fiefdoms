@@ -1,9 +1,9 @@
 {
-  "name": "rolling-fiefdoms-web",
+  "name": "rolling-fiefdoms-pnp",
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
-  "description": "Lightweight web helper for Rolling Fiefdoms (manual dice split/board tracker).",
+  "description": "Rolling Fiefdoms (online version).",
   "scripts": {
     "lint": "eslint . --ext .js",
     "test": "npm run lint && vitest run",
