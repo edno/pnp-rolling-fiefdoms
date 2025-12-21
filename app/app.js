@@ -3697,12 +3697,9 @@ function updateDiceAssignments() {
     updateMultiplayerButtons();
     return;
   }
-  const locationDice = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
-  const buildDice = state.locationSelection.length === 2 ? state.dice.filter((_, idx) => !state.locationSelection.includes(idx)) : [];
-  if (locationDice.length === 2) {
-    state.lastLocationDice = locationDice;
-    state.lastBuildDice = buildDice;
-  }
+  let locationDice = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
+  let buildDice =
+    state.locationSelection.length === 2 ? state.dice.filter((_, idx) => !state.locationSelection.includes(idx)) : [];
 
   const { message } = evaluateLocationSelection(state, {
     uniqueLocationPairs,
@@ -3710,6 +3707,15 @@ function updateDiceAssignments() {
     board: state.board,
   });
   if (message) log(message);
+
+  // Re-evaluate dice assignments in case the selection changed (e.g. auto-swap on non-active turns).
+  locationDice = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
+  buildDice =
+    state.locationSelection.length === 2 ? state.dice.filter((_, idx) => !state.locationSelection.includes(idx)) : [];
+  if (locationDice.length === 2) {
+    state.lastLocationDice = locationDice;
+    state.lastBuildDice = buildDice;
+  }
 
   if (turnHintEl) {
     if (state.activeTurn && state.invalidSelection) {

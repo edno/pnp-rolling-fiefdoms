@@ -968,11 +968,12 @@ describe("forfeit timing in solo (jsdom)", () => {
       { face: 2, resolved: 2, label: "X2" },
     ];
     hooks.state.locationSelection = [0, 1];
-    // Forfeit all plots that match pair (1,1)
-    hooks.state.board[0][0].forfeited = true;
-    hooks.state.board[0][4].forfeited = true;
-    hooks.state.board[4][0].forfeited = true;
-    hooks.state.board[4][4].forfeited = true;
+    // Forfeit every plot so no valid coordinates remain for any dice combination
+    hooks.state.board.forEach((row) =>
+      row.forEach((cell) => {
+        cell.forfeited = true;
+      }),
+    );
     hooks.updateDiceAssignments();
     expect(hooks.state.forceForfeit).toBe(true);
   });
@@ -1027,6 +1028,85 @@ describe("active forfeit handling (jsdom)", () => {
       (el) => el.textContent,
     );
     expect(buildPreviewLabels).toEqual(["N1", "N2"]);
+  });
+
+  it("keeps dice selectable when another valid pair exists on active turns", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.state.activeTurn = true;
+    hooks.state.rollAvailable = false;
+    hooks.state.board.forEach((row) =>
+      row.forEach((cell) => {
+        cell.building = null;
+        cell.forfeited = false;
+        cell.springBoost = 0;
+      }),
+    );
+    hooks.state.dice = [
+      { face: 4, resolved: 4, label: "N1" },
+      { face: 2, resolved: 2, label: "N2" },
+      { face: 1, resolved: 1, label: "X1" },
+      { face: 4, resolved: 4, label: "X2" },
+    ];
+    hooks.state.locationSelection = [1, 2];
+    hooks.state.autoLocationSelection = [1, 2];
+    hooks.state.forcedLocationDice = [];
+    hooks.state.board[0][1].forfeited = true;
+    hooks.state.board[1][0].forfeited = true;
+    hooks.updateDiceAssignments();
+    expect(hooks.state.forceForfeit).toBe(false);
+    expect(hooks.state.invalidSelection).toBe(true);
+    expect(hooks.state.invalidSelectionMessage).toContain("choose a different location pair");
+    clickDie(1);
+    await flushMicrotasks();
+    expect(hooks.state.locationSelection).toEqual([2]);
+    clickDie(2);
+    await flushMicrotasks();
+    expect(hooks.state.locationSelection).toEqual([]);
+    clickDie(0);
+    await flushMicrotasks();
+    clickDie(3);
+    await flushMicrotasks();
+    expect(hooks.state.locationSelection).toEqual([0, 3]);
+    expect(hooks.state.forceForfeit).toBe(false);
+    expect(hooks.state.invalidSelection).toBe(false);
+    expect(hooks.state.locationPairs).toEqual([[4, 4]]);
+  });
+
+  it("fills the location preview with both dice when a forced forfeit occurs mid-active turn", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.state.activeTurn = true;
+    hooks.state.rollAvailable = false;
+    hooks.state.board.forEach((row, r) =>
+      row.forEach((cell, c) => {
+        cell.building = "F";
+        cell.forfeited = false;
+        cell.springBoost = 0;
+        if (r === 3 && c === 3) {
+          cell.building = null;
+        }
+      }),
+    );
+    hooks.state.dice = [
+      { face: "windrose", resolved: 1, label: "N1", choices: [1, 2, 3, 4, 5] },
+      { face: 3, resolved: 3, label: "N2" },
+      { face: 5, resolved: 5, label: "X1" },
+      { face: 5, resolved: 5, label: "X2" },
+    ];
+    hooks.state.locationSelection = [0];
+    hooks.state.autoLocationSelection = [0];
+    hooks.state.forcedLocationDice = [0];
+    hooks.updateDiceAssignments();
+    expect(hooks.state.forceForfeit).toBe(true);
+    const locPreviewLabels = Array.from(document.querySelectorAll("#locDicePreview .die-face-label")).map(
+      (el) => el.textContent,
+    );
+    expect(locPreviewLabels).toEqual(["N1", "N2"]);
+    const buildPreviewLabels = Array.from(document.querySelectorAll("#buildDicePreview .die-face-label")).map(
+      (el) => el.textContent,
+    );
+    expect(buildPreviewLabels).toEqual(["X1", "X2"]);
   });
 });
 
@@ -1095,6 +1175,14 @@ describe("solo non-active swap control (jsdom)", () => {
     const turnHint = document.getElementById("turnHint");
     expect(turnHint.textContent).toContain("Non-active turn. Dice automatically assigned.");
     expect(turnHint.textContent).toContain("Use the swap button to swap pairs.");
+    const locPreviewLabels = Array.from(document.querySelectorAll("#locDicePreview .die-face-label")).map(
+      (el) => el.textContent,
+    );
+    expect(locPreviewLabels).toEqual(["X1", "X2"]);
+    const buildPreviewLabels = Array.from(document.querySelectorAll("#buildDicePreview .die-face-label")).map(
+      (el) => el.textContent,
+    );
+    expect(buildPreviewLabels).toEqual(["N1", "N2"]);
   });
 
   it("keeps the swap button usable after multiple toggles when influence can rescue the roll", async () => {

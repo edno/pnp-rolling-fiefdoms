@@ -274,7 +274,22 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
     });
     return merged;
   })();
-  const allPairs = filterAvailablePairs(uniqueLocationPairs(locationPool), board);
+  const appendUniqueDie = (arr, die) => {
+    if (!die) return;
+    const exists = arr.some((entry) => {
+      if (!entry) return false;
+      if (entry === die) return true;
+      if (entry.label && die.label) return entry.label === die.label;
+      return false;
+    });
+    if (!exists) arr.push(die);
+  };
+  const extendedPool = (() => {
+    const merged = locationPool.slice();
+    resolvedXDice.forEach((die) => appendUniqueDie(merged, die));
+    return merged;
+  })();
+  const allPairs = filterAvailablePairs(uniqueLocationPairs(extendedPool), board);
   let locationPairs = [];
   let forceForfeit = state.diceLocked ? state.forceForfeit : allPairs.length === 0;
   let rescueHint = false;
@@ -288,9 +303,23 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
 
   if (!state.diceLocked && allPairs.length === 0) {
     if (state.activeTurn) {
-      state.locationSelection = Array.isArray(state.locationSelection)
-        ? state.locationSelection.slice(0, 2)
-        : [];
+      const current = Array.isArray(state.locationSelection) ? state.locationSelection.slice(0, 2) : [];
+      const fillSelection = () => {
+        if (current.length >= 2) return current;
+        const eligible = state.dice
+          .map((die, idx) => ({ die, idx }))
+          .filter(({ die }) => {
+            if (!die) return false;
+            if (isNDie(die)) return true;
+            return isResolvedXDie(die);
+          })
+          .map(({ idx }) => idx);
+        eligible.forEach((idx) => {
+          if (current.length < 2 && !current.includes(idx)) current.push(idx);
+        });
+        return current.slice(0, 2);
+      };
+      state.locationSelection = generalRescue ? current : fillSelection();
     } else {
       // Allow both N dice and X dice with resolved numbers for non-active turns
       const validLocationDice = state.dice
