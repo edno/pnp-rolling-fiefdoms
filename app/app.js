@@ -1,3 +1,17 @@
+/**
+ * Rolling Fiefdoms - Main Application
+ * 
+ * TABLE OF CONTENTS:
+ * - Imports & Constants (lines 1-110)
+ * - Helper Functions (lines 115-215) - Utilities for state checks and DOM
+ * - P2P Multiplayer (lines 790-1740) - WebRTC signalling and multiplayer state
+ * - Event Handlers (lines 730-780) - DOM event setup and user interaction  
+ * - Game Logic (lines 1750-2820) - Turn flow, dice rolling, building
+ * - Rendering Functions (lines 2085-2820) - UI rendering and DOM updates
+ * - State Updates (lines 2830-3050) - Track recalculation and sync
+ * - UI Messages & Feedback (lines 3070+) - Action banners and user feedback
+ */
+
 import {
   uniqueLocationPairs,
   buildingOptionsFromDice,
@@ -13,6 +27,16 @@ import {
 } from "./rules.js";
 import { createState, resetTurnState, lockDiceSnapshot } from "./state-controller.js";
 import {
+  ensureBuildDoneMap,
+  ensureSplitUsedMap,
+  resetBuildDoneMap as createResetBuildDoneMap,
+  sanitizeBuildDoneMap,
+  allBuildsMarkedDone as checkAllBuildsMarkedDone,
+  shouldAutoMarkBuildDone,
+  mergeStateMap,
+  validateMultiplayerState as validateMultiplayerStateFromModule,
+} from "./multiplayer-state.js";
+import {
   beginTurn,
   selectLocationDie,
   evaluateLocationSelection,
@@ -25,35 +49,112 @@ import {
   autoAdvanceState,
   recalcTracks,
   maybeRollAfterLockState,
+  canRescueLocationWithInfluence,
 } from "./game-state.js";
 import { rollNumberedDie, rollXDie } from "./dice.js";
+import {
+  applyInfluenceToDie,
+  applyInfluenceToDice,
+  isInfluenceEligibleDie,
+  DICE_MIN_VALUE,
+  DICE_MAX_VALUE,
+  POPS_PER_INFLUENCE,
+  totalInfluenceSpent,
+} from "./influence.js";
 import { splitForcedDice } from "./dice-display.js";
 import { createDieFaceSVG } from "./dice-face.js";
-import { createManualP2P } from "./p2p.js";
-import { createQrDataUrl } from "./qr.js";
 import { compressToBase64Url, decompressFromBase64Url } from "./compact.js";
 
-const terrainLayout = [
-  ["Mt", "Fo", "Fo", "Fo", "Se"],
-  ["Mt", "..", "..", "..", "Se"],
-  ["Mt", "..", "Vi", "..", "Se"],
-  ["Mt", "..", "..", "..", "Se"],
-  ["Mt", "Ma", "Ma", "Ma", "Se"],
-];
+// Lazy-loaded modules for performance (loaded on demand)
+let createManualP2P = null;
+let createQrDataUrl = null;
+const loadP2P = async () => {
+  if (!createManualP2P) {
+    const module = await import("./p2p.js");
+    createManualP2P = module.createManualP2P;
+  }
+  return createManualP2P;
+};
+const loadQR = async () => {
+  if (!createQrDataUrl) {
+    const module = await import("./qr.js");
+    createQrDataUrl = module.createQrDataUrl;
+  }
+  return createQrDataUrl;
+};
+import {
+  boardEl,
+  diceView,
+  turnHintEl,
+  locDicePreview,
+  buildDicePreview,
+  logEl,
+  scoreOverlayEl,
+  popHousingOverlay,
+  influenceOverlay,
+  turnTrackOverlay,
+  finishActivationBtn,
+  newGameBtn,
+  finishSplitBtn,
+  swapPairBtn,
+  fullscreenBtn,
+  themeToggleBtn,
+  themeToggleIcon,
+  themeToggleText,
+  turnStatusChip,
+  loadingOverlay,
+  sheetBaseImage,
+  p2pPanel,
+  p2pStatusEl,
+  p2pCodeEl,
+  p2pCodeLabel,
+  p2pCopyBtn,
+  p2pApplyBtn,
+  p2pHostBtn,
+  p2pJoinBtn,
+  p2pDisconnectBtn,
+  p2pSendAnswerBtn,
+  p2pHintEl,
+  p2pMeeplesEl,
+  p2pInviteRow,
+  p2pQrImg,
+  p2pQrCaption,
+  p2pQrModal,
+  p2pQrClose,
+  p2pShowQrBtn,
+  forEachCell,
+  createOctagon,
+  clearElement,
+  debugLog as debugLogUtil,
+} from "./dom-manager.js";
+import {
+  ICONS,
+  buildingHitboxes,
+  guildHitboxes,
+  scoringSpots,
+  TURN_TRACK_LENGTH,
+  countGuilds,
+  builtGuildTypes,
+} from "./ui-renderer.js";
+import {
+  nonActiveAutoHintText as generateNonActiveHint,
+  actionMessage as generateActionMessage,
+  updateActionBanner as updateBannerUI,
+} from "./ui-feedback.js";
+
+const BOARD_SIZE = 5;
+const POPULATION_GRID_SIZE = 4;
 
 const state = createState();
 
 let controlsReady = false;
 const urlParams = new URLSearchParams(window.location.search);
 const debugMode = urlParams.has("debug");
-const p2pFeatureEnabled = urlParams.has("p2p");
-const MAX_P2P_SEATS = 5;
+let p2pFeatureEnabled = false;
+const MAX_P2P_SEATS = 2; // Only 2 players supported in current P2P implementation
 const P2P_SEAT_COLORS = {
   1: "#e74c3c", // red
   2: "#2980b9", // blue
-  3: "#27ae60", // green
-  4: "#f1c40f", // yellow
-  5: "#8e44ad", // purple
 };
 const p2pUiState = {
   mode: "idle",
@@ -81,38 +182,40 @@ const p2pUiState = {
   lockedPairSwap: false,
   splitUsed: {},
 };
-if (!p2pFeatureEnabled) {
-  p2pUiState.signallingDisabled = true;
+
+// ============================================================================
+// HELPER FUNCTIONS - Utilities for state checks and DOM manipulation
+// ============================================================================
+
+// Wrapper for debug logging using the utility from dom-manager
+function debugLog(...args) {
+  debugLogUtil(debugMode, ...args);
 }
 
 function isMultiplayerActive() {
   return p2pUiState.signallingActive && p2pUiState.seatsTotal > 1;
 }
 
+function isMyBuildDone() {
+  return isMultiplayerActive() && p2pUiState.buildDone?.[p2pUiState.seatId];
+}
+
+function isMySplitUsed() {
+  return isMultiplayerActive() && p2pUiState.splitUsed?.[p2pUiState.seatId];
+}
+
+function isAwaitingSplit() {
+  return isMultiplayerActive() && !p2pUiState.splitLocked && !state.pestilence && !forceForfeitActive();
+}
+
+function isNonActiveMultiplayer() {
+  return isMultiplayerActive() && p2pUiState.activeSeat !== p2pUiState.seatId;
+}
+
 function awaitingSplitNonActive(snapshotActiveSeat = null) {
   const activeSeat = snapshotActiveSeat ?? p2pUiState.activeSeat;
   const nonActive = isMultiplayerActive() && activeSeat !== p2pUiState.seatId;
-  return nonActive && !p2pUiState.splitLocked && !state.pestilence && !state.forceForfeit;
-}
-
-function ensureBuildDoneMap(total = null, seed = null) {
-  const seats = Math.max(1, Number(total || p2pUiState.seatsTotal) || 1);
-  const merged = {};
-  const source = seed || p2pUiState.buildDone || {};
-  for (let i = 1; i <= seats; i += 1) {
-    merged[i] = Boolean(source[i]);
-  }
-  return merged;
-}
-
-function ensureSplitUsedMap(total = null, seed = null) {
-  const seats = Math.max(1, Number(total || p2pUiState.seatsTotal) || 1);
-  const merged = {};
-  const source = seed || p2pUiState.splitUsed || {};
-  for (let i = 1; i <= seats; i += 1) {
-    merged[i] = Boolean(source[i]);
-  }
-  return merged;
+  return nonActive && !p2pUiState.splitLocked && !state.pestilence && !forceForfeitActive();
 }
 
 function ensureConnectedSeats(seed = null) {
@@ -130,8 +233,9 @@ function currentTurnPhase() {
   if (state.activationMode) return TURN_PHASE.ACTIVATION;
   if (state.pendingPopulation?.remaining > 0) return TURN_PHASE.POPULATION;
   if (state.pestilence) return TURN_PHASE.PESTILENCE;
-  if (state.forceForfeit) return TURN_PHASE.FORFEIT;
-  if (state.rollAvailable && !debugMode) return TURN_PHASE.AWAIT_ROLL;
+  if (forceForfeitActive()) return TURN_PHASE.FORFEIT;
+  const allowDebugBypass = debugMode && !isMultiplayerActive();
+  if (state.rollAvailable && !allowDebugBypass) return TURN_PHASE.AWAIT_ROLL;
   if (state.diceLocked || state.locationSelection.length === 2) return TURN_PHASE.BUILDING;
   if (state.dice?.length) return TURN_PHASE.SPLITTING;
   return TURN_PHASE.AWAIT_ROLL;
@@ -141,7 +245,7 @@ function effectiveLockedLocationPairs() {
   if (!p2pUiState.splitLocked || !state.lockedLocationDice || state.lockedLocationDice.length !== 2) return [];
   const choice = lockedPairChoice();
   const locDice = choice.locDice || state.lockedLocationDice;
-  return uniqueLocationPairs(locDice);
+  return uniqueLocationPairs(applyInfluenceToDice(state, locDice || []));
 }
 
 function setActiveSeat(nextSeat = 1) {
@@ -155,9 +259,7 @@ function setActiveSeat(nextSeat = 1) {
 
 function resetBuildDoneMap() {
   const total = Math.max(1, Number(p2pUiState.seatsTotal) || 1);
-  const entries = {};
-  for (let i = 1; i <= total; i += 1) entries[i] = false;
-  p2pUiState.buildDone = entries;
+  p2pUiState.buildDone = createResetBuildDoneMap(total);
 }
 
 function nextSeatId() {
@@ -166,12 +268,9 @@ function nextSeatId() {
 }
 
 function allBuildsMarkedDone() {
-  const map = ensureBuildDoneMap();
+  const map = ensureBuildDoneMap(null, null, p2pUiState);
   const total = Math.max(1, Number(p2pUiState.seatsTotal) || 1);
-  for (let i = 1; i <= total; i += 1) {
-    if (!map[i]) return false;
-  }
-  return true;
+  return checkAllBuildsMarkedDone(map, total);
 }
 
 function logP2P(...args) {
@@ -180,6 +279,7 @@ function logP2P(...args) {
   }
 }
 
+// ========================================
 function resetSecretField() {
   const fresh = randomPasscode();
   p2pUiState.passcode = fresh;
@@ -246,12 +346,20 @@ function parseSessionLink(value) {
   }
 }
 
-const p2p = createManualP2P({
-  onLog: (msg) => logP2P(msg),
-  onStatus: (status) => handleP2PStatus(status),
-  onMessage: (message) => handleP2PMessage(message),
-  captureState: () => captureP2PSnapshot(),
-});
+// P2P is initialized lazily when first needed
+let p2p = null;
+async function ensureP2P() {
+  if (!p2p) {
+    const factory = await loadP2P();
+    p2p = factory({
+      onLog: (msg) => logP2P(msg),
+      onStatus: (status) => handleP2PStatus(status),
+      onMessage: (message) => handleP2PMessage(message),
+      captureState: () => captureP2PSnapshot(),
+    });
+  }
+  return p2p;
+}
 
 function prepareNextRoll() {
   state.rollAvailable = true;
@@ -261,12 +369,14 @@ function prepareNextRoll() {
   state.buildDice = [];
   p2pUiState.splitLocked = false;
   p2pUiState.lockedPairSwap = false;
-  p2pUiState.splitUsed = ensureSplitUsedMap();
+  p2pUiState.splitUsed = ensureSplitUsedMap(null, null, p2pUiState);
   Object.keys(p2pUiState.splitUsed).forEach((k) => {
     p2pUiState.splitUsed[k] = false;
   });
   resetBuildDoneMap();
   state.forceForfeit = false;
+  state.forceForfeitAdvisory = false;
+  state.forceForfeitAdvisory = false;
   state.pestilence = false;
   state.pestilenceInfo = null;
   state.invalidSelection = false;
@@ -277,12 +387,24 @@ function prepareNextRoll() {
   state.lockedBuildDice = null;
   state.lockedLocationPairs = null;
   state.pendingNextRoll = false;
-  if (diceView) diceView.innerHTML = "";
+  clearElement(diceView);
   updateRollButton();
   updateActionBanner();
   updateMultiplayerButtons();
   refreshDiceVisibility();
   highlightLocations();
+}
+
+function validateMultiplayerState() {
+  if (!isMultiplayerActive()) return { valid: true };
+  
+  const result = validateMultiplayerStateFromModule({ p2pUiState, state });
+  
+  if (debugMode && !result.valid) {
+    console.warn('[validateMultiplayerState] Inconsistencies detected:', result.errors);
+  }
+  
+  return result;
 }
 
 function shouldRerollDoubleWindrose(dice) {
@@ -297,10 +419,11 @@ function updateRollButton() {
   if (!rollBtn) return;
   const isActiveSeat = p2pUiState.activeSeat === p2pUiState.seatId;
   const hidden = state.activationMode || state.activationComplete || (!isActiveSeat && p2pUiState.seatsTotal > 1);
-  const awaitingRoll = !debugMode && state.rollAvailable;
-  const showButton = !hidden && (awaitingRoll || debugMode);
+  const allowDebugBypass = debugMode && !isMultiplayerActive();
+  const awaitingRoll = !allowDebugBypass && state.rollAvailable;
+  const showButton = !hidden && (awaitingRoll || allowDebugBypass);
   rollBtn.style.display = showButton ? "inline-block" : "none";
-  const enabled = (debugMode || state.rollAvailable) && isActiveSeat;
+  const enabled = (allowDebugBypass || state.rollAvailable) && isActiveSeat;
   rollBtn.disabled = !enabled;
   rollBtn.classList.toggle("dice-locked", !enabled && !debugMode);
   rollBtn.title = enabled ? "Roll dice" : "Roll used; complete the turn to roll again.";
@@ -308,7 +431,8 @@ function updateRollButton() {
 
 function refreshDiceVisibility() {
   const hidden = state.activationMode || state.activationComplete;
-  const awaitingRoll = !debugMode && state.rollAvailable;
+  const allowDebugBypass = debugMode && !isMultiplayerActive();
+  const awaitingRoll = !allowDebugBypass && state.rollAvailable;
   if (diceView) diceView.style.display = hidden || awaitingRoll ? "none" : "";
   updateRollButton();
   updateTurnStatusChip();
@@ -332,52 +456,19 @@ function toggleFullscreen() {
   }
 }
 
-const boardEl = document.getElementById("board");
-const diceView = document.getElementById("diceView");
-const turnHintEl = document.getElementById("turnHint");
-const locDicePreview = document.getElementById("locDicePreview");
-const buildDicePreview = document.getElementById("buildDicePreview");
-const logEl = document.getElementById("log");
-const scoreOverlayEl = document.getElementById("scoreOverlay");
-const popHousingOverlay = document.getElementById("popHousingOverlay");
-const turnTrackOverlay = document.getElementById("turnTrackOverlay");
+// DOM element state (not from dom-manager, app-specific state)
 const guildTypes = ["GF", "GQ", "GW", "GM"];
-const finishActivationBtn = document.getElementById("finishActivation");
-const newGameBtn = document.getElementById("newGameBtn");
-const finishSplitBtn = document.getElementById("finishSplitBtn");
-const swapPairBtn = document.getElementById("swapPairBtn");
 let swapBtnPulseTimeout = null;
 let swapBtnLastVisible = false;
-// Done building button removed from UI.
-const fullscreenBtn = document.getElementById("fullscreenToggle");
-const themeToggleBtn = document.getElementById("themeToggle");
-const themeToggleIcon = document.getElementById("themeToggleIcon");
-const themeToggleText = document.getElementById("themeToggleText");
-const actionBannerEl = document.getElementById("actionBanner");
-const turnStatusChip = document.getElementById("turnStatusChip");
-const loadingOverlay = document.getElementById("loadingOverlay");
-const sheetBaseImage = document.getElementById("sheetBaseImage");
-const p2pPanel = document.getElementById("p2pPanel");
-const p2pStatusEl = document.getElementById("p2pStatus");
-const p2pCodeEl = document.getElementById("p2pCode");
-const p2pCodeLabel = document.querySelector('label[for="p2pCode"]');
-const p2pCopyBtn = document.getElementById("p2pCopyBtn");
-const p2pApplyBtn = document.getElementById("p2pApplyBtn");
-const p2pHostBtn = document.getElementById("p2pHostBtn");
-const p2pJoinBtn = document.getElementById("p2pJoinBtn");
-const p2pDisconnectBtn = document.getElementById("p2pDisconnectBtn");
-const p2pSendAnswerBtn = document.getElementById("p2pSendAnswerBtn");
-const p2pHintEl = document.getElementById("p2pHint");
-const p2pMeeplesEl = document.getElementById("p2pMeeples");
-const p2pInviteRow = p2pCodeEl ? p2pCodeEl.closest(".p2p-row") : null;
-const p2pQrImg = document.getElementById("p2pQrImg");
-const p2pQrCaption = document.getElementById("p2pQrCaption");
-const p2pQrModal = document.getElementById("p2pQrModal");
-const p2pQrClose = document.getElementById("p2pQrClose");
-const p2pShowQrBtn = document.getElementById("p2pShowQrBtn");
-const SHEET_VERSION = "v1.8";
+
+const SHEET_VERSION = "v1.9";
 const POP_CAPACITY = 5;
-const POP_LAYOUT = { cols: 8, rows: 2, pipsPerCell: 4 };
+const POP_LAYOUT = { rows: [8, 7], pipsPerCell: 4 };
+const POP_TRACK_TOTAL_CELLS = POP_LAYOUT.rows.reduce((sum, len) => sum + len, 0);
+const INFLUENCE_TRACK_SLOTS = Math.max(
+  1,
+  Math.floor((POP_TRACK_TOTAL_CELLS * POP_LAYOUT.pipsPerCell) / POPS_PER_INFLUENCE),
+);
 const THEME_STORAGE_KEY = "rolling-fiefdoms-theme";
 const TURN_PHASE = {
   AWAIT_ROLL: "awaiting-roll",
@@ -389,7 +480,12 @@ const TURN_PHASE = {
   ACTIVATION: "activation",
   ACTIVATION_DONE: "activation-complete",
 };
-const TOAST_DURATION_MS = 3500;
+const SIGNALLING_RETRY_COUNT = 3;
+const SIGNALLING_RETRY_BACKOFF_MS = 1000;
+const SIGNALLING_MAX_BACKOFF_MS = 5000;
+const SIGNALLING_POLL_TIMEOUT_MS = 20000;
+const SIGNALLING_POLL_INTERVAL_MS = 1200;
+const SIGNALLING_POLL_MAX_INTERVAL_MS = 5000;
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
@@ -415,7 +511,21 @@ function registerServiceWorker() {
           const newWorker = reg.installing;
           newWorker.addEventListener("statechange", () => {
             if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-              newWorker.postMessage({ type: "SKIP_WAITING" });
+              // Check if safe to update - not during critical game actions
+              const isSafeToUpdate = !state.activationMode && 
+                                     !state.diceLocked && 
+                                     !state.diceRolling && 
+                                     !rollingInProgress;
+              
+              if (isSafeToUpdate) {
+                newWorker.postMessage({ type: "SKIP_WAITING" });
+              } else {
+                console.log("SW update available but game in progress. Will update after turn.");
+                // Store flag to update after current action completes
+                if (typeof window !== "undefined") {
+                  window.__pendingServiceWorkerUpdate = newWorker;
+                }
+              }
             }
           });
         });
@@ -433,79 +543,6 @@ function registerServiceWorker() {
   });
 }
 
-function showToast(message) {
-  if (!message) return;
-  const toast = document.createElement("div");
-  toast.textContent = message;
-  toast.setAttribute("role", "status");
-  toast.style.position = "fixed";
-  toast.style.left = "50%";
-  toast.style.bottom = "24px";
-  toast.style.transform = "translateX(-50%)";
-  toast.style.background = "rgba(0, 0, 0, 0.85)";
-  toast.style.color = "#fff";
-  toast.style.padding = "10px 14px";
-  toast.style.borderRadius = "6px";
-  toast.style.fontSize = "14px";
-  toast.style.boxShadow = "0 2px 6px rgba(0, 0, 0, 0.35)";
-  toast.style.zIndex = "1200";
-  toast.style.maxWidth = "90%";
-  toast.style.textAlign = "center";
-  document.body.appendChild(toast);
-  setTimeout(() => {
-    if (toast.parentNode) toast.parentNode.removeChild(toast);
-  }, TOAST_DURATION_MS);
-}
-
-// Hitboxes relative to printed sheet regions (percent of Buildings/Guilds box)
-const buildingHitboxes = [
-  { code: "C", col: 1, row: 1 },
-  { code: "F", col: 1, row: 2 },
-  { code: "Q", col: 1, row: 3 },
-  { code: "W", col: 1, row: 4 },
-  { code: "M", col: 1, row: 5 },
-  { code: "S", col: 2, row: 1 },
-  { code: "T", col: 2, row: 2 },
-  { code: "U", col: 2, row: 3 },
-  { code: "A", col: 2, row: 4 },
-  { code: "G", col: 2, row: 5 },
-];
-const guildHitboxes = [
-  { code: "GF", col: 1, row: 1 },
-  { code: "GW", col: 2, row: 1 },
-  { code: "GQ", col: 1, row: 2 },
-  { code: "GM", col: 2, row: 2 },
-];
-
-function countGuilds(board) {
-  return board.flat().filter((cell) => cell.building === "G").length;
-}
-
-function builtGuildTypes(board) {
-  const set = new Set();
-  board.flat().forEach((cell) => {
-    if (cell.building === "G" && cell.buildingLabel) {
-      set.add(cell.buildingLabel.toUpperCase());
-    }
-  });
-  return set;
-}
-
-const scoringSpots = [
-  { key: "cottages", x: 22, y: 30 },
-  { key: "farm", x: 68, y: 30 },
-  { key: "quarry", x: 114, y: 30 },
-  { key: "windmill", x: 158, y: 30 },
-  { key: "market", x: 204, y: 30 },
-  { key: "townhall", x: 246, y: 30 },
-  { key: "university", x: 292, y: 30 },
-  { key: "guilds", x: 336, y: 30 },
-  { key: "springhouse", x: 384, y: 30 },
-  { key: "vagrants", x: 428, y: 30 },
-  { key: "reputation", x: 530, y: 30 },
-];
-const TURN_TRACK_LENGTH = 25;
-
 function readStoredTheme() {
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
@@ -514,6 +551,21 @@ function readStoredTheme() {
     console.warn("Could not read theme preference", err);
   }
   return "light";
+}
+
+// Listen for storage events to detect cross-tab conflicts
+if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+  window.addEventListener("storage", (e) => {
+    if (e.key === THEME_STORAGE_KEY && e.newValue) {
+      const newTheme = e.newValue === "dark" ? "dark" : "light";
+      if (state.theme !== newTheme) {
+        console.log("Theme changed by another tab, syncing...");
+        state.theme = newTheme;
+        document.body.classList.toggle("theme-dark", newTheme === "dark");
+        updateThemeToggle();
+      }
+    }
+  });
 }
 
 function updateThemeToggle() {
@@ -549,7 +601,7 @@ function setupThemeToggle() {
   themeToggleBtn.onclick = () => applyTheme(state.theme === "dark" ? "light" : "dark", true);
 }
 
-function init() {
+async function init() {
   resetState();
   renderBoard();
   updateTracks();
@@ -559,19 +611,25 @@ function init() {
   renderMeeples();
   updateInviteVisibility(p2pUiState.inviteVisible);
   if (!controlsReady) {
-    setupControls();
+    await setupControls();
     controlsReady = true;
   }
 }
 
 function resetState() {
-  state.board = terrainLayout.map((row) =>
-    row.map((terrain) => ({ terrain, building: null, buildingLabel: null, forfeited: false, springBoost: 0 })),
+  state.board = Array.from({ length: BOARD_SIZE }, () =>
+    Array.from({ length: BOARD_SIZE }, () => ({ building: null, buildingLabel: null, forfeited: false, springBoost: 0 })),
   );
-  state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+  state.populationNodes = Array.from({ length: POPULATION_GRID_SIZE }, () => Array(POPULATION_GRID_SIZE).fill(0));
   state.populationAvailable = null;
   state.workerAllocations = null;
   state.activationMode = false;
+  state.influence = { earned: 0, spent: 0, pending: 0 };
+  state.influenceAdjustments = {};
+  state.influenceTarget = null;
+  state.tracks.population = 0;
+  state.tracks.housing = 0;
+  state.tracks.influence = 0;
   state.turnIndex = 0;
   state.turnTrack = 0;
   state.activeTurn = true;
@@ -586,7 +644,7 @@ function resetState() {
   p2pUiState.inviteVisible = false;
   resetBuildDoneMap();
   resetTurnState(state);
-  if (logEl) logEl.innerHTML = "";
+  clearElement(logEl);
   if (finishActivationBtn) finishActivationBtn.style.display = "none";
   if (newGameBtn) newGameBtn.style.display = "none";
   renderTurnTrack(state.turnTrack);
@@ -620,16 +678,66 @@ function sheetImageUrl() {
   return new URL(`resources/rolling-fiefdoms-player-sheet.webp?v=${SHEET_VERSION}`, window.location.href).toString();
 }
 
+async function fetchConfig() {
+  try {
+    const response = await fetch("/api/config");
+    if (response.ok) {
+      const config = await response.json();
+      p2pFeatureEnabled = urlParams.has("p2p") || config.p2pEnabled;
+      debugLog("[Config] Loaded from server:", config);
+    } else if (response.status === 404) {
+      // Local development without Cloudflare Pages Functions
+      debugLog("[Config] Running in local mode, using defaults");
+      p2pFeatureEnabled = urlParams.has("p2p");
+    }
+  } catch (err) {
+    // Network error or config unavailable, fall back to URL params only
+    if (debugMode) console.warn("[Config] Fetch failed:", err);
+    p2pFeatureEnabled = urlParams.has("p2p");
+  }
+}
+
 setupThemeToggle();
 registerServiceWorker();
 
-preloadSheet().then(() => {
-  document.body.classList.remove("loading");
-  if (loadingOverlay) loadingOverlay.remove();
-  init();
-});
+async function initializeApp() {
+  try {
+    // Wait for sheet to preload before continuing
+    await preloadSheet();
+    
+    // Wait for fonts to load to prevent layout shifts
+    if (document.fonts && document.fonts.ready) {
+      await document.fonts.ready;
+    }
+    
+    // Fetch config
+    await fetchConfig();
+    
+    // Initialize the game
+    await init();
+    
+    // Remove loading state only after everything is ready
+    document.body.classList.remove("loading");
+    if (loadingOverlay) loadingOverlay.remove();
+  } catch (err) {
+    console.error("Initialization failed:", err);
+    // Show error to user
+    if (loadingOverlay) {
+      const loadingText = loadingOverlay.querySelector(".loading-text");
+      if (loadingText) {
+        loadingText.textContent = "Failed to load game. Please refresh.";
+      }
+    }
+  }
+}
 
-function setupControls() {
+initializeApp();
+
+// ============================================================================
+// EVENT HANDLERS - DOM event setup and user interaction
+// ============================================================================
+
+async function setupControls() {
   const rollBtn = document.getElementById("rollBtn");
   if (rollBtn) {
     rollBtn.onclick = () => rollDice();
@@ -676,17 +784,18 @@ function setupControls() {
     finishSplitBtn.onclick = () => finishDiceSplit();
     finishSplitBtn.style.display = "none";
   }
-  // Done building button removed; completion is automatic after placement/population.
   if (swapPairBtn) {
     swapPairBtn.onclick = () => toggleLockedPairChoice();
     swapPairBtn.style.display = "none";
   }
   if (p2pFeatureEnabled) {
-    setupP2PControls();
-  } else if (p2pPanel) {
-    p2pPanel.style.display = "none";
+    await setupP2PControls();
   }
 }
+
+// ============================================================================
+// P2P MULTIPLAYER - WebRTC signalling and multiplayer state management
+// ============================================================================
 
 function captureP2PSnapshot() {
   const snapshotScore = currentScore({ allowPopulationActivation: false });
@@ -700,12 +809,28 @@ function captureP2PSnapshot() {
     seatsTotal: p2pUiState.seatsTotal,
     activeSeat: p2pUiState.activeSeat,
     splitLocked: p2pUiState.splitLocked,
-    buildDone: ensureBuildDoneMap(),
+    buildDone: ensureBuildDoneMap(null, null, p2pUiState),
   };
 }
 
+let processingP2PMessage = false;
+const p2pMessageQueue = [];
+
 function handleP2PMessage(message) {
+  p2pMessageQueue.push(message);
+  if (processingP2PMessage) return;
+  
+  processingP2PMessage = true;
+  while (p2pMessageQueue.length > 0) {
+    const msg = p2pMessageQueue.shift();
+    processP2PMessage(msg);
+  }
+  processingP2PMessage = false;
+}
+
+function processP2PMessage(message) {
   if (!message || typeof message !== "object") return;
+  if (debugMode) logP2P(`Received message type: ${message.type}`);
   if (message.type === "session:seat" && message.payload) {
     const { seatId, seatsTotal, activeSeat } = message.payload;
     if (seatId) p2pUiState.seatId = seatId;
@@ -721,8 +846,12 @@ function handleP2PMessage(message) {
     logP2P("Peer handshake received.");
   } else if (message.type === "state:request") {
     const status = typeof p2p?.getStatus === "function" ? p2p.getStatus() : {};
+    if (debugMode) logP2P(`Received state:request, my role: ${status.role}`);
     if (status.role === "host") {
+      if (debugMode) logP2P("Sending state:full in response to request");
       sendStateSnapshot();
+    } else {
+      if (debugMode) logP2P("Ignoring state:request (not host)");
     }
   } else if (message.type === "state:full" && message.payload?.snapshot) {
     p2pUiState.remoteSnapshot = message.payload.snapshot;
@@ -745,14 +874,17 @@ function handleP2PStatus(status) {
     p2pUiState.connectedSeats = ensureConnectedSeats(p2pUiState.connectedSeats);
     p2pUiState.connectedSeats[1] = true;
     if (status?.role === "join") {
+      // NOTE: Current P2P implementation only supports 2 players (host + 1 joiner)
+      // For 3+ players, would need mesh networking or relay server
       p2pUiState.seatId = 2;
-      p2pUiState.seatsTotal = Math.max(2, p2pUiState.seatsTotal || 0);
+      p2pUiState.seatsTotal = 2; // Locked to 2 players maximum
       p2pUiState.connectedSeats[2] = true;
       setActiveSeat(p2pUiState.activeSeat || 1);
+      if (debugMode) logP2P("Sending state:request to host");
       sendAppMessage("state:request", {});
     } else if (status?.role === "host") {
       p2pUiState.seatId = 1;
-      p2pUiState.seatsTotal = Math.max(2, p2pUiState.seatsTotal || 0);
+      p2pUiState.seatsTotal = 2; // Locked to 2 players maximum
       p2pUiState.connectedSeats[2] = true;
       setActiveSeat(p2pUiState.activeSeat || 1);
       sendAppMessage("session:seat", {
@@ -789,9 +921,9 @@ function updateP2PStatus(hintOverride = null) {
     !status.supported
       ? "Manual P2P is not available in this browser."
       : status.channelOpen
-        ? "Connected via manual P2P."
+        ? "Connected via P2P (2 players maximum)."
         : p2pUiState.awaitingAnswer
-          ? "Hosting: waiting for the peer's answer."
+          ? "Hosting: waiting for 1 player to join (2 players max)."
           : p2pUiState.mode === "answerReady"
             ? "Answer generated. Send it back to the host."
             : p2pUiState.mode === "joining"
@@ -873,6 +1005,7 @@ function buildInviteUrl({ sessionId, secret, signallingUrl }) {
     url.search = "";
     const params = new URLSearchParams();
     params.set("p2p", "");
+    if (debugMode) params.set("debug", "");
     if (signallingUrl) params.set("signal", encodeSignalParam(signallingUrl));
     url.search = params.toString();
     const hashParams = new URLSearchParams();
@@ -886,14 +1019,15 @@ function buildInviteUrl({ sessionId, secret, signallingUrl }) {
   }
 }
 
-function renderP2PQr(link) {
+async function renderP2PQr(link) {
   if (!p2pQrImg || !p2pQrCaption) return;
   if (!link) {
     p2pUiState.lastInviteLink = "";
     p2pUiState.lastQrDataUrl = "";
     return;
   }
-  const dataUrl = createQrDataUrl(link, { size: 400, margin: 6, errorCorrection: "L" });
+  const qrGenerator = await loadQR();
+  const dataUrl = qrGenerator(link, { size: 400, margin: 6, errorCorrection: "L" });
   p2pUiState.lastInviteLink = link;
   p2pUiState.lastQrDataUrl = dataUrl || "";
   if (p2pShowQrBtn) p2pShowQrBtn.disabled = !dataUrl;
@@ -921,9 +1055,11 @@ function maybeLoadInviteFromUrl() {
       renderP2PQr(p2pCodeEl.value);
       updateInviteVisibility(true);
       renderMeeples();
-      setTimeout(() => {
+      const joinTimeout = setTimeout(() => {
         joinViaSignalling(parsed.sessionId, parsed.secret);
       }, 20);
+      // Store for potential cleanup
+      if (typeof window !== "undefined") window.__p2pJoinTimeout = joinTimeout;
     }
   } catch (err) {
     // ignore malformed URLs
@@ -933,8 +1069,7 @@ function maybeLoadInviteFromUrl() {
 function describeRemoteSnapshot(snapshot) {
   if (!snapshot || typeof snapshot !== "object") return "";
   const name = snapshot.fiefdomName ? ` ${snapshot.fiefdomName}` : "";
-  const turn = typeof snapshot.turnIndex === "number" ? ` · Turn ${Math.max(1, Number(snapshot.turnIndex))}` : "";
-  return `${name}${turn}`;
+  return `${name}`;
 }
 
 function deepClone(data) {
@@ -982,16 +1117,6 @@ function sanitizeLocationPairs(pairs) {
     .map((p) => [p[0], p[1]]);
 }
 
-function sanitizeBuildDoneMap(map, seats = 1) {
-  if (!map || typeof map !== "object") return null;
-  const total = Math.max(1, Number(seats) || 1);
-  const clean = {};
-  for (let i = 1; i <= total; i += 1) {
-    clean[i] = Boolean(map?.[i]);
-  }
-  return clean;
-}
-
 function sanitizeSnapshot(raw) {
   const clone = deepClone(raw);
   if (!clone || typeof clone !== "object") return { ok: false, reason: "invalid object" };
@@ -1024,13 +1149,16 @@ function sanitizeSnapshot(raw) {
       pestilence: Boolean(clone.pestilence),
       pestilenceInfo: clone.pestilenceInfo && typeof clone.pestilenceInfo === "object" ? clone.pestilenceInfo : null,
       forceForfeit: Boolean(clone.forceForfeit),
+      forceForfeitAdvisory: Boolean(clone.forceForfeitAdvisory),
       pendingNextRoll: Boolean(clone.pendingNextRoll),
       bannerOverride: typeof clone.bannerOverride === "string" ? clone.bannerOverride : null,
       seatsTotal,
       activeSeat: isFiniteNumber(clone.activeSeat) ? clone.activeSeat : null,
       splitLocked: Boolean(clone.splitLocked),
       buildDone: sanitizeBuildDoneMap(clone.buildDone, seatsTotal),
+      splitUsed: sanitizeBuildDoneMap(clone.splitUsed, seatsTotal) || null,
       fiefdomName: typeof clone.fiefdomName === "string" ? clone.fiefdomName : "",
+      invalidSelectionMessage: typeof clone.invalidSelectionMessage === "string" ? clone.invalidSelectionMessage : null,
     },
   };
 }
@@ -1058,7 +1186,11 @@ function buildFullSnapshot() {
     seatsTotal: p2pUiState.seatsTotal,
     activeSeat: p2pUiState.activeSeat,
     splitLocked: p2pUiState.splitLocked,
-    buildDone: ensureBuildDoneMap(),
+    buildDone: ensureBuildDoneMap(null, null, p2pUiState),
+    splitUsed: p2pUiState.splitUsed || {},
+    forceForfeitAdvisory: state.forceForfeitAdvisory,
+    invalidSelectionMessage: state.invalidSelectionMessage,
+    pendingPopulation: state.pendingPopulation,
   };
   return base;
 }
@@ -1068,10 +1200,10 @@ function applyFullSnapshot(snapshot) {
   if (!validation.ok) {
     logP2P(`Snapshot rejected: ${validation.reason || "invalid"}.`);
     console.warn("Peer sync failed: invalid snapshot.", validation.reason || "");
-    showToast("Peer sync failed. See console for details.");
     return;
   }
   const snap = validation.snapshot;
+  if (debugMode) logP2P(`Applying snapshot with ${snap.dice?.length || 0} dice`);
   const seatsTotal = snap.seatsTotal || p2pUiState.seatsTotal;
   p2pUiState.splitUsed = ensureSplitUsedMap(seatsTotal, p2pUiState.splitUsed);
   state.turnIndex = typeof snap.turnIndex === "number" ? snap.turnIndex : state.turnIndex;
@@ -1093,6 +1225,8 @@ function applyFullSnapshot(snapshot) {
   state.forcedLocationDice = snap.forcedLocationDice || [];
   state.pestilence = Boolean(snap.pestilence);
   state.forceForfeit = Boolean(snap.forceForfeit);
+  state.forceForfeitAdvisory = Boolean(snap.forceForfeitAdvisory);
+  state.invalidSelectionMessage = typeof snap.invalidSelectionMessage === "string" ? snap.invalidSelectionMessage : null;
   if (state.pestilence) {
     state.pestilenceInfo = computePestilenceInfo(state.dice, state.board);
     const locIdx = [];
@@ -1114,9 +1248,42 @@ function applyFullSnapshot(snapshot) {
   }
   state.pendingNextRoll = Boolean(snap.pendingNextRoll);
   state.bannerOverride = snap.bannerOverride || null;
+  state.pendingPopulation = snap.pendingPopulation || null;
   if (snap.seatsTotal) p2pUiState.seatsTotal = snap.seatsTotal;
-  const incomingBuildDone = snap.buildDone ? ensureBuildDoneMap(seatsTotal, snap.buildDone) : ensureBuildDoneMap(seatsTotal);
-  p2pUiState.buildDone = incomingBuildDone;
+  // Detect if this is a turn reset (new turn starting, no dice rolled yet)
+  const isTurnReset = snap.rollAvailable && (!snap.dice || snap.dice.length === 0);
+  
+  // Merge buildDone: NEVER downgrade local true to false except on turn reset
+  // This ensures player's own build completion is preserved when receiving peer updates
+  const incomingBuildDone = snap.buildDone 
+    ? ensureBuildDoneMap(seatsTotal, snap.buildDone, p2pUiState) 
+    : ensureBuildDoneMap(seatsTotal, p2pUiState.buildDone, p2pUiState);
+  if (isTurnReset) {
+    p2pUiState.buildDone = incomingBuildDone;
+  } else {
+    p2pUiState.buildDone = mergeStateMap(
+      p2pUiState.buildDone,
+      incomingBuildDone,
+      seatsTotal,
+      p2pUiState.seatId
+    );
+  }
+  
+  // Merge splitUsed: NEVER downgrade local true to false except on turn reset
+  // This ensures player's own split usage is preserved when receiving peer updates
+  const incomingSplitUsed = snap.splitUsed
+    ? ensureSplitUsedMap(seatsTotal, snap.splitUsed, p2pUiState)
+    : ensureSplitUsedMap(seatsTotal, p2pUiState.splitUsed, p2pUiState);
+  if (isTurnReset) {
+    p2pUiState.splitUsed = incomingSplitUsed;
+  } else {
+    p2pUiState.splitUsed = mergeStateMap(
+      p2pUiState.splitUsed,
+      incomingSplitUsed,
+      seatsTotal,
+      p2pUiState.seatId
+    );
+  }
   p2pUiState.splitLocked = Boolean(snap.splitLocked);
   if (typeof snap.activeSeat === "number") {
     setActiveSeat(snap.activeSeat);
@@ -1142,6 +1309,7 @@ function applyFullSnapshot(snapshot) {
       const windroseIdx = (snapshot.forcedLocationDice || []).filter((idx) => snapshot.dice?.[idx]?.face === "windrose");
       state.locationSelection = windroseIdx.slice();
       state.forceForfeit = false;
+      state.forceForfeitAdvisory = false;
       state.locationPairs = [];
       state.buildDice = [];
       state.lastBuildDice = [];
@@ -1155,16 +1323,30 @@ function applyFullSnapshot(snapshot) {
 
   updateDiceAssignments();
   refreshDiceVisibility();
-  highlightLocations();
+  renderDice();
+  if (state.pendingPopulation) {
+    renderBoard();
+  } else {
+    highlightLocations();
+  }
   updateTurnStatusChip();
   updateMultiplayerButtons();
   p2pUiState.remoteSnapshot = snap;
+  
+  // Validate state consistency after applying snapshot
+  if (debugMode) {
+    const validation = validateMultiplayerState();
+    if (!validation.valid) {
+      console.error('[applyFullSnapshot] State validation failed:', validation.errors);
+    }
+  }
 }
 
-function sendAppMessage(type, payload = {}) {
-  if (!p2p?.sendMessage) return { ok: false };
+async function sendAppMessage(type, payload = {}) {
+  const p2pInstance = p2p || await ensureP2P();
+  if (!p2pInstance?.sendMessage) return { ok: false };
   try {
-    const res = p2p.sendMessage(type, payload);
+    const res = p2pInstance.sendMessage(type, payload);
     return res;
   } catch (err) {
     logP2P("send message failed", err?.message || err);
@@ -1174,7 +1356,9 @@ function sendAppMessage(type, payload = {}) {
 
 function sendStateSnapshot() {
   const snapshot = buildFullSnapshot();
-  sendAppMessage("state:full", { snapshot });
+  if (debugMode) logP2P(`Sending snapshot with ${snapshot.dice?.length || 0} dice`);
+  const result = sendAppMessage("state:full", { snapshot });
+  if (debugMode && !result.ok) logP2P("Failed to send snapshot:", result.error);
 }
 
 function syncStateToPeer() {
@@ -1183,7 +1367,8 @@ function syncStateToPeer() {
 }
 
 async function startP2PHosting() {
-  if (!p2p?.supported) {
+  const p2pInstance = await ensureP2P();
+  if (!p2pInstance?.supported) {
     updateP2PStatus("Manual P2P is not supported here.");
     return;
   }
@@ -1199,7 +1384,7 @@ async function startP2PHosting() {
   setP2PMode("hosting", { awaitingAnswer: true });
   updateP2PStatus("Building invite…");
   try {
-    const { code, error } = await p2p.startHosting(readP2PSecret());
+    const { code, error } = await p2pInstance.startHosting(readP2PSecret());
     if (error) {
       setP2PMode("idle");
       updateP2PStatus(error);
@@ -1230,19 +1415,25 @@ async function startP2PHosting() {
       p2pUiState.signallingActive = true;
       setP2PMode("awaitingAnswer", { awaitingAnswer: true });
       updateP2PStatus("Invite ready. Waiting for answer via signalling… (QR/link sharing still works)");
-      pollSignal("host", secret, { timeoutMs: 60000 }).then(async (answerCompact) => {
+      // Add small delay to ensure joiner has time to start polling
+      await new Promise((r) => setTimeout(r, 500));
+      pollSignal("host", secret, { timeoutMs: 90000, intervalMs: 1500 }).then(async (answerCompact) => {
         if (!answerCompact) {
           logP2P("poll timeout waiting for answer");
-          disconnectP2P("Signalling timeout. Resetting P2P.");
+          updateP2PStatus("Signalling timeout. Invite still active via QR/link.");
           return;
         }
         const answerCode = await decompressFromBase64Url(answerCompact).catch(() => null);
-        if (!answerCode) return;
-        await p2p.applyAnswer(answerCode, secret);
+        if (!answerCode) {
+          logP2P("invalid answer from signalling");
+          return;
+        }
+        await p2pInstance.applyAnswer(answerCode, secret);
         updateP2PStatus("Answer received via signalling. Completing link…");
       });
     } else {
-      disableP2P("Signalling unavailable. P2P disabled.");
+      logP2P("Signalling unavailable, falling back to manual mode");
+      updateP2PStatus("Signalling unavailable. Use QR code or share link manually.");
     }
   } catch (err) {
     setP2PMode("idle");
@@ -1253,7 +1444,9 @@ async function startP2PHosting() {
 }
 
 function disconnectP2P(reason = "") {
-  if (p2p?.disconnect) p2p.disconnect(reason);
+  if (p2p?.disconnect) {
+    p2p.disconnect(reason);
+  }
   if (p2pUiState.signallingPoll) {
     clearTimeout(p2pUiState.signallingPoll);
     p2pUiState.signallingPoll = null;
@@ -1282,19 +1475,28 @@ function disconnectP2P(reason = "") {
   renderMeeples();
 }
 
-function setupP2PControls() {
-  if (!p2pFeatureEnabled) return;
+async function setupP2PControls() {
+  if (!p2pFeatureEnabled) {
+    p2pUiState.signallingDisabled = true;
+    return;
+  }
+  // Reset signallingDisabled in case it was set before config loaded
+  p2pUiState.signallingDisabled = false;
   if (!p2pPanel) return;
+  // Show the panel now that P2P is enabled
+  p2pPanel.classList.remove("hidden");
   if (p2pHintEl) p2pHintEl.style.display = "none";
   updateInviteVisibility(false);
-  p2pUiState.signallingUrl = resolveSignallingUrl();
+  p2pUiState.signallingUrl = await resolveSignallingUrl();
   if (!p2pUiState.signallingUrl) {
     disableP2P("P2P disabled: signalling URL unavailable.");
     return;
   }
   const supported = Boolean(p2p?.supported);
+  debugLog("[P2P] WebRTC supported:", supported);
   const controls = [p2pHostBtn, p2pJoinBtn, p2pApplyBtn, p2pCopyBtn, p2pDisconnectBtn, p2pCodeEl];
   if (!supported) {
+    if (debugMode) console.warn("[P2P] WebRTC not supported - P2P will be limited");
     controls.forEach((el) => {
       if (!el) return;
       el.disabled = true;
@@ -1369,29 +1571,60 @@ function updateP2PControlsVisibility(status = {}) {
   if (p2pDisconnectBtn) p2pDisconnectBtn.disabled = gameStarted;
 }
 
-function resolveSignallingUrl() {
+async function resolveSignallingUrl() {
   const paramUrl = new URLSearchParams(window.location.search).get("signal");
   if (paramUrl) {
     const decoded = decodeSignalParam(paramUrl);
-    return decoded || paramUrl;
+    const result = decoded || paramUrl;
+    debugLog("[P2P] Using signalling URL from ?signal param:", result);
+    return result;
   }
   const dataUrl = document.body?.dataset?.signallingUrl;
-  if (dataUrl) return dataUrl;
+  if (dataUrl) {
+    debugLog("[P2P] Using signalling URL from data attribute:", dataUrl);
+    return dataUrl;
+  }
+  
+  // Try to fetch from API config
+  try {
+    const response = await fetch("/api/config");
+    if (response.ok) {
+      const config = await response.json();
+      debugLog("[P2P] Received config:", config);
+      if (config.signalingUrl) {
+        debugLog("[P2P] Using signalling URL from /api/config:", config.signalingUrl);
+        return config.signalingUrl;
+      }
+    } else {
+      debugLog("[P2P] Config fetch returned status:", response.status);
+    }
+  } catch (err) {
+    // API unavailable, fall through to fallback logic
+    if (debugMode) console.warn("[P2P] Config fetch failed:", err);
+  }
+  
   const host = window.location.hostname || "";
   const isLoopback = host === "localhost" || host === "127.0.0.1";
   const isPrivateIp =
     /^10\./.test(host) ||
     /^192\.168\./.test(host) ||
-    /^172\.(1[6-9]|2\\d|3[0-1])\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
     /^\d{1,3}(\.\d{1,3}){3}$/.test(host) ||
     host.endsWith(".local");
   if (isLoopback || isPrivateIp) {
-    return `http://${host}:8787`;
+    const fallbackUrl = `http://${host}:8787`;
+    debugLog("[P2P] Using fallback signalling URL (local/private IP):", fallbackUrl);
+    return fallbackUrl;
   }
-  return "https://rolling-fiefdoms-signalling.edno.workers.dev";
+  if (debugMode) console.log("[P2P] No signalling URL available (production deployment without config)");
+  return null;
 }
 
 function disableP2P(reason = "P2P disabled") {
+  if (debugMode) {
+    console.log("[P2P] disableP2P called:", reason);
+    console.trace("[P2P] Call stack:");
+  }
   p2pUiState.signallingDisabled = true;
   p2pUiState.signallingActive = false;
   if (p2pUiState.signallingPoll) {
@@ -1408,57 +1641,91 @@ function disableP2P(reason = "P2P disabled") {
   updateP2PStatus(reason);
   updateInviteVisibility(false);
   renderMeeples();
+  if (p2pPanel) p2pPanel.classList.add("hidden");
 }
 
-async function sendSignalBlob(role, compactCode, secret) {
+async function sendSignalBlob(role, compactCode, secret, retries = SIGNALLING_RETRY_COUNT) {
   if (!p2pUiState.signallingUrl || !compactCode) return { ok: false };
   const safeSecret = secret || readP2PSecretOrDefault();
-  try {
-    const url = new URL(`/session/${p2pUiState.sessionId || "session"}`, p2pUiState.signallingUrl);
-    url.searchParams.set("role", role);
-    url.searchParams.set("secret", safeSecret);
-    logP2P("sending signal", { role, url: url.toString() });
-    const resp = await fetch(url.toString(), {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sdp: compactCode, ice: [] }),
-    });
-    if (!resp.ok) logP2P("signal send failed", resp.status);
-    return { ok: resp.ok, status: resp.status };
-  } catch (err) {
-    logP2P("signal send error", err?.message || err);
-    return { ok: false, error: err?.message };
-  }
-}
-
-async function pollSignal(role, secret, { timeoutMs = 20000, intervalMs = 1200 } = {}) {
-  if (!p2pUiState.signallingUrl) return null;
-  const safeSecret = secret || readP2PSecretOrDefault();
-  const start = Date.now();
-  let timer = null;
-  while (Date.now() - start < timeoutMs) {
+  
+  for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const url = new URL(`/session/${p2pUiState.sessionId || "session"}`, p2pUiState.signallingUrl);
       url.searchParams.set("role", role);
       url.searchParams.set("secret", safeSecret);
-      logP2P("polling signal", { role, url: url.toString() });
-      const resp = await fetch(url.toString());
+      logP2P(`sending signal (attempt ${attempt}/${retries})`, { role, url: url.toString() });
+      const resp = await fetch(url.toString(), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sdp: compactCode, ice: [] }),
+      });
+      if (resp.ok) {
+        return { ok: true, status: resp.status };
+      }
+      logP2P("signal send failed", resp.status);
+      if (resp.status === 403) return { ok: false, status: resp.status }; // Don't retry auth errors
+    } catch (err) {
+      logP2P("signal send error", err?.message || err);
+      if (attempt === retries) {
+        return { ok: false, error: err?.message };
+      }
+    }
+    // Wait before retry with exponential backoff
+    if (attempt < retries) {
+      await new Promise((r) => setTimeout(r, Math.min(SIGNALLING_RETRY_BACKOFF_MS * Math.pow(2, attempt - 1), SIGNALLING_MAX_BACKOFF_MS)));
+    }
+  }
+  return { ok: false, error: "Max retries exceeded" };
+}
+
+async function pollSignal(role, secret, { timeoutMs = SIGNALLING_POLL_TIMEOUT_MS, intervalMs = SIGNALLING_POLL_INTERVAL_MS, maxIntervalMs = SIGNALLING_POLL_MAX_INTERVAL_MS } = {}) {
+  if (!p2pUiState.signallingUrl) return null;
+  const safeSecret = secret || readP2PSecretOrDefault();
+  const start = Date.now();
+  let timer = null;
+  let currentInterval = intervalMs;
+  let attempts = 0;
+  
+  while (Date.now() - start < timeoutMs) {
+    attempts++;
+    try {
+      const url = new URL(`/session/${p2pUiState.sessionId || "session"}`, p2pUiState.signallingUrl);
+      url.searchParams.set("role", role);
+      url.searchParams.set("secret", safeSecret);
+      if (debugMode) logP2P(`polling signal (attempt ${attempts})`, { role, url: url.toString() });
+      const controller = new AbortController();
+      const fetchTimeout = setTimeout(() => controller.abort(), 10000);
+      const resp = await fetch(url.toString(), {
+        signal: controller.signal,
+      }).finally(() => clearTimeout(fetchTimeout));
       if (resp.status === 200) {
         const data = await resp.json();
-        if (data?.sdp) return data.sdp;
+        if (data?.sdp) {
+          logP2P(`received answer after ${attempts} attempts`);
+          return data.sdp;
+        }
       } else if (resp.status === 403) {
         logP2P("poll forbidden");
         return null;
+      } else if (resp.status === 404) {
+        logP2P("session not found");
+        return null;
       }
     } catch (err) {
-      logP2P("poll error", err?.message || err);
+      if (err.name !== "AbortError") {
+        logP2P("poll error", err?.message || err);
+      }
     }
+    
+    // Exponential backoff: start at intervalMs, double each time up to maxIntervalMs
+    currentInterval = Math.min(currentInterval * 1.5, maxIntervalMs);
+    
     await new Promise((r) => {
-      timer = setTimeout(r, intervalMs);
+      timer = setTimeout(r, currentInterval);
       p2pUiState.signallingPoll = timer;
     });
   }
-  logP2P("poll timeout");
+  logP2P(`poll timeout after ${attempts} attempts`);
   return null;
 }
 
@@ -1468,8 +1735,9 @@ async function joinViaSignalling(sessionId, secret) {
     return;
   }
   p2pUiState.sessionId = sessionId;
+  // NOTE: Current P2P implementation only supports 2 players (host + 1 joiner)
   p2pUiState.seatId = 2;
-  p2pUiState.seatsTotal = Math.max(2, p2pUiState.seatsTotal || 0);
+  p2pUiState.seatsTotal = 2; // Locked to 2 players maximum
   p2pUiState.hostCreated = true;
   p2pUiState.inviteVisible = true;
   p2pUiState.connectedSeats = ensureConnectedSeats(p2pUiState.connectedSeats);
@@ -1482,9 +1750,10 @@ async function joinViaSignalling(sessionId, secret) {
   renderMeeples();
   const safeSecret = secret || readP2PSecretOrDefault();
   updateP2PStatus("Fetching host invite via signalling…");
-  const hostOfferCompact = await pollSignal("join", safeSecret, { timeoutMs: 60000 });
+  const hostOfferCompact = await pollSignal("join", safeSecret, { timeoutMs: 90000, intervalMs: 1500 });
   if (!hostOfferCompact) {
-    disableP2P("Signalling failed to deliver host invite.");
+    updateP2PStatus("Signalling timeout. Check invite link or try manual connection.");
+    logP2P("Failed to receive host offer via signalling");
     return;
   }
   const hostOffer = await decompressFromBase64Url(hostOfferCompact).catch(() => null);
@@ -1492,9 +1761,12 @@ async function joinViaSignalling(sessionId, secret) {
     disableP2P("Invalid host invite from signalling.");
     return;
   }
-  const result = await p2p.acceptInvite(hostOffer, safeSecret);
+  const p2pInstance = await ensureP2P();
+  const result = await p2pInstance.acceptInvite(hostOffer, safeSecret);
   if (result?.error) {
-    disableP2P(result.error || "Failed to accept invite.");
+    logP2P("Failed to send answer via signalling");
+    updateP2PStatus("Signalling unavailable. Connection may not complete automatically.");
+    // Don't disable P2P completely - the WebRTC connection might still work
     return;
   }
   const answerCode = result?.code || "";
@@ -1506,19 +1778,43 @@ async function joinViaSignalling(sessionId, secret) {
   }
   p2pUiState.signallingActive = true;
   setP2PMode("connecting");
-  updateP2PStatus("Answer sent via signalling. Waiting for host to connect.");
+  updateP2PStatus("Answer sent via signalling. Waiting for host to connect. (Note: Only 2 players supported)");
 }
 
+// ============================================================================
+// GAME LOGIC - Turn flow, dice rolling, building, and scoring
+// ============================================================================
+
+let rollingInProgress = false;
+
 function rollDice() {
-  if (state.activationMode) return;
-  if (!debugMode && !state.rollAvailable) {
-    log("Roll already used this turn. Finish the turn to roll again.");
+  if (rollingInProgress) {
     return;
   }
-  if (p2pUiState.seatsTotal > 1 && p2pUiState.activeSeat !== p2pUiState.seatId) {
-    logP2P("Roll ignored: not your turn.");
-    return;
+  rollingInProgress = true;
+  
+  try {
+    if (state.activationMode) return;
+    if (!debugMode && !state.rollAvailable) {
+      log("Roll already used this turn. Finish the turn to roll again.");
+      return;
+    }
+    if (p2pUiState.seatsTotal > 1 && p2pUiState.activeSeat !== p2pUiState.seatId) {
+      logP2P("Roll ignored: not your turn.");
+      return;
+    }
+    
+    // If hosting but no one joined yet and this is the first roll, cancel hosting and go solo
+  // Also cancel if WebRTC is not available
+  const isFirstRoll = state.turnIndex === 0;
+  const isHostingAlone = p2pUiState.mode === "host" && !p2pUiState.channelOpen && p2pUiState.awaitingAnswer;
+  const webrtcUnavailable = p2pUiState.mode === "host" && p2p && !p2p?.supported;
+  if (isFirstRoll && (isHostingAlone || webrtcUnavailable)) {
+    const reason = webrtcUnavailable ? "WebRTC not available" : "Starting solo game";
+    logP2P(`${reason} - canceling P2P hosting`);
+    disableP2P(reason);
   }
+  
   resetBuildDoneMap();
   const n1 = rollNumberedDie("N1");
   const n2 = rollNumberedDie("N2");
@@ -1538,7 +1834,8 @@ function rollDice() {
   state.bannerOverride = null;
   if (!needsDoubleReroll) {
     triggerDiceAnimation();
-    state.rollAvailable = debugMode ? true : false;
+    const allowDebugBypass = debugMode && !isMultiplayerActive();
+    state.rollAvailable = allowDebugBypass ? true : false;
     updateRollButton();
   }
   const { messages } = beginTurn(state, dice, state.board, {
@@ -1596,6 +1893,7 @@ function rollDice() {
     state.lockedLocationPairs = state.locationPairs;
     p2pUiState.splitLocked = true;
     state.forceForfeit = true;
+    state.forceForfeitAdvisory = false;
     state.diceLocked = true;
   } else if (turnHintEl) {
     turnHintEl.textContent = state.activeTurn
@@ -1605,8 +1903,8 @@ function rollDice() {
         : nonActiveAutoHintText();
   }
   updateTurnStatusChip();
-  const nonActiveMultiplayer = isMultiplayerActive() && p2pUiState.activeSeat !== p2pUiState.seatId;
-  if (nonActiveMultiplayer && !state.pestilence && !state.forceForfeit) {
+  const nonActiveMultiplayer = isNonActiveMultiplayer();
+  if (nonActiveMultiplayer && !state.pestilence && !forceForfeitActive()) {
     state.locationSelection = [];
     state.locationPairs = [];
     state.buildDice = [];
@@ -1620,6 +1918,9 @@ function rollDice() {
   renderDice();
   updateActionBanner();
   syncStateToPeer();
+  } finally {
+    rollingInProgress = false;
+  }
 }
 
 function describeDice(dice) {
@@ -1643,12 +1944,16 @@ function triggerDiceAnimation() {
   const rollingMsg = "Rolling dice...";
   state.bannerOverride = rollingMsg;
   updateActionBanner();
-  setTimeout(() => {
+  // Use 0ms delay in test mode to avoid blocking test interactions
+  const animDuration = (typeof window !== "undefined" && window.__RF_ENABLE_TEST_HOOKS__) ? 0 : 1200;
+  const animTimeout = setTimeout(() => {
     state.diceRolling = false;
     diceView.classList.remove("dice-rolling");
     if (state.bannerOverride === rollingMsg) state.bannerOverride = null;
     updateActionBanner();
-  }, 1200);
+  }, animDuration);
+  // Store for potential cleanup
+  if (typeof window !== "undefined") window.__diceAnimTimeout = animTimeout;
 }
 
 function dieMaxValue(die) {
@@ -1660,22 +1965,196 @@ function dieMaxValue(die) {
   return 0;
 }
 
+function dieSourceIndex(die) {
+  if (!die || !state?.dice) return -1;
+  const exact = state.dice.indexOf(die);
+  if (exact >= 0) return exact;
+  if (die.label) {
+    const byLabel = state.dice.findIndex((d) => d?.label === die.label);
+    if (byLabel >= 0) return byLabel;
+  }
+  return -1;
+}
+
+function forceForfeitActive() {
+  return Boolean(state.forceForfeit) && !state.forceForfeitAdvisory;
+}
+
+function influenceAvailable() {
+  const earned = Math.max(0, state.influence?.earned || 0);
+  const committed = Math.min(earned, Math.max(0, state.influence?.spent || 0));
+  const remaining = Math.max(0, earned - committed);
+  let pending = state.influence?.pending;
+  if (typeof pending !== "number" || Number.isNaN(pending)) {
+    pending = totalInfluenceSpent(state.influenceAdjustments);
+  }
+  const pendingClamped = Math.min(Math.max(0, pending || 0), remaining);
+  return Math.max(0, earned - committed - pendingClamped);
+}
+
+function influenceAdjustmentDelta(label) {
+  if (!label || !state.influenceAdjustments) return 0;
+  return typeof state.influenceAdjustments[label]?.delta === "number"
+    ? state.influenceAdjustments[label].delta
+    : 0;
+}
+
+function influenceAdjustmentsEmpty() {
+  return !state.influenceAdjustments || Object.keys(state.influenceAdjustments).length === 0;
+}
+
+function canonicalSelectionKey(selection = null) {
+  const source = Array.isArray(selection) ? selection : state.locationSelection;
+  if (!Array.isArray(source)) return "";
+  return source
+    .slice()
+    .sort((a, b) => a - b)
+    .join("-");
+}
+
+function clearInfluenceAdjustments({ label = null } = {}) {
+  if (!state.influenceAdjustments) state.influenceAdjustments = {};
+  let changed = false;
+  if (label) {
+    if (state.influenceAdjustments[label]) {
+      delete state.influenceAdjustments[label];
+      changed = true;
+    }
+  } else if (!influenceAdjustmentsEmpty()) {
+    state.influenceAdjustments = {};
+    changed = true;
+  }
+  if (!changed) return false;
+  if (influenceAdjustmentsEmpty()) {
+    state.influenceTarget = null;
+    state.influenceSelectionKey = null;
+    return true;
+  }
+  if (label && state.influenceTarget === label) {
+    const remaining = Object.keys(state.influenceAdjustments || {}).find(
+      (key) => influenceAdjustmentDelta(key) !== 0,
+    );
+    state.influenceTarget = remaining || null;
+  }
+  return true;
+}
+
+function influenceTargetBlocked(label) {
+  const target = state.influenceTarget;
+  if (!target || target === label) return false;
+  const entry = state.influenceAdjustments?.[target];
+  return Boolean(entry && typeof entry.delta === "number" && entry.delta !== 0);
+}
+
+function canAdjustDieValue(die, direction = 0) {
+  if (!isInfluenceEligibleDie(die)) return false;
+  const base = typeof die.resolved === "number" ? die.resolved : null;
+  if (base === null) return false;
+  if (direction === 0) return !influenceTargetBlocked(die.label);
+  if (influenceTargetBlocked(die.label)) return false;
+  const delta = influenceAdjustmentDelta(die.label);
+  const nextDelta = delta + direction;
+  const target = base + nextDelta;
+  if (target < DICE_MIN_VALUE || target > DICE_MAX_VALUE) return false;
+  const reducesMagnitude = Math.abs(nextDelta) < Math.abs(delta);
+  if (reducesMagnitude) return true;
+  return influenceAvailable() > 0;
+}
+
+function adjustDieWithInfluence(idx, direction) {
+  if (!state.dice || !state.dice[idx]) return;
+  const die = state.dice[idx];
+  if (!isInfluenceEligibleDie(die)) {
+    log("Influence can only adjust numbered dice.");
+    return;
+  }
+  if (influenceTargetBlocked(die.label)) {
+    log("Influence can only adjust one die per roll. Reset previous adjustments first.");
+    return;
+  }
+  const base = typeof die.resolved === "number" ? die.resolved : null;
+  if (base === null) {
+    log("That die cannot be adjusted.");
+    return;
+  }
+  const delta = influenceAdjustmentDelta(die.label);
+  const nextDelta = delta + direction;
+  if (nextDelta === delta) return;
+  const target = base + nextDelta;
+  if (target < DICE_MIN_VALUE || target > DICE_MAX_VALUE) {
+    log("Influence cannot adjust dice beyond 1–5.");
+    return;
+  }
+  const reducesMagnitude = Math.abs(nextDelta) < Math.abs(delta);
+  if (!reducesMagnitude && influenceAvailable() <= 0) {
+    log("No Influence available.");
+    return;
+  }
+  if (!state.influenceAdjustments) state.influenceAdjustments = {};
+  if (nextDelta === 0) {
+    delete state.influenceAdjustments[die.label];
+  } else {
+    state.influenceAdjustments[die.label] = { delta: nextDelta };
+    state.influenceTarget = die.label;
+  }
+  if (influenceAdjustmentsEmpty()) {
+    state.influenceTarget = null;
+  } else if (!state.influenceTarget) {
+    state.influenceTarget = die.label;
+  }
+  state.influenceSelectionKey =
+    state.locationSelection.length >= 1 ? canonicalSelectionKey(state.locationSelection) : null;
+  log(`Influence adjustment: ${die.label} now ${target}.`);
+  updateTracks();
+  updateDiceAssignments();
+  refreshDiceVisibility();
+}
+
+function resetDieInfluence(idx) {
+  if (!state.dice || !state.dice[idx]) return;
+  const die = state.dice[idx];
+  if (!isInfluenceEligibleDie(die)) return;
+  const delta = influenceAdjustmentDelta(die.label);
+  if (!delta) return;
+  const cleared = clearInfluenceAdjustments({ label: die.label });
+  if (!cleared) return;
+  const base =
+    typeof die.resolved === "number"
+      ? die.resolved
+      : typeof die.face === "number"
+        ? die.face
+        : die.face === "windrose"
+          ? "windrose"
+          : die.face;
+  log(`Influence reset: ${die.label} restored to ${base}.`);
+  updateTracks();
+  updateDiceAssignments();
+  refreshDiceVisibility();
+}
+
+// ============================================================================
+// RENDERING FUNCTIONS - UI rendering and DOM updates
+// ============================================================================
+
 function renderDice() {
   if (!diceView) return;
   refreshDiceVisibility();
   const awaitingRoll = state.rollAvailable && (!state.dice || state.dice.length === 0);
   if (state.activationMode || state.activationComplete || awaitingRoll) return;
-  diceView.innerHTML = "";
+  clearElement(diceView);
   if (turnHintEl) {
     if (state.pestilence) {
       turnHintEl.textContent = "Pestilence! Forfeit any empty plot.";
     } else if (state.activeTurn && state.invalidSelection) {
-      turnHintEl.textContent = "No valid plots for that pair; choose a different location pair.";
-    } else if (state.forceForfeit) {
+      turnHintEl.textContent =
+        state.invalidSelectionMessage || "No valid plots for that pair; choose a different location pair.";
+    } else if (state.forceForfeitAdvisory && !state.forceForfeit) {
+      turnHintEl.textContent = "No valid location pairs; spend Influence or forfeit a plot.";
+    } else if (forceForfeitActive()) {
       turnHintEl.textContent = "No valid location pairs; forfeit a plot.";
     } else if (!state.activeTurn) {
       const waitingSplit = awaitingSplitNonActive();
-      if (waitingSplit && (state.pestilence || state.forceForfeit)) {
+      if (waitingSplit && (state.pestilence || forceForfeitActive())) {
         turnHintEl.textContent = "Forfeit a plot.";
       } else if (p2pUiState.splitLocked) {
         turnHintEl.textContent = "";
@@ -1692,18 +2171,52 @@ function renderDice() {
   field.className = "field dice-field";
   const row = document.createElement("div");
   row.className = "dice-row";
-  const turnLocked = state.diceLocked || state.activationMode || state.pestilence || state.forceForfeit;
+  const turnLocked = state.diceLocked || state.activationMode || state.pestilence || forceForfeitActive();
   if (turnLocked) row.classList.add("dice-locked");
+  const baseSelection = Array.isArray(state.locationSelection) ? state.locationSelection.slice() : [];
+  const storedLocationDice = turnLocked
+    ? state.diceLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2
+      ? state.lockedLocationDice
+      : Array.isArray(state.lastLocationDice) && state.lastLocationDice.length === 2
+        ? state.lastLocationDice
+        : null
+    : null;
+  const storedBuildDice = turnLocked
+    ? state.diceLocked && Array.isArray(state.lockedBuildDice) && state.lockedBuildDice.length === 2
+      ? state.lockedBuildDice
+      : Array.isArray(state.lastBuildDice) && state.lastBuildDice.length === 2
+        ? state.lastBuildDice
+        : null
+    : null;
+  const lockedLocIdx = storedLocationDice
+    ? storedLocationDice.map((die) => dieSourceIndex(die)).filter((idx) => idx >= 0)
+    : null;
+  const lockedBuildIdx = storedBuildDice
+    ? storedBuildDice.map((die) => dieSourceIndex(die)).filter((idx) => idx >= 0)
+    : null;
+  const effectiveLocSelection =
+    Array.isArray(lockedLocIdx) && lockedLocIdx.length === 2 ? lockedLocIdx : baseSelection;
+  const buildSelection =
+    lockedBuildIdx && lockedBuildIdx.length === 2 && effectiveLocSelection.length === 2
+      ? lockedBuildIdx
+      : effectiveLocSelection.length === 2
+        ? state.dice.map((_, idx) => idx).filter((idx) => !effectiveLocSelection.includes(idx))
+        : [];
   state.dice.forEach((die, idx) => {
-    const isLocation = state.locationSelection.includes(idx);
-    const isBuildAssigned = state.locationSelection.length === 2 || die.face === "X";
+    const isLocation = effectiveLocSelection.includes(idx);
+    // X dice with resolved numeric values can be location dice
+    const isXWithoutNumber = die.face === "X" && typeof die.resolved !== "number";
+    const isBuildAssigned =
+      effectiveLocSelection.length === 2 ? buildSelection.includes(idx) : baseSelection.length === 2 || isXWithoutNumber;
     const locked = turnLocked;
     const badge = makeDieBadge(die, idx, {
       role: isLocation ? "location" : isBuildAssigned ? "build" : null,
-      locked: locked || turnLocked || die.face === "X",
+      locked: locked || turnLocked || isXWithoutNumber,
       clickable: !turnLocked,
       showRoleStyle: !turnLocked,
       forcedLocation: (state.forcedLocationDice || []).includes(idx),
+      allowInfluence: false,
+      useAdjustedFace: false,
     });
     row.appendChild(badge);
   });
@@ -1714,7 +2227,7 @@ function renderDice() {
 
 function fillBuildings(buildDice) {
   const hasLockedLocation = p2pUiState.splitLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
-  const lockedPairs = Array.isArray(state.lockedLocationPairs) ? state.lockedLocationPairs : [];
+  const lockedPairs = hasLockedLocation ? effectiveLockedLocationPairs() : [];
   const availablePairs = hasLockedLocation ? lockedPairs : state.locationPairs || [];
   const readyForBuild =
     (hasLockedLocation && lockedPairs.length > 0) || (state.locationSelection.length === 2 && availablePairs.length > 0);
@@ -1732,11 +2245,12 @@ function fillBuildings(buildDice) {
     renderBuildingOverlay([], true);
     return;
   }
-  if (state.activationMode || state.forceForfeit || state.pestilence) {
+  if (state.activationMode || forceForfeitActive() || state.pestilence) {
     renderBuildingOverlay([], true);
     return;
   }
-  const allowed = restrictBuildOptionsForBoard(buildingOptionsFromDice(effectiveBuildDice), state.board);
+  const adjustedBuildDice = applyInfluenceToDice(state, effectiveBuildDice);
+  const allowed = restrictBuildOptionsForBoard(buildingOptionsFromDice(adjustedBuildDice), state.board);
   const availableGuildTypes = guildTypes.filter((t) => !builtGuildTypes(state.board).has(t));
   const options = allowed.filter((opt) => {
     if (opt.code !== "G") return true;
@@ -1791,13 +2305,27 @@ function renderBuildingOverlay(options = [], disabled = false) {
   if (!overlay) return;
   const hasLockedLocation = p2pUiState.splitLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
   const diceLockedForBuild = state.diceLocked && !p2pUiState.splitLocked;
+  // In multiplayer, disable building overlay if this player has already built or used their split
+  const myBuildAlreadyDone = isMyBuildDone();
+  const mySplitUsed = isMySplitUsed();
   const forceDisabled =
     disabled ||
     (!hasLockedLocation && state.locationSelection.length !== 2) ||
     diceLockedForBuild ||
     state.activationMode ||
-    state.forceForfeit ||
-    state.pestilence;
+    forceForfeitActive() ||
+    state.forceForfeitAdvisory ||
+    state.pestilence ||
+    myBuildAlreadyDone ||
+    mySplitUsed;
+  
+  if (debugMode && isMultiplayerActive() && (myBuildAlreadyDone || mySplitUsed)) {
+    console.log('[renderBuildingOverlay] Player already done, disabling overlay:', {
+      seatId: p2pUiState.seatId,
+      buildDone: myBuildAlreadyDone,
+      splitUsed: mySplitUsed
+    });
+  }
   const buildDice =
     hasLockedLocation && state.lockedBuildDice?.length === 2
       ? (lockedPairChoice().buildDice || state.lockedBuildDice)
@@ -1806,7 +2334,7 @@ function renderBuildingOverlay(options = [], disabled = false) {
     const fallback = restrictBuildOptionsForBoard(buildingOptionsFromDice(buildDice), state.board);
     options = fallback;
   }
-  overlay.innerHTML = "";
+  clearElement(overlay);
   const disableOverlay = forceDisabled || !options?.length;
   overlay.classList.toggle("disabled", disableOverlay);
   const optionMap = new Map(options.map((o) => [o.code, o]));
@@ -1833,7 +2361,12 @@ function renderBuildingOverlay(options = [], disabled = false) {
       if (div.classList.contains("disabled")) return;
       const hasLockedLocation = p2pUiState.splitLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
       const diceLockedForBuild = state.diceLocked && !p2pUiState.splitLocked;
+      const awaitingSplitConfirmation = isAwaitingSplit();
       if ((!hasLockedLocation && state.locationSelection.length !== 2) || diceLockedForBuild) return;
+      if (awaitingSplitConfirmation) {
+        log("Confirm your dice split first before selecting a building.");
+        return;
+      }
       document.querySelectorAll(".building-hit.selected").forEach((el) => el.classList.remove("selected"));
       div.classList.add("selected");
       handleBuildingChoice();
@@ -1844,21 +2377,42 @@ function renderBuildingOverlay(options = [], disabled = false) {
   });
 }
 
+function highlightMarketClaims(marketRow, marketCol) {
+  if (!state.currentNodeToMarket) return;
+  
+  // Find all nodes claimed by this market
+  state.currentNodeToMarket.forEach((data, nodeKey) => {
+    const claims = Array.isArray(data) ? data : data ? [data] : [];
+    if (claims.some((entry) => entry.marketRow === marketRow && entry.marketCol === marketCol)) {
+      const [nr, nc] = nodeKey.split(',').map(Number);
+      const nodeEl = document.querySelector(`.population-node[data-node-row="${nr}"][data-node-col="${nc}"]`);
+      if (nodeEl) {
+        nodeEl.classList.add("market-claimed");
+      }
+    }
+  });
+}
+
+function clearMarketHighlights() {
+  document.querySelectorAll('.population-node.market-claimed').forEach(node => {
+    node.classList.remove('market-claimed');
+  });
+}
+
 function renderBoard() {
-  boardEl.innerHTML = "";
+  clearElement(boardEl);
   const activationMap =
     state.activationMode || state.activationComplete
       ? computeActivationMap(state.board, state.populationNodes, currentWorkerAllocationsForScore())
       : null;
-  terrainLayout.forEach((row, r) => {
-    row.forEach((terrain, c) => {
+  state.board.forEach((row, r) => {
+    row.forEach((data, c) => {
       const cell = document.createElement("div");
       cell.className = "cell terrain";
       cell.dataset.row = r;
       cell.dataset.col = c;
       cell.style.gridRowStart = r + 1;
       cell.style.gridColumnStart = c + 1;
-      const data = state.board[r][c];
       if (data.forfeited) {
         cell.classList.add("forfeited");
         const forfeiture = document.createElement("img");
@@ -1883,6 +2437,11 @@ function renderBoard() {
           cell.classList.add("forfeit");
           cell.classList.add("disabled");
         }
+        // Add market hover to highlight claimed nodes
+        if (data.building === "M") {
+          cell.onmouseenter = () => highlightMarketClaims(r, c);
+          cell.onmouseleave = () => clearMarketHighlights();
+        }
         if (state.activationMode && state.activationSelection.building?.[0] === r && state.activationSelection.building?.[1] === c) {
           cell.classList.add("selected-building");
         }
@@ -1894,9 +2453,11 @@ function renderBoard() {
         const isActivated = req === 0 || filled >= req;
         if (isActivated) {
           cell.classList.add("activated-building");
-          const oct = document.createElement("div");
-          oct.className = "octagon-border";
-          cell.appendChild(oct);
+          const outline = document.createElement("img");
+          outline.className = "plot-outline";
+          outline.src = ICONS.plotOutline;
+          outline.alt = "";
+          cell.appendChild(outline);
           if (
             activationMap &&
             !data.forfeited &&
@@ -1945,10 +2506,19 @@ function renderBoard() {
 }
 
 function onCellClick(r, c) {
+  // Allow pestilence/forfeit clicks even during animation (they are mandatory actions)
+  const isPestilenceOrForfeit = state.pestilence || state.forceForfeit || state.forceForfeitAdvisory;
+  if (state.diceRolling && !isPestilenceOrForfeit) return;
+  
   const hasLockedLocation = state.diceLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
-  const awaitingSplit = isMultiplayerActive() && !p2pUiState.splitLocked && !state.pestilence && !state.forceForfeit;
+  const awaitingSplit = isAwaitingSplit();
   const phase = currentTurnPhase();
-  if (state.locationSelection.length < 2 && !hasLockedLocation && !state.pestilence && !state.forceForfeit && !state.activationMode) {
+  const myBuildAlreadyDone = isMyBuildDone();
+  if (myBuildAlreadyDone && !state.activationMode && !state.pendingPopulation?.remaining) {
+    log("Build already completed. Waiting for other players.");
+    return;
+  }
+  if (state.locationSelection.length < 2 && !hasLockedLocation && !state.pestilence && !forceForfeitActive() && !state.activationMode) {
     log("Split the dice first, then pick a plot.");
     return;
   }
@@ -1979,7 +2549,7 @@ function onCellClick(r, c) {
     applySpringhouseTarget([r, c]);
     return;
   }
-  if (state.pestilence || state.forceForfeit) {
+  if (isPestilenceOrForfeit) {
     const cell = state.board[r][c];
     if (cell.building || cell.forfeited) {
       log("Choose an empty plot to forfeit.");
@@ -2023,15 +2593,14 @@ function onCellClick(r, c) {
 }
 
 function highlightLocations() {
-  boardEl.querySelectorAll(".cell").forEach((cell) => {
-    cell.classList.remove("highlight");
-    cell.classList.remove("disabled");
+  forEachCell((cell) => {
+    cell.classList.remove("highlight", "disabled");
     const oct = cell.querySelector(".octagon");
     if (oct) oct.remove();
   });
   if (state.activationMode) {
     const selPop = state.activationSelection.pop;
-      boardEl.querySelectorAll(".cell").forEach((cell) => {
+      forEachCell((cell) => {
         const r = parseInt(cell.dataset.row, 10);
         const c = parseInt(cell.dataset.col, 10);
         const data = state.board[r][c];
@@ -2061,7 +2630,7 @@ function highlightLocations() {
   }
   if (state.activationMode) {
     const sel = state.activationSelection.building;
-    boardEl.querySelectorAll(".cell").forEach((cell) => {
+    forEachCell((cell) => {
       const r = parseInt(cell.dataset.row, 10);
       const c = parseInt(cell.dataset.col, 10);
       const data = state.board[r][c];
@@ -2084,16 +2653,14 @@ function highlightLocations() {
   }
   if (state.pendingSpringhouseTarget) {
     const options = state.pendingSpringhouseTarget.options || [];
-    boardEl.querySelectorAll(".cell").forEach((cell) => {
+    forEachCell((cell) => {
       const r = parseInt(cell.dataset.row, 10);
       const c = parseInt(cell.dataset.col, 10);
       const data = state.board[r][c];
       const match = options.some(([rr, cc]) => rr === r && cc === c);
       if (match && data.building && !data.forfeited) {
         cell.classList.add("highlight");
-        const oct = document.createElement("div");
-        oct.className = "octagon";
-        cell.appendChild(oct);
+        cell.appendChild(createOctagon());
       } else {
         cell.classList.add("disabled");
       }
@@ -2105,7 +2672,7 @@ function highlightLocations() {
     if (!state.pestilence) return;
     const targetCells = state.pestilenceInfo?.targetCells || [];
     const highlightAny = targetCells.length === 0;
-    boardEl.querySelectorAll(".cell").forEach((cell) => {
+    forEachCell((cell) => {
       const r = parseInt(cell.dataset.row, 10);
       const c = parseInt(cell.dataset.col, 10);
       const data = state.board[r][c];
@@ -2114,37 +2681,42 @@ function highlightLocations() {
         targetCells.some(([tr, tc]) => tr === r && tc === c);
       if (match && !data.building && !data.forfeited) {
         cell.classList.add("highlight");
-        const oct = document.createElement("div");
-        oct.className = "octagon";
-        cell.appendChild(oct);
+        cell.appendChild(createOctagon());
       } else {
         cell.classList.add("disabled");
       }
     });
     return;
   }
-  if (state.forceForfeit) {
-    boardEl.querySelectorAll(".cell").forEach((cell) => {
+  
+  // In multiplayer, don't highlight if this player has already built or used their split
+  // This check must come BEFORE forfeit highlighting to prevent showing forfeits to players who are done
+  const myBuildAlreadyDone = isMyBuildDone();
+  const mySplitUsed = isMySplitUsed();
+  if (myBuildAlreadyDone || mySplitUsed) {
+    return;
+  }
+  
+  if (state.forceForfeitHighlight) {
+    forEachCell((cell) => {
       const r = parseInt(cell.dataset.row, 10);
       const c = parseInt(cell.dataset.col, 10);
       const data = state.board[r][c];
       if (!data.building && !data.forfeited) {
         cell.classList.add("highlight");
-        const oct = document.createElement("div");
-        oct.className = "octagon";
-        cell.appendChild(oct);
+        cell.appendChild(createOctagon());
       } else {
         cell.classList.add("disabled");
       }
     });
     return;
   }
-  if (state.pestilence || state.pendingPopulation?.remaining > 0) return;
+  // Regular location highlighting for building placement
   const showLockedHighlight =
     p2pUiState.splitLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
   const locPairs = showLockedHighlight ? effectiveLockedLocationPairs() : state.locationPairs;
   if ((state.locationSelection.length !== 2 && !showLockedHighlight) || !locPairs?.length) return;
-  boardEl.querySelectorAll(".cell").forEach((cell) => {
+  forEachCell((cell) => {
     const r = parseInt(cell.dataset.row, 10);
     const c = parseInt(cell.dataset.col, 10);
     const data = state.board[r][c];
@@ -2157,9 +2729,7 @@ function highlightLocations() {
     });
     if (match && !data.building && !data.forfeited) {
       cell.classList.add("highlight");
-      const oct = document.createElement("div");
-      oct.className = "octagon";
-      cell.appendChild(oct);
+      cell.appendChild(createOctagon());
     } else {
       cell.classList.add("disabled");
     }
@@ -2210,33 +2780,42 @@ function placeBuilding(r, c, code) {
     p2pUiState.splitLocked && Array.isArray(state.lockedBuildDice) && state.lockedBuildDice.length === 2
       ? (lockedPairChoice().buildDice || state.lockedBuildDice)
       : state.buildDice;
-  const popGain =
-    state.buildChoice?.source === "die1"
-      ? dieMaxValue(buildPool[1])
-      : state.buildChoice?.source === "die2"
-        ? dieMaxValue(buildPool[0])
-        : 0;
+  const adjustedBuildPool = applyInfluenceToDice(state, buildPool || []);
+  let popGain = 0;
+  if (state.buildChoice?.source === "die1") {
+    popGain = dieMaxValue(adjustedBuildPool?.[1]);
+  } else if (state.buildChoice?.source === "die2") {
+    popGain = dieMaxValue(adjustedBuildPool?.[0]);
+  }
+  if (!popGain && typeof state.buildChoice?.popGain === "number") {
+    popGain = state.buildChoice.popGain;
+  }
   lockDiceSnapshot(state, { markPendingNextRoll: true, uniqueLocationPairs });
   renderBoard();
   updateTracks();
   const displayLabel =
     code === "G"
       ? (() => {
-          const map = { GF: "FG", GQ: "QG", GW: "WG", GM: "MG" };
+          const map = { GF: "FG", GQ: "QG", GW: "WG" };
           const raw = (buildingLabel || "G").toUpperCase();
           return map[raw] || raw;
         })()
       : code;
   log(`Placed ${displayLabel} at row ${r + 1}, col ${c + 1}`);
   if (isMultiplayerActive()) {
-    const map = ensureSplitUsedMap();
+    const map = ensureSplitUsedMap(null, null, p2pUiState);
     map[p2pUiState.seatId] = true;
     p2pUiState.splitUsed = map;
+    
+    if (debugMode) {
+      console.log('[placeBuilding] Set splitUsed for seat', p2pUiState.seatId, ':', p2pUiState.splitUsed);
+      validateMultiplayerState();
+    }
   } else {
     state.splitUsedForBuild = true;
   }
-  p2pUiState.lockedPairSwap = false;
   updateDiceAssignments();
+  updateMultiplayerButtons();
   // Reset guild selection after placement
   if (code !== "G") {
     state.selectedGuildType = null;
@@ -2254,6 +2833,9 @@ function placeBuilding(r, c, code) {
   }
   if (popGain > 0) {
     beginPopulationPlacement(r, c, popGain);
+    if (isMultiplayerActive()) {
+      syncStateToPeer();
+    }
   } else if (!springResolved) {
     autoMarkBuildDoneIfReady({ force: true });
     autoAdvance();
@@ -2314,8 +2896,13 @@ function forfeitCell(r, c) {
     log("Cell occupied or forfeited.");
     return;
   }
-  const forcedFlow = state.pestilence || state.forceForfeit;
+  const forcedFlow = state.pestilence || forceForfeitActive();
   cell.forfeited = true;
+  state.forceForfeit = false;
+  state.forceForfeitAdvisory = false;
+  state.forceForfeitHighlight = false;
+  state.invalidSelection = false;
+  state.invalidSelectionMessage = null;
   lockDiceSnapshot(state, { markPendingNextRoll: true, uniqueLocationPairs });
   updateDiceAssignments();
   renderBoard();
@@ -2324,23 +2911,32 @@ function forfeitCell(r, c) {
   // Resolve pestilence/forfeit state so the turn can advance
   state.pestilence = false;
   state.pestilenceInfo = null;
-  state.forceForfeit = false;
   refreshScoreOverlay();
-  const next = maybeRollAfterLock();
-  if (next === "roll") {
-    prepareNextRoll();
-  } else {
-    autoAdvance();
-  }
+  maybeRollAfterLock();
+  autoAdvance();
   autoMarkBuildDoneIfReady({ force: forcedFlow });
 }
 
+// ============================================================================
+// STATE UPDATES - Track recalculation and UI state synchronization
+// ============================================================================
+
 function updateTracks() {
-  const { vagrants, scoreResult } = recalcTracks(state, {
+  const { vagrants, scoreResult, influence } = recalcTracks(state, {
     computeScore,
     calcVagrants,
   });
+  if (influence?.gained > 0) {
+    log(
+      influence.gained === 1
+        ? "Population milestone reached: gained 1 Influence."
+        : `Population milestone reached: gained ${influence.gained} Influence.`,
+    );
+  }
   updateScoreOverlay(scoreResult.breakdown, scoreResult.total);
+  const influenceEarned = state.influence?.earned || 0;
+  const influenceSpent = (state.influence?.spent || 0) + (state.influence?.pending || 0);
+  renderInfluenceTrack({ influenceEarned, influenceSpent });
   renderPopHousingTrack(state.tracks.population, state.tracks.housing, vagrants);
 }
 
@@ -2368,6 +2964,10 @@ function autoAdvance() {
 
 function enterActivationMode() {
   if (state.activationMode) return;
+  // Advance turn track for the final turn when entering activation
+  if (!isMultiplayerActive()) {
+    advanceTurnTrack();
+  }
   startActivationState(state);
   autoForfeitUnfillable(false);
   if (finishActivationBtn) finishActivationBtn.style.display = "block";
@@ -2462,10 +3062,10 @@ function renderGuildOverlay(available = []) {
     !locationReady ||
     (state.diceLocked && !p2pUiState.splitLocked) ||
     state.activationMode ||
-    state.forceForfeit ||
+    forceForfeitActive() ||
     state.pestilence;
   overlay.style.pointerEvents = available.length && !locked ? "auto" : "none";
-  overlay.innerHTML = "";
+  clearElement(overlay);
   const availableSet = new Set(available);
   guildHitboxes.forEach((hit) => {
     const div = document.createElement("div");
@@ -2510,7 +3110,13 @@ function nodesForCell(r, c) {
 }
 
 function beginPopulationPlacement(r, c, count) {
+  if (debugMode) {
+    console.log('[beginPopulationPlacement] Starting with count =', count, 'at', r, c);
+  }
   const result = startPopulationPlacement(state, [r, c], count, { nodesForCell });
+  if (debugMode) {
+    console.log('[beginPopulationPlacement] After startPopulationPlacement:', result, 'state.pendingPopulation =', state.pendingPopulation);
+  }
   if (!result.started) {
     if (result.message) log(result.message);
     autoAdvance();
@@ -2556,94 +3162,17 @@ function renderTopTracks() {
   renderDice();
 }
 
-function actionMessage() {
-  if (state.bannerOverride) return state.bannerOverride;
-  const isMultiplayer = p2pUiState.seatsTotal > 1 && p2pUiState.signallingActive;
-  const phase = currentTurnPhase();
-
-  if (phase === TURN_PHASE.ACTIVATION_DONE) {
-    const score = typeof state.finalScore === "number"
-      ? state.finalScore
-      : currentScore({ allowPopulationActivation: true }).total;
-    return `Game over. Final score ${score}.`;
-  }
-  if (phase === TURN_PHASE.ACTIVATION) {
-    const anyRemaining = state.board.some((row, r) =>
-      row.some((cell, c) => {
-        if (!cell.building || cell.forfeited || cell.activationForfeit) return false;
-        const req = Math.max(0, (BUILDING_RULES[cell.building]?.requirement || 0) - (Number(cell.springBoost) || 0));
-        const filled = Math.max(0, state.workerAllocations?.[r]?.[c] || 0);
-        return req > filled;
-      }),
-    );
-    if (state.activationSelection.pop) {
-      const [pr, pc] = state.activationSelection.pop;
-      const remaining = Math.max(0, state.populationAvailable?.[pr]?.[pc] || 0);
-      return `Activation: population selected (${remaining} remaining). Click a highlighted building to assign 1 worker.`;
-    }
-    if (anyRemaining) return "Activation: select a population node to allocate workers.";
-    return "Activation: finish allocation when ready.";
-  }
-  if (state.pendingSpringhouseTarget) {
-    return "Select an adjacent building for Springhouse to reduce worker requirement by 1.";
-  }
-  if (phase === TURN_PHASE.PESTILENCE || phase === TURN_PHASE.FORFEIT) {
-    return "Forfeit an empty plot.";
-  }
-  if (phase === TURN_PHASE.POPULATION) {
-    return `Place ${state.pendingPopulation.remaining} population on an adjacent intersection.`;
-  }
-  if (phase === TURN_PHASE.AWAIT_ROLL) {
-    if (isMultiplayer && p2pUiState.activeSeat !== p2pUiState.seatId) {
-      return "Waiting for the active player to roll dice.";
-    }
-    return "Press Roll Dice to start your turn.";
-  }
-  if (isMultiplayer && !p2pUiState.splitLocked && p2pUiState.activeSeat !== p2pUiState.seatId) {
-    return "Waiting for the active player to finish the split.";
-  }
-  if (isMultiplayer && p2pUiState.splitLocked) {
-    const choice = lockedPairChoice();
-    if (p2pUiState.buildDone?.[p2pUiState.seatId]) {
-      return "Waiting for other players to finish building.";
-    }
-    if (choice.swapAllowed) {
-      return "Locked split: swap pairs if needed, then build.";
-    }
-    return "Build with this split.";
-  }
-  if (phase === TURN_PHASE.SPLITTING) {
-    if (state.locationSelection.length < 2 && !(state.diceLocked && state.lockedLocationDice?.length === 2)) {
-      return "Select two location dice in the Turn panel.";
-    }
-    return "Lock the split to continue building.";
-  }
-  if (phase === TURN_PHASE.BUILDING) {
-    if (!state.buildChoice) {
-      return "Select a building from the Buildings overlay.";
-    }
-    return "Click a highlighted plot to place the chosen building.";
-  }
-  if (!state.activeTurn) return "Waiting for the active player.";
-  return "Roll dice to begin.";
-}
+// ============================================================================
+// UI MESSAGES & FEEDBACK - Action banners, turn hints, and user feedback
+// ============================================================================
 
 function updateActionBanner() {
-  if (!actionBannerEl) return;
-  const newText = actionMessage();
-  const prevText = actionBannerEl.dataset.msg || "";
-  const changed = prevText !== newText;
-  actionBannerEl.dataset.msg = newText;
-  if (newText && newText.includes("<")) {
-    actionBannerEl.innerHTML = newText;
-  } else {
-    actionBannerEl.textContent = newText;
-  }
-  if (changed) {
-    actionBannerEl.classList.remove("bump");
-    void actionBannerEl.offsetWidth; // restart animation
-    actionBannerEl.classList.add("bump");
-  }
+  const phase = currentTurnPhase();
+  updateBannerUI(state, p2pUiState, phase, {
+    currentScore,
+    lockedPairChoice,
+    isMultiplayerActive,
+  });
 }
 
 function updateMultiplayerButtons() {
@@ -2657,7 +3186,7 @@ function updateMultiplayerButtons() {
     !p2pUiState.splitLocked &&
     state.locationSelection.length === 2 &&
     !state.pestilence &&
-    !state.forceForfeit &&
+    !forceForfeitActive() &&
     !state.activationMode;
   finishSplitBtn.style.display = canFinishSplit ? "inline-block" : "none";
   finishSplitBtn.disabled = !canFinishSplit;
@@ -2674,8 +3203,6 @@ function updateMultiplayerButtons() {
     swapPairBtn.disabled = !showSwap;
     applySwapButtonPulse(showSwap);
   }
-
-  // Done-building button removed; completion is automatic after placement/population.
 }
 
 function applySwapButtonPulse(showSwap) {
@@ -2825,7 +3352,10 @@ function renderPopulationNodes() {
         });
         node.appendChild(pipGrid);
       }
-      node.onclick = () => onPopulationNodeClick(r, c);
+      node.onclick = () => {
+        if (state.diceRolling) return;
+        onPopulationNodeClick(r, c);
+      };
       grid.appendChild(node);
     }
   }
@@ -2841,6 +3371,11 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
     if (buildDicePreview) renderDicePreview(buildDicePreview, build, "build", "Remaining dice used for build");
     return;
   }
+  if (state.activationMode || state.activationComplete) {
+    if (locDicePreview) renderDicePreview(locDicePreview, [], "location", "Select 2 dice for location");
+    if (buildDicePreview) renderDicePreview(buildDicePreview, [], "build", "Remaining dice used for build");
+    return;
+  }
   const respectSwap = () => {
     if (!(p2pUiState.splitLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2)) {
       return { loc: locationDice, build: buildDice };
@@ -2850,10 +3385,9 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
   };
 
   const currentLocFromState = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
-  const forcedMode = state.pestilence || state.forceForfeit;
+  const forcedMode = state.pestilence || forceForfeitActive();
   const forcedSplit = forcedMode ? splitForcedDice(state.dice || []) : null;
   const doubleWindrose = shouldRerollDoubleWindrose(state.dice || []);
-  const xDice = (state.dice || []).filter((d) => d && d.face === "X");
 
   let effectiveLoc =
     (doubleWindrose
@@ -2865,35 +3399,72 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
         []);
 
   const currentBuildFromState = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
+  const buildReady = state.locationSelection.length === 2 || forceBuildPreview;
   let effectiveBuild =
     doubleWindrose
       ? []
       : (forcedSplit && forcedSplit.buildDice.length)
         ? forcedSplit.buildDice
-        : state.locationSelection.length === 2 || forceBuildPreview
+        : buildReady
           ? (buildDice && buildDice.length && buildDice) ||
             (currentBuildFromState.length && currentBuildFromState) ||
             (state.lockedBuildDice && state.lockedBuildDice.length && state.lockedBuildDice) ||
             (state.lastBuildDice && state.lastBuildDice.length && state.lastBuildDice) ||
             []
-          : xDice;
+          : [];
 
   const swapped = respectSwap();
   effectiveLoc = swapped.loc && swapped.loc.length ? swapped.loc : effectiveLoc;
   effectiveBuild = swapped.build && swapped.build.length ? swapped.build : effectiveBuild;
 
+  const myBuildNotDone = !isMyBuildDone();
+  const mySplitNotUsed = !p2pUiState.splitUsed?.[p2pUiState.seatId];
+  const influenceSeatOk = !isMultiplayerActive() || (p2pUiState.splitLocked && myBuildNotDone && mySplitNotUsed);
+  const multiplayerSplitConfirmed = isMultiplayerActive() && p2pUiState.splitLocked;
+  const singlePlayerDiceNotLocked = !isMultiplayerActive() && !state.diceLocked;
+  const hasInfluenceAdjustments = !influenceAdjustmentsEmpty();
+  const showInfluenceControls =
+    !ignoreState &&
+    (multiplayerSplitConfirmed || singlePlayerDiceNotLocked) &&
+    !state.activationMode &&
+    !state.pestilence &&
+    (!forceForfeitActive() || hasInfluenceAdjustments) &&
+    state.locationSelection.length === 2 &&
+    influenceSeatOk;
+
   if (locDicePreview) {
-    renderDicePreview(locDicePreview, clampDice(effectiveLoc), "location", "Select 2 dice for location");
+    renderDicePreview(
+      locDicePreview,
+      clampDice(effectiveLoc),
+      "location",
+      "Select 2 dice for location",
+      { allowInfluence: showInfluenceControls },
+    );
   }
   if (buildDicePreview) {
-    renderDicePreview(buildDicePreview, clampDice(effectiveBuild), "build", "Remaining dice used for build");
+    renderDicePreview(
+      buildDicePreview,
+      clampDice(effectiveBuild),
+      "build",
+      "Remaining dice used for build",
+      { allowInfluence: showInfluenceControls },
+    );
   }
 }
 
 function makeDieBadge(
   die,
   idx,
-  { role = null, locked = false, clickable = true, showRoleStyle = true, forcedLocation = false } = {},
+  {
+    role = null,
+    locked = false,
+    clickable = true,
+    showRoleStyle = true,
+    forcedLocation = false,
+    allowInfluence = false,
+    sourceIndex = idx,
+    useAdjustedFace = true,
+  } = {},
 ) {
   const badge = document.createElement("div");
   badge.className = "die-badge";
@@ -2910,33 +3481,89 @@ function makeDieBadge(
   }
   if (forcedLocation) badge.title = "Windrose stays in the location pair (acts as 1–5).";
   if (locked) badge.classList.add("dice-locked");
-  badge.dataset.idx = idx;
+  const effectiveIdx = typeof sourceIndex === "number" ? sourceIndex : idx;
+  if (effectiveIdx >= 0) badge.dataset.idx = effectiveIdx;
   const wrap = document.createElement("div");
   wrap.className = "face-wrap";
-  const face = createDieFaceSVG(die);
+  const displayDie = useAdjustedFace ? applyInfluenceToDie(state, die) || die : die;
+  const face = createDieFaceSVG(displayDie);
   wrap.appendChild(face);
   badge.appendChild(wrap);
-  if (clickable && !locked && die.face !== "X") {
-    badge.addEventListener("click", () => onDieClick(idx));
+  if (clickable && !locked && die.face !== "X" && effectiveIdx >= 0) {
+    badge.addEventListener("click", () => {
+      if (state.diceRolling) return;
+      onDieClick(effectiveIdx);
+    });
+  }
+  if (allowInfluence && isInfluenceEligibleDie(die) && effectiveIdx >= 0) {
+    const canDecrease = canAdjustDieValue(die, -1);
+    const canIncrease = canAdjustDieValue(die, 1);
+    const hasAdjustment = influenceAdjustmentDelta(die.label) !== 0;
+    const showControls = canDecrease || canIncrease || hasAdjustment;
+    if (showControls) {
+      const controls = document.createElement("div");
+      controls.className = "die-influence-controls";
+      badge.classList.add("has-influence-controls");
+      if (canDecrease) {
+        const minusBtn = document.createElement("button");
+        minusBtn.type = "button";
+        minusBtn.className = "influence-btn minus";
+        minusBtn.textContent = "-";
+        minusBtn.title = "Spend 1 Influence to decrease this die by 1.";
+        minusBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          adjustDieWithInfluence(effectiveIdx, -1);
+        });
+        controls.appendChild(minusBtn);
+      }
+      if (canIncrease) {
+        const plusBtn = document.createElement("button");
+        plusBtn.type = "button";
+        plusBtn.className = "influence-btn plus";
+        plusBtn.textContent = "+";
+        plusBtn.title = "Spend 1 Influence to increase this die by 1.";
+        plusBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          adjustDieWithInfluence(effectiveIdx, 1);
+        });
+        controls.appendChild(plusBtn);
+      }
+      if (hasAdjustment) {
+        const resetBtn = document.createElement("button");
+        resetBtn.type = "button";
+        resetBtn.className = "influence-btn reset";
+        resetBtn.textContent = "↺";
+        resetBtn.title = "Reset this die to its rolled value.";
+        resetBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          resetDieInfluence(effectiveIdx);
+        });
+        controls.appendChild(resetBtn);
+      }
+      badge.appendChild(controls);
+    }
   }
   return badge;
 }
 
-function renderDicePreview(container, dice, role, emptyText) {
+function renderDicePreview(container, dice, role, emptyText, { allowInfluence = false } = {}) {
   if (!container) return;
   container.classList.add("split-preview");
-  container.innerHTML = "";
+  clearElement(container);
   if (!dice?.length) {
     container.innerHTML = `<span class="hint">${emptyText}</span>`;
     return;
   }
   dice.forEach((die, idx) => {
+    const sourceIndex = dieSourceIndex(die);
     const badge = makeDieBadge(die, idx, {
       role,
       locked: false,
       clickable: false,
       showRoleStyle: false,
       forcedLocation: false,
+      allowInfluence,
+      sourceIndex,
     });
     container.appendChild(badge);
   });
@@ -2960,7 +3587,10 @@ function onDieClick(idx) {
 function updateDiceAssignments() {
   if (!state.dice || !state.dice.length) {
     state.forceForfeit = false;
+    state.forceForfeitAdvisory = false;
     state.invalidSelection = false;
+    state.invalidSelectionMessage = null;
+    state.influenceSelectionKey = null;
     renderSelectionDice([], []);
     fillBuildings([]);
     highlightLocations();
@@ -2969,12 +3599,58 @@ function updateDiceAssignments() {
     updateMultiplayerButtons();
     return;
   }
+  if (!influenceAdjustmentsEmpty()) {
+    const selectionKey = canonicalSelectionKey(state.locationSelection);
+    if (state.influenceSelectionKey && state.influenceSelectionKey !== selectionKey) {
+      const cleared = clearInfluenceAdjustments();
+      if (cleared) {
+        log("Influence adjustments reset after changing dice selection.");
+        updateTracks();
+      }
+    }
+  } else if (state.influenceSelectionKey) {
+    state.influenceSelectionKey = null;
+  }
   if (isMultiplayerActive() && p2pUiState.splitLocked) {
+    const myBuildDone = isMyBuildDone();
     const choice = lockedPairChoice();
     const lockedLoc = choice.locDice;
     const lockedBuild = choice.buildDice;
-    const pairsForBoard = filterAvailablePairs(uniqueLocationPairs(lockedLoc || []), state.board);
-    state.forceForfeit = pairsForBoard.length === 0;
+    
+    // If this player has already built, skip forfeit evaluation and just wait
+    if (myBuildDone) {
+      state.forceForfeit = false;
+      state.forceForfeitAdvisory = false;
+      state.invalidSelection = false;
+      state.invalidSelectionMessage = null;
+      state.buildDice = lockedBuild;
+      renderSelectionDice(lockedLoc, lockedBuild);
+      fillBuildings(lockedBuild);
+      highlightLocations();
+      updateActionBanner();
+      renderDice();
+      updateMultiplayerButtons();
+      return;
+    }
+    
+    const adjustedLockedLoc = applyInfluenceToDice(state, lockedLoc || []);
+    const pairsForBoard = filterAvailablePairs(uniqueLocationPairs(adjustedLockedLoc || []), state.board);
+    const rescuePossible =
+      !pairsForBoard.length &&
+      adjustedLockedLoc?.length === 2 &&
+      canRescueLocationWithInfluence(state, adjustedLockedLoc, state.board, {
+        uniqueLocationPairs,
+        filterAvailablePairs,
+      });
+    state.forceForfeit = pairsForBoard.length === 0 && !rescuePossible;
+    state.forceForfeitAdvisory = rescuePossible && !pairsForBoard.length;
+    if (!pairsForBoard.length && rescuePossible) {
+      state.invalidSelection = true;
+      state.invalidSelectionMessage = "No valid location pairs; spend Influence or forfeit a plot.";
+    } else {
+      state.invalidSelection = false;
+      state.invalidSelectionMessage = null;
+    }
     state.buildDice = lockedBuild;
     renderSelectionDice(lockedLoc, lockedBuild);
     fillBuildings(lockedBuild);
@@ -2988,11 +3664,13 @@ function updateDiceAssignments() {
     const windroseOnly = (state.forcedLocationDice || [])
       .map((idx) => state.dice[idx])
       .filter((d) => d && d.face === "windrose");
-    const xDice = (state.dice || []).filter((d) => d && d.face === "X");
+    // Only X dice without resolved numbers are build dice
+    const xDice = (state.dice || []).filter((d) => d && d.face === "X" && typeof d.resolved !== "number");
     state.locationSelection = (state.forcedLocationDice || []).filter((idx) => state.dice[idx]?.face === "windrose");
     state.locationPairs = [];
     state.buildDice = xDice;
     state.forceForfeit = false;
+    state.forceForfeitAdvisory = false;
     renderSelectionDice(windroseOnly, xDice, { forceBuildPreview: true, ignoreState: true });
     fillBuildings([]);
     highlightLocations();
@@ -3006,7 +3684,8 @@ function updateDiceAssignments() {
     const windroseOnly = (state.forcedLocationDice || [])
       .map((idx) => state.dice[idx])
       .filter((d) => d && d.face === "windrose");
-    const xDice = (state.dice || []).filter((d) => d && d.face === "X");
+    // Only X dice without resolved numbers are build dice
+    const xDice = (state.dice || []).filter((d) => d && d.face === "X" && typeof d.resolved !== "number");
     state.locationSelection = (state.forcedLocationDice || []).filter((idx) => state.dice[idx]?.face === "windrose");
     state.locationPairs = [];
     state.buildDice = xDice;
@@ -3018,12 +3697,9 @@ function updateDiceAssignments() {
     updateMultiplayerButtons();
     return;
   }
-  const locationDice = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
-  const buildDice = state.locationSelection.length === 2 ? state.dice.filter((_, idx) => !state.locationSelection.includes(idx)) : [];
-  if (locationDice.length === 2) {
-    state.lastLocationDice = locationDice;
-    state.lastBuildDice = buildDice;
-  }
+  let locationDice = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
+  let buildDice =
+    state.locationSelection.length === 2 ? state.dice.filter((_, idx) => !state.locationSelection.includes(idx)) : [];
 
   const { message } = evaluateLocationSelection(state, {
     uniqueLocationPairs,
@@ -3032,10 +3708,22 @@ function updateDiceAssignments() {
   });
   if (message) log(message);
 
+  // Re-evaluate dice assignments in case the selection changed (e.g. auto-swap on non-active turns).
+  locationDice = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
+  buildDice =
+    state.locationSelection.length === 2 ? state.dice.filter((_, idx) => !state.locationSelection.includes(idx)) : [];
+  if (locationDice.length === 2) {
+    state.lastLocationDice = locationDice;
+    state.lastBuildDice = buildDice;
+  }
+
   if (turnHintEl) {
     if (state.activeTurn && state.invalidSelection) {
-      turnHintEl.textContent = "No valid plots for that pair; choose a different location pair.";
-    } else if (state.forceForfeit) {
+      turnHintEl.textContent =
+        state.invalidSelectionMessage || "No valid plots for that pair; choose a different location pair.";
+    } else if (state.forceForfeitAdvisory) {
+      turnHintEl.textContent = "No valid location pairs; spend Influence or forfeit a plot.";
+    } else if (forceForfeitActive()) {
       turnHintEl.textContent = "No valid location pairs; forfeit a plot.";
     } else if (!state.activeTurn) {
       turnHintEl.textContent = isMultiplayerActive()
@@ -3071,16 +3759,17 @@ function updateDiceAssignments() {
 }
 
 function computeSwapChoice(baseLoc = [], baseBuild = [], swapFlag = false) {
-  const locHasX = baseLoc.some((d) => d?.face === "X");
-  const buildHasX = baseBuild.some((d) => d?.face === "X");
+  // X dice with resolved numbers can be location dice, only X without numbers need swap
+  const locHasXWithoutNumber = baseLoc.some((d) => d?.face === "X" && typeof d?.resolved !== "number");
+  const buildHasXWithoutNumber = baseBuild.some((d) => d?.face === "X" && typeof d?.resolved !== "number");
   const locHasWindrose = baseLoc.some((d) => d?.face === "windrose");
   const buildHasWindrose = baseBuild.some((d) => d?.face === "windrose");
 
   let forcedSwap = false;
-  if (locHasX && !buildHasX) forcedSwap = true;
+  if (locHasXWithoutNumber && !buildHasXWithoutNumber) forcedSwap = true;
   if (!locHasWindrose && buildHasWindrose) forcedSwap = true;
 
-  const swapAllowed = !locHasX && !buildHasX && !forcedSwap && !(locHasWindrose && !buildHasWindrose);
+  const swapAllowed = !locHasXWithoutNumber && !buildHasXWithoutNumber && !forcedSwap && !(locHasWindrose && !buildHasWindrose);
   const doSwap = forcedSwap || (swapAllowed && swapFlag);
   return {
     locDice: doSwap ? baseBuild : baseLoc,
@@ -3138,8 +3827,18 @@ function soloPairChoice() {
 function soloPairHasValidLocations(diceList = []) {
   if (!Array.isArray(diceList) || diceList.length !== 2) return false;
   if (!Array.isArray(state.board) || !state.board.length) return false;
-  const pairs = filterAvailablePairs(uniqueLocationPairs(diceList), state.board);
+  const adjusted = applyInfluenceToDice(state, diceList);
+  const pairs = filterAvailablePairs(uniqueLocationPairs(adjusted), state.board);
   return pairs.length > 0;
+}
+
+function soloPairCanBeRescued(diceList = []) {
+  if (!Array.isArray(diceList) || diceList.length !== 2) return false;
+  if (!Array.isArray(state.board) || !state.board.length) return false;
+  return canRescueLocationWithInfluence(state, diceList, state.board, {
+    uniqueLocationPairs,
+    filterAvailablePairs,
+  });
 }
 
 function soloSwapAvailable() {
@@ -3147,15 +3846,21 @@ function soloSwapAvailable() {
   if (state.activeTurn || state.pestilence || state.activationMode) return false;
   const choice = soloPairChoice();
   if (!choice.baseLocIdx || !choice.baseBuildIdx) return false;
+  if (!choice.swapAllowed) return false;
+  
   const baseValid = soloPairHasValidLocations(choice.baseLocDice);
   const altValid = soloPairHasValidLocations(choice.baseBuildDice);
-  if (!baseValid || !altValid) return false;
-  return Boolean(choice.swapAllowed);
+  
+  const baseCanBeRescued = !baseValid && soloPairCanBeRescued(choice.baseLocDice);
+  const altCanBeRescued = !altValid && soloPairCanBeRescued(choice.baseBuildDice);
+  const basePossible = baseValid || baseCanBeRescued;
+  const altPossible = altValid || altCanBeRescued;
+  if (!basePossible && !altPossible) return false;
+  return true;
 }
 
 function nonActiveAutoHintText() {
-  const base = "Non-active turn. Dice automatically assigned.";
-  return soloSwapAvailable() ? `${base} Use the swap button to swap pairs.` : base;
+  return generateNonActiveHint(soloSwapAvailable());
 }
 
 function toggleSoloPairChoice() {
@@ -3195,12 +3900,20 @@ function finishDiceSplit() {
   }
   const locationDice = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
   const buildDice = state.dice.filter((_, idx) => !state.locationSelection.includes(idx));
-  state.lockedLocationDice = locationDice;
-  state.lockedBuildDice = buildDice;
-  state.lockedLocationPairs = (state.locationPairs || []).map((p) => p.slice());
-  state.diceLocked = true;
-  p2pUiState.splitLocked = true;
-  p2pUiState.lockedPairSwap = false;
+  
+  // Batch state updates atomically before sync
+  Object.assign(state, {
+    lockedLocationDice: locationDice,
+    lockedBuildDice: buildDice,
+    lockedLocationPairs: (state.locationPairs || []).map((p) => p.slice()),
+    diceLocked: true,
+  });
+  
+  Object.assign(p2pUiState, {
+    splitLocked: true,
+    lockedPairSwap: false,
+  });
+  
   resetBuildDoneMap();
   renderSelectionDice(locationDice, buildDice);
   updateMultiplayerButtons();
@@ -3213,7 +3926,7 @@ function markBuildDone() {
   if (!isMultiplayerActive()) return;
   const allowForced = state.pestilence || state.forceForfeit;
   if (!p2pUiState.splitLocked && !allowForced) return;
-  const merged = ensureBuildDoneMap();
+  const merged = ensureBuildDoneMap(null, null, p2pUiState);
   merged[p2pUiState.seatId] = true;
   p2pUiState.buildDone = merged;
   updateMultiplayerButtons();
@@ -3225,12 +3938,12 @@ function markBuildDone() {
 }
 
 function autoMarkBuildDoneIfReady({ force = false } = {}) {
-  const ready =
-    isMultiplayerActive() &&
-    ((p2pUiState.splitLocked || state.pestilence || state.forceForfeit) || force) &&
-    !p2pUiState.buildDone?.[p2pUiState.seatId] &&
-    !state.pendingPopulation?.remaining &&
-    !state.pendingSpringhouseTarget;
+  const ready = shouldAutoMarkBuildDone({
+    force,
+    isMultiplayerActive: isMultiplayerActive(),
+    p2pUiState,
+    state,
+  });
   if (ready) {
     markBuildDone();
   }
@@ -3271,18 +3984,18 @@ function currentScore({ allowPopulationActivation } = {}) {
 
 function refreshScoreOverlay(scoreResult = null) {
   const result = scoreResult || currentScore();
-  updateScoreOverlay(result.breakdown, result.total);
+  updateScoreOverlay(result.breakdown, result.total, result.marketDetails, result.nodeToMarket);
   return result;
 }
 
-function updateScoreOverlay(breakdown, total = 0) {
+function updateScoreOverlay(breakdown, total = 0, marketDetails = [], nodeToMarket = new Map()) {
   if (!scoreOverlayEl) return;
   const formatScoreValue = (value, key) => {
     if (typeof value !== "number") return "0";
     if (key === "reputation") return `${value}`; // reputation spot shows negatives
     return `${Math.abs(value)}`;
   };
-  scoreOverlayEl.innerHTML = "";
+  clearElement(scoreOverlayEl);
   scoringSpots.forEach((spot) => {
       const topPos = spot.y ?? 30;
       const val =
@@ -3301,22 +4014,35 @@ function updateScoreOverlay(breakdown, total = 0) {
     chip.style.left = `${spot.x}px`;
     chip.style.top = `${topPos}px`;
     chip.textContent = formatScoreValue(val, spot.key); // board art includes negatives for most spots
+    
+    // Add market details tooltip
+    if (spot.key === "market" && marketDetails.length > 0) {
+      chip.title = marketDetails
+        .map(m => `Row ${m.row + 1}, Col ${m.col + 1}: ${m.points}pts`)
+        .join('\n');
+    }
+    
     scoreOverlayEl.appendChild(chip);
   });
+  
+  // Store for hover interactions
+  state.currentMarketDetails = marketDetails;
+  state.currentNodeToMarket = nodeToMarket;
 }
 
 
 function renderPopHousingTrack(pop = 0, housing = 0, vagrants = 0) {
   if (!popHousingOverlay) return;
-  popHousingOverlay.innerHTML = "";
-  const grid = document.createElement("div");
-  grid.className = "pop-grid";
+  clearElement(popHousingOverlay);
+  const track = document.createElement("div");
+  track.className = "pop-track";
   const housingUnits = Math.max(0, Math.floor(housing / 4));
   let remainingPop = Math.max(0, pop);
-
-  for (let r = 0; r < POP_LAYOUT.rows; r++) {
-    for (let c = 0; c < POP_LAYOUT.cols; c++) {
-      const cellIdx = r * POP_LAYOUT.cols + c;
+  let cellIdx = 0;
+  POP_LAYOUT.rows.forEach((cols, rowIdx) => {
+    const rowEl = document.createElement("div");
+    rowEl.className = `pop-row ${rowIdx === 0 ? "top" : "bottom"}`;
+    for (let c = 0; c < cols; c += 1) {
       const cell = document.createElement("div");
       cell.className = "pop-cell";
       if (cellIdx < housingUnits) cell.classList.add("has-housing");
@@ -3324,24 +4050,68 @@ function renderPopHousingTrack(pop = 0, housing = 0, vagrants = 0) {
       const pipGrid = document.createElement("div");
       pipGrid.className = "pip-grid";
       const pipsThisCell = Math.max(0, Math.min(POP_LAYOUT.pipsPerCell, remainingPop));
-      for (let i = 0; i < pipsThisCell; i++) {
+      for (let i = 0; i < POP_LAYOUT.pipsPerCell; i += 1) {
         const pip = document.createElement("div");
         pip.className = "pop-pip";
-        pip.classList.add("filled-pop");
+        const pipIndex = cellIdx * POP_LAYOUT.pipsPerCell + i + 1;
+        const milestone = pipIndex % POPS_PER_INFLUENCE === 0;
+        if (milestone) pip.classList.add("influence-marker");
+        if (i < pipsThisCell) {
+          pip.classList.add("filled-pop");
+          if (milestone) {
+            pip.classList.add("influence-bonus");
+          }
+        }
         pipGrid.appendChild(pip);
       }
       remainingPop -= pipsThisCell;
       cell.appendChild(pipGrid);
-      grid.appendChild(cell);
+      rowEl.appendChild(cell);
+      cellIdx += 1;
     }
+    track.appendChild(rowEl);
+  });
+  popHousingOverlay.appendChild(track);
+}
+
+function renderInfluenceTrack({ influenceEarned = 0, influenceSpent = 0 } = {}) {
+  if (!influenceOverlay) return;
+  clearElement(influenceOverlay);
+  const track = document.createElement("div");
+  track.className = "influence-track";
+  const spentCount = Math.min(influenceEarned, influenceSpent);
+  for (let i = 0; i < INFLUENCE_TRACK_SLOTS; i += 1) {
+    const slot = document.createElement("div");
+    slot.className = "influence-slot";
+    if (i < influenceEarned) {
+      const icon = document.createElement("img");
+      icon.src = ICONS.influenceOutline;
+      icon.alt = "";
+      icon.className = "influence-icon";
+      slot.appendChild(icon);
+      slot.classList.add("earned");
+      if (i < spentCount) {
+        slot.classList.add("spent");
+        const scribble = document.createElement("img");
+        scribble.src = ICONS.influenceScribble;
+        scribble.alt = "";
+        scribble.className = "influence-scribble";
+        slot.appendChild(scribble);
+        slot.title = "Influence spent.";
+      } else {
+        slot.classList.add("available");
+        slot.title = "Influence available.";
+      }
+    }
+    track.appendChild(slot);
   }
-  popHousingOverlay.appendChild(grid);
+  influenceOverlay.appendChild(track);
 }
 
 function renderTurnTrack(filled = 0) {
   if (!turnTrackOverlay) return;
   const count = Math.max(0, Math.min(TURN_TRACK_LENGTH, Number(filled) || 0));
-  turnTrackOverlay.innerHTML = "";
+  clearElement(turnTrackOverlay);
   for (let i = 0; i < TURN_TRACK_LENGTH; i += 1) {
     const slot = document.createElement("div");
     slot.className = "turn-slot";
@@ -3415,10 +4185,12 @@ function copyInviteLink() {
             const original = p2pCopyBtn.textContent || "Copy";
             p2pCopyBtn.textContent = "Copied";
             p2pCopyBtn.classList.add("copied");
-            setTimeout(() => {
+            const copyFeedbackTimeout = setTimeout(() => {
               p2pCopyBtn.textContent = original;
               p2pCopyBtn.classList.remove("copied");
             }, 1500);
+            // Store for potential cleanup
+            if (typeof window !== "undefined") window.__copyFeedbackTimeout = copyFeedbackTimeout;
           }
           updateP2PStatus("Invite copied. Share it in chat.");
         } else {
@@ -3436,13 +4208,13 @@ function copyInviteLink() {
 function renderMeeples() {
   if (!p2pMeeplesEl) return;
   if (!p2pUiState.hostCreated) {
-    p2pMeeplesEl.innerHTML = "";
+    clearElement(p2pMeeplesEl);
     p2pMeeplesEl.classList.add("hidden");
     return;
   }
   p2pUiState.connectedSeats = ensureConnectedSeats(p2pUiState.connectedSeats);
   p2pMeeplesEl.classList.remove("hidden");
-  p2pMeeplesEl.innerHTML = "";
+  clearElement(p2pMeeplesEl);
   for (let seat = 1; seat <= MAX_P2P_SEATS; seat += 1) {
     const meeple = document.createElement("span");
     const connected = Boolean(p2pUiState.connectedSeats[seat]);
@@ -3473,6 +4245,20 @@ function toggleQrModal(show) {
   }
 }
 
+// Debug helper - always available in console
+  if (typeof window !== "undefined") {
+    window.debugBoard = () => {
+      console.table(state.board.map((row, r) => {
+        const rowData = {};
+        row.forEach((cell, c) => {
+          rowData[`Col ${c + 1}`] = cell.building || (cell.forfeited ? 'FORFEIT' : 'empty');
+        });
+        rowData['Row'] = r + 1;
+        return rowData;
+      }));
+    };
+  }
+
 // Test-only hooks to inspect internal state in jsdom. Enabled by setting window.__RF_ENABLE_TEST_HOOKS__ before loading.
   if (typeof window !== "undefined" && window.__RF_ENABLE_TEST_HOOKS__) {
     window.__rfTestHooks = {
@@ -3488,8 +4274,15 @@ function toggleQrModal(show) {
       updateInviteVisibility,
       updateP2PControlsVisibility,
       renderMeeples,
-      actionMessage,
+      actionMessage: (stateArg, p2pUiStateArg, phase) => {
+        const s = stateArg || state;
+        const p = p2pUiStateArg || p2pUiState;
+        const ph = phase || currentTurnPhase();
+        return generateActionMessage(s, p, ph, { currentScore, lockedPairChoice, isMultiplayerActive });
+      },
       renderTurnTrack,
       maybeRollAfterLock,
+      placeBuilding,
+      validateMultiplayerState,
     };
   }

@@ -275,6 +275,8 @@ export function computeScore(board, populationNodes, workerAllocations = null, o
   const forfeitsCount = board.flat().filter((c) => c.forfeited || c.activationForfeit).length;
 
   const activation = computeActivationMap(board, populationNodes, workerAllocations, options);
+  const marketAllocations = resolveMarketAllocations(board, populationNodes, activation);
+  const nodeToMarket = buildNodeToMarketMap(board, populationNodes, activation);
 
   let scores = {
     cottages: scoreCottages(board, populationNodes),
@@ -295,7 +297,9 @@ export function computeScore(board, populationNodes, workerAllocations = null, o
     for (let c = 0; c < cols; c++) {
       const cell = board[r][c];
       if (!cell.building) continue;
-      const points = scoreBuildingCell(board, populationNodes, activation, r, c);
+      const points = scoreBuildingCell(board, populationNodes, activation, r, c, {
+        marketAllocations,
+      });
       switch (cell.building) {
         case "F":
           scores.farm += points;
@@ -354,7 +358,22 @@ export function computeScore(board, populationNodes, workerAllocations = null, o
     scores.guilds +
     scores.vagrants;
 
-  return { total, breakdown: scores, pop: popTotal, housing, forfeits: forfeitsCount };
+  // Build per-market details
+  const marketDetails = [];
+  marketAllocations.forEach((points, marketKey) => {
+    const [r, c] = marketKey.split(',').map(Number);
+    marketDetails.push({ row: r, col: c, points });
+  });
+
+  return {
+    total,
+    breakdown: scores,
+    pop: popTotal,
+    housing,
+    forfeits: forfeitsCount,
+    marketDetails,
+    nodeToMarket,
+  };
 }
 
 function scoreCottages(board, populationNodes) {
@@ -367,7 +386,8 @@ function scoreCottages(board, populationNodes) {
 
 export function scoreBuildingAt(board, populationNodes, workerAllocations, r, c, activation = null) {
   const actMap = activation || computeActivationMap(board, populationNodes, workerAllocations);
-  return scoreBuildingCell(board, populationNodes, actMap, r, c);
+  const marketAllocations = resolveMarketAllocations(board, populationNodes, actMap);
+  return scoreBuildingCell(board, populationNodes, actMap, r, c, { marketAllocations });
 }
 
 function popAround(r, c, popGrid) {
@@ -386,6 +406,74 @@ function popAround(r, c, popGrid) {
     }
   });
   return total;
+}
+
+function resolveMarketAllocations(board, populationNodes, activation = new Map()) {
+  const rawTotals = new Map();
+  if (!Array.isArray(populationNodes) || !populationNodes.length) return new Map();
+  const nodeRows = populationNodes.length;
+  const nodeCols = populationNodes[0]?.length || 0;
+  for (let nr = 0; nr < nodeRows; nr++) {
+    for (let nc = 0; nc < nodeCols; nc++) {
+      const popVal = populationNodes[nr][nc] || 0;
+      if (!popVal) continue;
+      const candidateMarkets = [];
+      [
+        [nr, nc],
+        [nr + 1, nc],
+        [nr, nc + 1],
+        [nr + 1, nc + 1],
+      ].forEach(([br, bc]) => {
+        const cell = board[br]?.[bc];
+        if (!cell || cell.building !== "M" || cell.forfeited || cell.activationForfeit) return;
+        if (activation && !activation.get(key(br, bc))) return;
+        candidateMarkets.push([br, bc]);
+      });
+      if (!candidateMarkets.length) continue;
+      candidateMarkets.forEach(([mr, mc]) => {
+        const mKey = key(mr, mc);
+        rawTotals.set(mKey, (rawTotals.get(mKey) || 0) + popVal);
+      });
+    }
+  }
+  const allocations = new Map();
+  rawTotals.forEach((val, marketKey) => {
+    allocations.set(marketKey, Math.floor(val / 2));
+  });
+  return allocations;
+}
+
+function buildNodeToMarketMap(board, populationNodes, activation = new Map()) {
+  const nodeMap = new Map();
+  if (!Array.isArray(populationNodes) || !populationNodes.length) return nodeMap;
+  const nodeRows = populationNodes.length;
+  const nodeCols = populationNodes[0]?.length || 0;
+  for (let nr = 0; nr < nodeRows; nr++) {
+    for (let nc = 0; nc < nodeCols; nc++) {
+      const popVal = populationNodes[nr][nc] || 0;
+      if (!popVal) continue;
+      const candidateMarkets = [];
+      [
+        [nr, nc],
+        [nr + 1, nc],
+        [nr, nc + 1],
+        [nr + 1, nc + 1],
+      ].forEach(([br, bc]) => {
+        const cell = board[br]?.[bc];
+        if (!cell || cell.building !== "M" || cell.forfeited || cell.activationForfeit) return;
+        if (activation && !activation.get(key(br, bc))) return;
+        candidateMarkets.push([br, bc]);
+      });
+      if (!candidateMarkets.length) continue;
+      const nodeKey = key(nr, nc);
+      const current = nodeMap.get(nodeKey) || [];
+      candidateMarkets.forEach(([mr, mc]) => {
+        current.push({ marketRow: mr, marketCol: mc, pop: popVal });
+      });
+      nodeMap.set(nodeKey, current);
+    }
+  }
+  return nodeMap;
 }
 
 function adjHasBuilding(board, r, c, code) {
@@ -559,7 +647,7 @@ function adjCountForfeits(board, r, c) {
   return orthNeighbors(r, c, board.length, board[0].length).filter(([nr, nc]) => board[nr][nc].forfeited).length;
 }
 
-function scoreBuildingCell(board, populationNodes, activation, r, c) {
+function scoreBuildingCell(board, populationNodes, activation, r, c, { marketAllocations = null } = {}) {
   const cell = board[r]?.[c];
   if (!cell || !cell.building || cell.forfeited || cell.activationForfeit) return 0;
   const active = activation.get(key(r, c));
@@ -582,6 +670,9 @@ function scoreBuildingCell(board, populationNodes, activation, r, c) {
       return base + bonus;
     }
     case "M": {
+      if (marketAllocations) {
+        return marketAllocations.get(key(r, c)) || 0;
+      }
       return popAround(r, c, populationNodes);
     }
     case "S": {

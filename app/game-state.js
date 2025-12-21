@@ -1,12 +1,32 @@
 import { resetTurnState } from "./state-controller.js";
+import {
+  POPS_PER_INFLUENCE,
+  applyInfluenceToDice,
+  totalInfluenceSpent,
+  isInfluenceEligibleDie,
+  DICE_MIN_VALUE,
+  DICE_MAX_VALUE,
+} from "./influence.js";
 
 const WINDROSE_FACE = "windrose";
-const isNumberedDie = (die) => {
+const SELECT_LOCATION_DICE_PROMPT = "Select two location dice in the Turn panel.";
+const INFLUENCE_FORFEIT_MESSAGE = "No valid location pairs; spend Influence or forfeit a plot.";
+
+// Check if die is labeled with "N" (N-type dice for auto-assignment)
+const isNDie = (die) => {
   if (!die) return false;
   if (typeof die.label === "string") return die.label.startsWith("N");
-  // Fallback for unlabeled dice: treat non-X faces as numbered
+  // Fallback for unlabeled dice: treat non-X faces as N-type
   return die.face !== "X";
 };
+
+const isXDie = (die) => {
+  if (!die) return false;
+  if (typeof die.label === "string") return die.label.startsWith("X");
+  return die.face === "X";
+};
+
+const isResolvedXDie = (die) => isXDie(die) && typeof die?.resolved === "number";
 
 function forcedLocationDiceIndices(dice) {
   if (!Array.isArray(dice)) return [];
@@ -16,12 +36,81 @@ function forcedLocationDiceIndices(dice) {
   }, []);
 }
 
+function influenceBudget(state) {
+  const earned = Math.max(0, state.influence?.earned || 0);
+  const spent = Math.max(0, state.influence?.spent || 0);
+  return Math.max(0, earned - spent);
+}
+
+export function canRescueLocationWithInfluence(
+  state,
+  diceList = [],
+  board,
+  { uniqueLocationPairs, filterAvailablePairs } = {},
+) {
+  if (!Array.isArray(diceList) || diceList.length !== 2) return false;
+  if (!Array.isArray(board) || !board.length) return false;
+  if (typeof uniqueLocationPairs !== "function" || typeof filterAvailablePairs !== "function") return false;
+  const budget = influenceBudget(state);
+  if (budget <= 0) return false;
+  for (let idx = 0; idx < diceList.length; idx += 1) {
+    const die = diceList[idx];
+    if (!isInfluenceEligibleDie(die)) continue;
+    const base =
+      typeof die.resolved === "number"
+        ? die.resolved
+        : typeof die.face === "number"
+          ? die.face
+          : null;
+    if (base === null) continue;
+    for (let step = 1; step <= budget; step += 1) {
+      for (const direction of [-1, 1]) {
+        const nextVal = base + step * direction;
+        if (nextVal < DICE_MIN_VALUE || nextVal > DICE_MAX_VALUE) continue;
+        const adjustedDice = diceList.map((original, jdx) =>
+          jdx === idx ? { ...original, resolved: nextVal } : { ...original },
+        );
+        const pairs = filterAvailablePairs(uniqueLocationPairs(adjustedDice), board);
+        if (pairs.length > 0) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function canRescueAnyLocationPair(state, board, helpers) {
+  if (!Array.isArray(state.dice) || state.dice.length < 2) return false;
+  if (influenceBudget(state) <= 0) return false;
+  // Include both N dice and X dice with resolved values
+  const eligibleDice = state.dice
+    .map((die, idx) => ({ die, idx }))
+    .filter(({ die }) => {
+      if (!die) return false;
+      // Include N dice
+      if (isNDie(die)) return true;
+      // Include X dice with resolved numeric values (they can be adjusted with influence)
+      if (isResolvedXDie(die)) return true;
+      return false;
+    });
+  for (let i = 0; i < eligibleDice.length; i += 1) {
+    for (let j = i + 1; j < eligibleDice.length; j += 1) {
+      const diceList = [eligibleDice[i].die, eligibleDice[j].die];
+      if (
+        canRescueLocationWithInfluence(state, diceList, board, helpers)
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function autoAssignLocationDice(dice, forced = []) {
   const forcedSet = new Set(forced);
   const selection = [...forcedSet];
   const candidates = dice
     .map((die, idx) => ({ die, idx }))
-    .filter(({ die }) => die && isNumberedDie(die));
+    .filter(({ die }) => die && isNDie(die));
   for (const { idx } of candidates) {
     if (selection.length >= 2) break;
     if (!selection.includes(idx)) selection.push(idx);
@@ -61,16 +150,28 @@ export function beginTurn(
   state.autoLocationSelection = [];
   state.nonActiveSwap = false;
 
+  const adjustedDice = applyInfluenceToDice(state, state.dice);
   if (!state.activeTurn) {
     state.locationSelection = autoAssignLocationDice(state.dice, state.forcedLocationDice);
     state.autoLocationSelection = state.locationSelection.slice();
-    const allPairs = filterAvailablePairs(uniqueLocationPairs(state.dice), board);
+    const allPairs = filterAvailablePairs(uniqueLocationPairs(adjustedDice), board);
     state.locationPairs = allPairs;
-    state.forceForfeit = allPairs.length === 0;
-    if (state.forceForfeit) messages.push("No valid location pairs; forfeit a plot.");
+    const locDice = state.locationSelection.map((i) => adjustedDice[i]).filter(Boolean).slice(0, 2);
+    const canRescue =
+      allPairs.length === 0 &&
+      locDice.length === 2 &&
+      canRescueLocationWithInfluence(state, locDice, board, { uniqueLocationPairs, filterAvailablePairs });
+    const generalRescue = canRescueAnyLocationPair(state, board, { uniqueLocationPairs, filterAvailablePairs });
+    const advisory = allPairs.length === 0 && (canRescue || generalRescue);
+    state.forceForfeit = allPairs.length === 0 && !advisory;
+    state.forceForfeitAdvisory = advisory;
+    if (allPairs.length === 0) {
+      messages.push(state.forceForfeit ? "No valid location pairs; forfeit a plot." : INFLUENCE_FORFEIT_MESSAGE);
+    }
   } else {
     state.locationSelection = state.forcedLocationDice.slice();
     state.forceForfeit = false;
+    state.forceForfeitAdvisory = false;
   }
 
   state.pestilence = dice.filter((d) => d.face === "X").length === 2;
@@ -82,9 +183,13 @@ export function beginTurn(
 }
 
 export function selectLocationDie(state, dieIndex, { uniqueLocationPairs, filterAvailablePairs, board }) {
-  if (state.diceLocked || state.pestilence || state.forceForfeit || state.activationMode) return { invalidSelection: false };
+  if ((state.diceLocked && !state.forceForfeitAdvisory) || state.pestilence || (state.forceForfeit && !state.forceForfeitAdvisory) || state.activationMode) {
+    return { invalidSelection: false };
+  }
   const die = state.dice[dieIndex];
-  if (!die || die.face === "X") return { invalidSelection: false };
+  // Allow any die with a numeric value (1-5) to be selected, including X dice when they show numbers
+  // Block X dice that show the "X" face (no resolved numeric value)
+  if (!die || (die.face === "X" && typeof die.resolved !== "number")) return { invalidSelection: false };
   if ((state.forcedLocationDice || []).includes(dieIndex)) {
     return { invalidSelection: false, message: "Windrose dice must stay in the location pair." };
   }
@@ -105,41 +210,153 @@ export function selectLocationDie(state, dieIndex, { uniqueLocationPairs, filter
 
 export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAvailablePairs, board }) {
   mergeForcedLocationDice(state);
+  const prevSelection = Array.isArray(state.locationSelection) ? state.locationSelection.slice() : [];
   const prevForce = state.forceForfeit;
-  const locationDice = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
-  const buildDice =
+  const locationDiceRaw = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
+  const buildDiceRaw =
     state.locationSelection.length === 2 ? state.dice.filter((_, idx) => !state.locationSelection.includes(idx)) : [];
-  state.buildDice = buildDice;
-
-  const numberedDice = state.dice.filter((d) => d && isNumberedDie(d));
-  const locationPool = state.activeTurn ? numberedDice : (locationDice.length ? locationDice : numberedDice);
-  const allPairs = filterAvailablePairs(uniqueLocationPairs(locationPool), board);
+  state.buildDice = buildDiceRaw;
+  const locationDice = applyInfluenceToDice(state, locationDiceRaw);
+  const numberedDice = applyInfluenceToDice(
+    state,
+    state.dice.filter((d) => d && isNDie(d)),
+  );
+  const resolvedXDice = applyInfluenceToDice(
+    state,
+    state.dice.filter((d) => d && isResolvedXDie(d)),
+  );
+  // Include X dice that have influence adjustments in the location pool for rescue calculations
+  const influenceAdjustedDice = state.influenceTarget
+    ? applyInfluenceToDice(state, state.dice.filter(d => d && d.label === state.influenceTarget))
+    : [];
+  const basePool = numberedDice.slice();
+  if (state.activeTurn && locationDice.length < 2 && resolvedXDice.length) {
+    resolvedXDice.forEach((die) => {
+      if (!die) return;
+      const exists = basePool.some((entry) => {
+        if (!entry) return false;
+        if (entry.label && die.label) return entry.label === die.label;
+        return entry === die;
+      });
+      if (!exists) basePool.push(die);
+    });
+  }
+  const poolWithInfluence = (() => {
+    if (!influenceAdjustedDice.length) return basePool;
+    const merged = basePool.slice();
+    influenceAdjustedDice.forEach((die) => {
+      if (!die) return;
+      const exists = merged.some((entry) => {
+        if (!entry) return false;
+        if (entry.label && die.label) return entry.label === die.label;
+        return entry === die;
+      });
+      if (!exists) merged.push(die);
+    });
+    return merged;
+  })();
+  const locationPool = (() => {
+    if (!state.activeTurn) {
+      return locationDice.length ? locationDice : poolWithInfluence;
+    }
+    if (!locationDice.length) {
+      return poolWithInfluence;
+    }
+    const merged = [...poolWithInfluence];
+    locationDice.forEach((die) => {
+      if (!die) return;
+      const exists = merged.some((entry) => {
+        if (!entry) return false;
+        if (entry.label && die.label) return entry.label === die.label;
+        return entry === die;
+      });
+      if (!exists) merged.push(die);
+    });
+    return merged;
+  })();
+  const appendUniqueDie = (arr, die) => {
+    if (!die) return;
+    const exists = arr.some((entry) => {
+      if (!entry) return false;
+      if (entry === die) return true;
+      if (entry.label && die.label) return entry.label === die.label;
+      return false;
+    });
+    if (!exists) arr.push(die);
+  };
+  const extendedPool = (() => {
+    const merged = locationPool.slice();
+    resolvedXDice.forEach((die) => appendUniqueDie(merged, die));
+    return merged;
+  })();
+  const allPairs = filterAvailablePairs(uniqueLocationPairs(extendedPool), board);
   let locationPairs = [];
   let forceForfeit = state.diceLocked ? state.forceForfeit : allPairs.length === 0;
+  let rescueHint = false;
   let invalidSelection = false;
   let message = null;
 
+  const generalRescue = !state.diceLocked
+    ? canRescueAnyLocationPair(state, board, { uniqueLocationPairs, filterAvailablePairs })
+    : false;
+  const hadGeneralRescue = generalRescue;
+
   if (!state.diceLocked && allPairs.length === 0) {
     if (state.activeTurn) {
-      state.locationSelection = state.forcedLocationDice.slice();
+      const current = Array.isArray(state.locationSelection) ? state.locationSelection.slice(0, 2) : [];
+      const fillSelection = () => {
+        if (current.length >= 2) return current;
+        const eligible = state.dice
+          .map((die, idx) => ({ die, idx }))
+          .filter(({ die }) => {
+            if (!die) return false;
+            if (isNDie(die)) return true;
+            return isResolvedXDie(die);
+          })
+          .map(({ idx }) => idx);
+        eligible.forEach((idx) => {
+          if (current.length < 2 && !current.includes(idx)) current.push(idx);
+        });
+        return current.slice(0, 2);
+      };
+      state.locationSelection = generalRescue ? current : fillSelection();
     } else {
-      const numberedDice = state.dice
+      // Allow both N dice and X dice with resolved numbers for non-active turns
+      const validLocationDice = state.dice
         .map((die, idx) => ({ die, idx }))
-        .filter(({ die }) => die && isNumberedDie(die))
+        .filter(({ die }) => {
+          if (!die) return false;
+          if (isNDie(die)) return true;
+          // Include X dice with resolved numeric values
+          if (isResolvedXDie(die)) return true;
+          return false;
+        })
         .map(({ idx }) => idx);
       const preferred = [
         ...(state.locationSelection || []),
         ...(state.forcedLocationDice || []),
-      ].filter((idx, pos, arr) => arr.indexOf(idx) === pos && numberedDice.includes(idx));
+      ].filter((idx, pos, arr) => arr.indexOf(idx) === pos && validLocationDice.includes(idx));
       const filled = preferred.slice(0, 2);
-      const fallback = numberedDice.filter((idx) => !filled.includes(idx)).slice(0, 2 - filled.length);
-      state.locationSelection = filled.concat(fallback).slice(0, 2);
-      state.nonActiveSwap = false;
+      const fallback = validLocationDice.filter((idx) => !filled.includes(idx)).slice(0, 2 - filled.length);
+      const nextSelection = filled.concat(fallback).slice(0, 2);
+      const selectionChanged =
+        nextSelection.length !== prevSelection.length || nextSelection.some((val, idx) => val !== prevSelection[idx]);
+      state.locationSelection = nextSelection;
+      if (selectionChanged) state.nonActiveSwap = false;
     }
-    forceForfeit = true;
-    invalidSelection = false;
     locationPairs = [];
-    if (!prevForce) message = "No valid location pairs; forfeit a plot.";
+    if (generalRescue) {
+      forceForfeit = false;
+      rescueHint = true;
+      invalidSelection = true;
+      const selectionCount = Array.isArray(state.locationSelection) ? state.locationSelection.length : 0;
+      const showSelectPrompt = state.activeTurn && selectionCount < 2;
+      message = showSelectPrompt ? SELECT_LOCATION_DICE_PROMPT : INFLUENCE_FORFEIT_MESSAGE;
+    } else {
+      forceForfeit = true;
+      invalidSelection = false;
+      if (!prevForce) message = "No valid location pairs; forfeit a plot.";
+    }
   }
 
   if (state.diceLocked) {
@@ -150,11 +367,18 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
       if (selectedPairs.length) {
         locationPairs = selectedPairs;
       } else if (allPairs.length) {
-        state.locationSelection = [];
+        const canAdjustSelected = canRescueLocationWithInfluence(state, locationDice, board, {
+          uniqueLocationPairs,
+          filterAvailablePairs,
+        });
         locationPairs = [];
         invalidSelection = true;
-        if (!prevForce) message = "No valid plots for that pair; choose a different location pair.";
-      } else {
+        if (canAdjustSelected && influenceBudget(state) > 0) {
+          message = "No valid plots for that pair; spend Influence or choose a different location pair.";
+        } else if (!prevForce) {
+          message = "No valid plots for that pair; choose a different location pair.";
+        }
+      } else if (!hadGeneralRescue) {
         forceForfeit = true;
         if (!prevForce) message = "No valid location pairs; forfeit a plot.";
       }
@@ -172,9 +396,29 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
     }
   }
 
+  if (forceForfeit && locationDice.length === 2) {
+    const canRescue = canRescueLocationWithInfluence(state, locationDice, board, {
+      uniqueLocationPairs,
+      filterAvailablePairs,
+    });
+    if (canRescue) {
+      forceForfeit = false;
+      rescueHint = true;
+      if (!invalidSelection) invalidSelection = true;
+      message = INFLUENCE_FORFEIT_MESSAGE;
+    }
+  }
+
   state.locationPairs = locationPairs;
   state.forceForfeit = forceForfeit;
+  state.forceForfeitAdvisory = rescueHint;
   state.invalidSelection = invalidSelection;
+  state.invalidSelectionMessage = invalidSelection ? message : null;
+  const selectionComplete =
+    (Array.isArray(state.locationSelection) && state.locationSelection.length === 2) ||
+    (state.diceLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2);
+  state.forceForfeitHighlight =
+    Boolean(forceForfeit) || (Boolean(rescueHint) && selectionComplete && !invalidSelection);
   if (!state.activeTurn && !state.diceLocked && forceForfeit) {
     const swapped = autoSelectValidNonActivePair(state, { uniqueLocationPairs, filterAvailablePairs, board });
     if (swapped) {
@@ -193,7 +437,10 @@ function autoSelectValidNonActivePair(state, { uniqueLocationPairs, filterAvaila
     .map((_, idx) => idx)
     .filter((idx) => !state.locationSelection.includes(idx));
   if (altIdx.length !== 2) return false;
-  const alternateDice = altIdx.map((i) => state.dice[i]).filter(Boolean);
+  const alternateDice = applyInfluenceToDice(
+    state,
+    altIdx.map((i) => state.dice[i]).filter(Boolean),
+  );
   if (alternateDice.length !== 2) return false;
   const alternatePairs = filterAvailablePairs(uniqueLocationPairs(alternateDice), board);
   if (!alternatePairs.length) return false;
@@ -202,6 +449,7 @@ function autoSelectValidNonActivePair(state, { uniqueLocationPairs, filterAvaila
   state.locationPairs = alternatePairs;
   state.forceForfeit = false;
   state.invalidSelection = false;
+  state.invalidSelectionMessage = null;
   if (Array.isArray(state.autoLocationSelection) && state.autoLocationSelection.length === 2) {
     const normalize = (arr) => arr.slice().sort((a, b) => a - b);
     const current = normalize(state.locationSelection);
@@ -248,13 +496,23 @@ export function recalcTracks(state, { computeScore, calcVagrants }) {
   const pop = state.populationNodes ? state.populationNodes.flat().reduce((a, b) => a + b, 0) : 0;
   const cottages = boardCottages(state.board);
   const housing = cottages * 4;
+  const prevEarned = Math.max(0, state.influence?.earned || 0);
+  const prevCommitted = Math.max(0, state.influence?.spent || 0);
+  const adjustmentsSpent = totalInfluenceSpent(state.influenceAdjustments);
+  const newEarned = Math.max(0, Math.floor(pop / POPS_PER_INFLUENCE));
+  const committed = Math.min(prevCommitted, newEarned);
+  const remaining = Math.max(0, newEarned - committed);
+  const pending = Math.min(remaining, Math.max(0, adjustmentsSpent));
+  const availableInfluence = Math.max(0, newEarned - committed - pending);
+  state.influence = { earned: newEarned, spent: committed, pending };
   state.tracks.population = pop;
   state.tracks.housing = housing;
+  state.tracks.influence = availableInfluence;
   const vagrants = calcVagrants(pop, housing);
   const scoreResult = computeScore(state.board, state.populationNodes, state.workerAllocations, {
     allowPopulationActivation: false,
   });
-  return { vagrants, scoreResult };
+  return { vagrants, scoreResult, influence: { earned: newEarned, available: availableInfluence, gained: Math.max(0, newEarned - prevEarned) } };
 }
 
 export function boardFull(board) {

@@ -4,7 +4,7 @@ const DEFAULT_ICE_SERVERS = [
 ];
 const CHANNEL_LABEL = "rolling-fiefdoms-sync";
 const INVITE_VERSION = 1;
-const ICE_GATHER_TIMEOUT_MS = 8000;
+const ICE_GATHER_TIMEOUT_MS = 12000;
 
 function supportsWebRTC() {
   return typeof RTCPeerConnection !== "undefined" && typeof RTCSessionDescription !== "undefined";
@@ -52,15 +52,23 @@ async function waitForIceGathering(pc, timeoutMs = ICE_GATHER_TIMEOUT_MS) {
   if (!pc) return [];
   if (pc.iceGatheringState === "complete") return pc.localDescription ? pc.localDescription.sdp : [];
   return new Promise((resolve) => {
+    let resolved = false;
+    const safeResolve = (value) => {
+      if (!resolved) {
+        resolved = true;
+        pc.onicegatheringstatechange = null;
+        resolve(value);
+      }
+    };
+    
     const timeout = setTimeout(() => {
-      pc.onicegatheringstatechange = null;
-      resolve(pc.localDescription ? pc.localDescription.sdp : []);
+      safeResolve(pc.localDescription ? pc.localDescription.sdp : []);
     }, timeoutMs);
+    
     pc.onicegatheringstatechange = () => {
       if (pc.iceGatheringState === "complete") {
         clearTimeout(timeout);
-        pc.onicegatheringstatechange = null;
-        resolve(pc.localDescription ? pc.localDescription.sdp : []);
+        safeResolve(pc.localDescription ? pc.localDescription.sdp : []);
       }
     };
   });

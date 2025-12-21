@@ -1,8 +1,14 @@
+import { totalInfluenceSpent } from "./influence.js";
+
 const baseState = {
   board: [],
   populationNodes: [],
   populationAvailable: null,
-  tracks: { population: 0, housing: 0 },
+  tracks: { population: 0, housing: 0, influence: 0 },
+  influence: { earned: 0, spent: 0, pending: 0 },
+  influenceAdjustments: {},
+  influenceTarget: null,
+  influenceSelectionKey: null,
   dice: [],
   pendingPopulation: null,
   buildChoice: null,
@@ -44,13 +50,30 @@ const baseState = {
   splitUsedForBuild: false,
   noBuildOptionsLogged: false,
   nonActiveSwap: false,
+  invalidSelectionMessage: null,
+  forceForfeitAdvisory: false,
+  forceForfeitHighlight: false,
 };
+
+function commitPendingInfluence(state) {
+  if (!state || !state.influence) {
+    state.influence = { earned: 0, spent: 0, pending: 0 };
+  }
+  const earned = Math.max(0, state.influence?.earned || 0);
+  const committed = Math.min(earned, Math.max(0, state.influence?.spent || 0));
+  const remaining = Math.max(0, earned - committed);
+  const adjustments = Math.min(totalInfluenceSpent(state.influenceAdjustments), remaining);
+  const nextCommitted = Math.min(earned, committed + (Number.isFinite(adjustments) ? adjustments : 0));
+  state.influence.spent = nextCommitted;
+  state.influence.pending = 0;
+}
 
 export function createState() {
   return JSON.parse(JSON.stringify(baseState));
 }
 
 export function resetTurnState(state) {
+  commitPendingInfluence(state);
   state.pendingSpringhouseTarget = null;
   state.pendingPopulation = null;
   state.buildChoice = null;
@@ -77,6 +100,12 @@ export function resetTurnState(state) {
   state.splitUsedForBuild = false;
   state.noBuildOptionsLogged = false;
   state.nonActiveSwap = false;
+  state.invalidSelectionMessage = null;
+  state.forceForfeitAdvisory = false;
+  state.influenceAdjustments = {};
+  state.influenceTarget = null;
+  state.influenceSelectionKey = null;
+  state.forceForfeitHighlight = false;
   // rollAvailable intentionally not reset here to preserve per-turn lock until explicitly re-enabled
 }
 

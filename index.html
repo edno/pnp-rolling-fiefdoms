@@ -8,22 +8,29 @@
   <meta name="theme-color" content="#e67e22" />
   <title>Rolling Fiefdoms Web Prototype</title>
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="modulepreload" href="app/app.js?v=v3" />
+  <link rel="modulepreload" href="app/app.js?v=v5" />
   <link rel="icon" type="image/svg+xml" href="assets/img/forfeit.svg" />
-  <link rel="preload" href="assets/css/fonts.css" as="style" />
-  <link rel="preload" href="assets/css/styles.css" as="style" />
-  <link rel="preload" href="resources/rolling-fiefdoms-player-sheet.webp?v=v1.8" as="image" fetchpriority="high" />
-  <link rel="preload" href="assets/img/rules.webp" as="image" />
-  <link rel="preload" href="assets/img/playersheet.webp" as="image" />
-  <link rel="preload" href="assets/img/github.webp" as="image" />
-  <link rel="preload" href="assets/img/fullscreen.webp" as="image" />
-  <link rel="preload" href="assets/img/bgg.webp" as="image" />
-  <link rel="stylesheet" href="assets/css/fonts.css" media="print" onload="this.media='all'" />
-  <link rel="stylesheet" href="assets/css/styles.css" media="print" onload="this.media='all'" />
-  <noscript>
-    <link rel="stylesheet" href="assets/css/fonts.css" />
-    <link rel="stylesheet" href="assets/css/styles.css" />
-  </noscript>
+  <link rel="preload" href="resources/rolling-fiefdoms-player-sheet.webp?v=v1.9" as="image" fetchpriority="high" />
+  <style>
+    /* Critical CSS - hide content until fonts and CSS load */
+    .loading header,
+    .loading main,
+    .loading .site-footer {
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+    }
+  </style>
+  <link rel="stylesheet" href="assets/css/fonts.css" />
+  <link rel="stylesheet" href="assets/css/styles.css" />
 </head>
 <body class="loading">
   <header>
@@ -72,7 +79,7 @@
         <img
           id="sheetBaseImage"
           class="sheet-base"
-          src="resources/rolling-fiefdoms-player-sheet.webp?v=v1.8"
+          src="resources/rolling-fiefdoms-player-sheet.webp?v=v1.9"
           alt=""
           fetchpriority="high"
           decoding="async"
@@ -85,6 +92,7 @@
         <div class="board" id="board"></div>
         <div id="scoreOverlay" class="score-overlay"></div>
         <div id="turnTrackOverlay" class="turn-track-overlay" aria-hidden="true"></div>
+        <div id="influenceOverlay" class="influence-overlay"></div>
         <div id="popHousingOverlay" class="pop-housing-overlay"></div>
         <div id="buildingsOverlay" class="buildings-overlay" aria-label="Select building"></div>
         <div id="guildsOverlay" class="guilds-overlay" aria-label="Select guild"></div>
@@ -126,7 +134,7 @@
         </div>
       </div>
 
-      <div class="panel p2p-panel" id="p2pPanel">
+      <div class="panel p2p-panel hidden" id="p2pPanel">
         <h2 class="panel-title-with-meeples">
           <span>Multiplayer game</span>
           <div id="p2pMeeples" class="p2p-meeples hidden" aria-label="Player seats"></div>
@@ -172,7 +180,7 @@
     </div>
   </footer>
 
-  <script type="module" src="app/app.js?v=v3"></script>
+  <script type="module" src="app/app.js?v=v5"></script>
 
   <div id="p2pQrModal" class="p2p-qr-modal hidden">
     <div class="p2p-qr-dialog">

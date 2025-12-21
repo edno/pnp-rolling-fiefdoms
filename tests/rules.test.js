@@ -6,6 +6,7 @@ import {
   buildingOptionsFromDice,
   calcVagrants,
   computeScore,
+  scoreBuildingAt,
   filterAvailablePairs,
   computePestilenceInfo,
   restrictBuildOptionsForBoard,
@@ -150,7 +151,7 @@ describe("computeScore", () => {
     expect(result.breakdown.vagrants).toBeGreaterThanOrEqual(result.breakdown.vagrants);
   });
 
-  it("market scores adjacent population", () => {
+  it("market scores adjacent population with floor-half rule", () => {
     const board = emptyBoard();
     board[2][2].building = "M";
     const pop = emptyPop();
@@ -158,7 +159,8 @@ describe("computeScore", () => {
     pop[1][2] = 1;
     pop[2][1] = 1;
     const result = computeScore(board, pop);
-    expect(result.breakdown.market).toBe(3);
+    expect(result.breakdown.market).toBe(1);
+    expect(result.marketDetails[0]?.points).toBe(1);
   });
 
   it("townhall scores unique basics in row/col when active", () => {
@@ -284,10 +286,10 @@ describe("computeScore", () => {
     expect(result.breakdown.market).toBe(0);
     pop[1][2] = 2; // now 4 pips total around, activate + score
     result = computeScore(board, pop);
-    expect(result.breakdown.market).toBe(4);
+    expect(result.breakdown.market).toBe(2);
   });
 
-  it("market sums all adjacent node pips (up to four nodes)", () => {
+  it("market sums all adjacent node pips then floors half the total", () => {
     const board = emptyBoard();
     board[2][2].building = "M";
     const pop = emptyPop();
@@ -295,7 +297,88 @@ describe("computeScore", () => {
     pop[1][2] = 4;
     pop[2][1] = 4;
     const result = computeScore(board, pop);
-    expect(result.breakdown.market).toBe(13);
+    expect(result.breakdown.market).toBe(6);
+  });
+
+  it("shared population nodes contribute to every adjacent market", () => {
+    const board = emptyBoard();
+    board[1][1].building = "M";
+    board[2][2].building = "M";
+    const pop = emptyPop();
+    pop[0][0] = 2; // unique to top-left market
+    pop[1][0] = 2; // unique to top-left market
+    pop[1][1] = 4; // shared node between both markets
+    pop[1][2] = 3; // unique to bottom-right market
+    pop[2][2] = 2; // unique to bottom-right market
+    const result = computeScore(board, pop);
+    expect(result.breakdown.market).toBe(8);
+    expect(scoreBuildingAt(board, pop, null, 1, 1)).toBe(4);
+    expect(scoreBuildingAt(board, pop, null, 2, 2)).toBe(4);
+  });
+
+  it("keeps markets at zero when no population nodes claim them", () => {
+    const board = emptyBoard();
+    board[3][1].building = "M"; // row 4, col 2
+    board[4][1].building = "M"; // row 5, col 2 (below the first market)
+    const pop = emptyPop();
+    pop[3][0] = 4; // node shared between the two markets
+    pop[3][1] = 4; // another shared node
+    const result = computeScore(board, pop);
+    expect(scoreBuildingAt(board, pop, null, 3, 1)).toBe(4);
+    expect(scoreBuildingAt(board, pop, null, 4, 1)).toBe(4);
+    expect(result.breakdown.market).toBe(8);
+  });
+
+  it("scores the logged scenario without double-counting shared population nodes", () => {
+    const board = emptyBoard();
+    [
+      [1, 2],
+      [1, 3],
+      [2, 1],
+      [2, 2],
+      [2, 3],
+      [2, 4],
+      [3, 4],
+      [4, 2],
+      [4, 4],
+    ].forEach(([r, c]) => {
+      board[r - 1][c - 1].building = "M";
+    });
+    const pop = emptyPop();
+    [
+      [4, 4, 3],
+      [2, 4, 4],
+      [4, 4, 1],
+      [4, 4, 2],
+      [4, 3, 4],
+      [5, 1, 1],
+      [1, 2, 1],
+      [3, 1, 3],
+      [4, 2, 3],
+      [4, 1, 2],
+      [4, 2, 2],
+      [3, 3, 3],
+      [5, 2, 4],
+    ].forEach(([amount, r, c]) => {
+      pop[r - 1][c - 1] = amount;
+    });
+    const result = computeScore(board, pop);
+    expect(result.breakdown.market).toBe(48);
+    const actual = result.marketDetails
+      .map((entry) => ({ row: entry.row + 1, col: entry.col + 1, points: entry.points }))
+      .sort((a, b) => a.row - b.row || a.col - b.col);
+    const expected = [
+      { row: 1, col: 2, points: 4 },
+      { row: 1, col: 3, points: 3 },
+      { row: 2, col: 1, points: 3 },
+      { row: 2, col: 2, points: 7 },
+      { row: 2, col: 3, points: 7 },
+      { row: 2, col: 4, points: 6 },
+      { row: 3, col: 4, points: 8 },
+      { row: 4, col: 2, points: 4 },
+      { row: 4, col: 4, points: 6 },
+    ];
+    expect(actual).toEqual(expected);
   });
 
   it("Almshouse cancels up to 12 vagrant penalty only when active", () => {

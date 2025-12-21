@@ -2,7 +2,7 @@
 /* eslint-env node */
 /* eslint-disable no-console */
 const { createServer } = require("node:http");
-const { readFile, stat } = require("node:fs/promises");
+const { readFile, stat, access } = require("node:fs/promises");
 const path = require("node:path");
 
 const args = new Set(process.argv.slice(2));
@@ -21,7 +21,17 @@ const mime = {
   ".jpeg": "image/jpeg",
   ".svg": "image/svg+xml",
   ".ico": "image/x-icon",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
 };
+
+async function fileExists(filePath) {
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 async function ensureRootExists() {
   try {
@@ -37,6 +47,25 @@ async function ensureRootExists() {
 const server = createServer(async (req, res) => {
   try {
     const urlPath = decodeURIComponent((req.url || "").split("?")[0]);
+    
+    // Mock /api/config for local development
+    if (urlPath === "/api/config") {
+      const host = req.headers.host || "localhost:4173";
+      const hostname = host.split(":")[0];
+      // If wrangler is running on default port, use it; otherwise no signalling
+      const signalingUrl = `http://${hostname}:8787`;
+      const config = {
+        signalingUrl: signalingUrl,
+        p2pEnabled: false,
+      };
+      res.writeHead(200, { 
+        "Content-Type": "application/json; charset=utf-8",
+        "Access-Control-Allow-Origin": "*",
+      });
+      res.end(JSON.stringify(config));
+      return;
+    }
+    
     const safePath = urlPath === "/" ? "/index.html" : urlPath;
     const filePath = path.join(root, safePath);
     const fileStat = await stat(filePath);
@@ -44,11 +73,30 @@ const server = createServer(async (req, res) => {
       res.writeHead(403).end("Directory listing not allowed");
       return;
     }
+    
     const ext = path.extname(filePath).toLowerCase();
     const contentType = mime[ext] || "application/octet-stream";
-    const data = await readFile(filePath);
-    res.writeHead(200, { "Content-Type": contentType });
-    res.end(data);
+    
+    // Check if browser supports Brotli and if .br file exists (only in dist mode)
+    const acceptEncoding = req.headers["accept-encoding"] || "";
+    const supportsBrotli = acceptEncoding.includes("br");
+    const brotliPath = filePath + ".br";
+    
+    if (useDist && supportsBrotli && await fileExists(brotliPath)) {
+      // Serve pre-compressed Brotli file
+      const data = await readFile(brotliPath);
+      res.writeHead(200, { 
+        "Content-Type": contentType,
+        "Content-Encoding": "br",
+        "Vary": "Accept-Encoding",
+      });
+      res.end(data);
+    } else {
+      // Serve original file
+      const data = await readFile(filePath);
+      res.writeHead(200, { "Content-Type": contentType });
+      res.end(data);
+    }
   } catch (err) {
     const status = err.code === "ENOENT" ? 404 : 500;
     res.writeHead(status, { "Content-Type": "text/plain; charset=utf-8" });

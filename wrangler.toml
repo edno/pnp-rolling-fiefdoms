@@ -1,0 +1,5 @@
+name = "rolling-fiefdoms"
+compatibility_date = "2025-12-18"
+
+# Cloudflare Pages configuration
+# This is used by `wrangler pages dev` for local development

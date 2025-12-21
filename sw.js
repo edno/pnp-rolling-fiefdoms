@@ -1,19 +1,18 @@
 /* eslint-env serviceworker */
-const CACHE_VERSION = "v1.16";
+const CACHE_VERSION = "v1.27";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
 const APP_VERSION = "v5";
-const SHEET_VERSION = "v1.8";
+const SHEET_VERSION = "v1.9";
 const ASSETS = [
   "/",
   "/index.html",
   `/app/app.js?v=${APP_VERSION}`,
   "/assets/css/styles.css",
   "/assets/css/fonts.css",
+  /* LAZY_CHUNKS_PLACEHOLDER */
   "/assets/fonts/Shadows_Into_Light/ShadowsIntoLight-Regular.woff2",
   "/assets/fonts/Lobster_Two/LobsterTwo-Regular.woff2",
   "/assets/fonts/Lobster_Two/LobsterTwo-Bold.woff2",
-  "/assets/fonts/Lobster_Two/LobsterTwo-Italic.woff2",
-  "/assets/fonts/Lobster_Two/LobsterTwo-BoldItalic.woff2",
   "/assets/fonts/QT_Black_Forest/QTBlackForest.woff2",
   "/assets/fonts/Roboto/Roboto-VariableFont_wdth,wght.woff2",
   "/assets/fonts/Roboto/Roboto-Italic-VariableFont_wdth,wght.woff2",
@@ -70,6 +69,16 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
+  // For navigation requests, don't intercept - let browser handle naturally
+  // Only provide offline fallback if network fails
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match("/index.html"))
+    );
+    return;
+  }
+
+  // For assets, use cache-first
   event.respondWith(
     caches
       .match(event.request)
@@ -81,13 +90,8 @@ self.addEventListener("fetch", (event) => {
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => {});
             return resp;
           })
-          .catch(() => {
-            if (event.request.mode === "navigate") {
-              return caches.match("/index.html");
-            }
-            return caches.match(event.request);
-          });
+          .catch(() => caches.match(event.request));
       })
-      .catch(() => (event.request.mode === "navigate" ? caches.match("/index.html") : undefined)),
+      .catch(() => undefined),
   );
 });
