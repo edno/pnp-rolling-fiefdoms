@@ -4,6 +4,7 @@
 const path = require("node:path");
 const { mkdir, rm, cp, readFile, writeFile, readdir, stat } = require("node:fs/promises");
 const { build } = require("esbuild");
+const { minify: minifyHtml } = require("html-minifier-terser");
 const brotli = require("brotli");
 const sharp = require("sharp");
 const { optimize } = require("svgo");
@@ -11,6 +12,8 @@ const { optimize } = require("svgo");
 const root = path.resolve(__dirname, "..");
 const outDir = path.join(root, "dist");
 const staticEntries = ["index.html", "assets", "resources", "robots.txt", "manifest.webmanifest"];
+const PLAYER_SHEET_RELATIVE = path.join("resources", "rolling-fiefdoms-player-sheet.webp");
+const PLAYER_SHEET_TARGET = { width: 1076, height: 761 };
 
 // Parse CLI flags
 const enableSourcemaps = process.argv.includes("--sourcemap");
@@ -157,6 +160,47 @@ async function optimizeImagesInDirectory(dirPath) {
   }
 }
 
+async function downscalePlayerSheet() {
+  const sheetPath = path.join(outDir, PLAYER_SHEET_RELATIVE);
+  try {
+    const sheetStat = await stat(sheetPath);
+    if (!sheetStat.isFile()) return;
+  } catch (err) {
+    if (err?.code !== "ENOENT") console.warn(`  ⚠ Player sheet missing: ${err.message}`);
+    return;
+  }
+
+  try {
+    const image = sharp(sheetPath);
+    const metadata = await image.metadata();
+    if (
+      metadata.width <= PLAYER_SHEET_TARGET.width &&
+      metadata.height <= PLAYER_SHEET_TARGET.height
+    ) {
+      return; // already appropriately sized
+    }
+    const tempPath = `${sheetPath}.tmp`;
+    await image
+      .resize(PLAYER_SHEET_TARGET.width, PLAYER_SHEET_TARGET.height, {
+        fit: "inside",
+      })
+      .webp({
+        quality: 85,
+        effort: 6,
+        smartSubsample: true,
+      })
+      .toFile(tempPath);
+    await rm(sheetPath);
+    await cp(tempPath, sheetPath);
+    await rm(tempPath);
+    console.log(
+      `  ✓ Downscaled ${path.relative(outDir, sheetPath)} to ${PLAYER_SHEET_TARGET.width}x${PLAYER_SHEET_TARGET.height}`,
+    );
+  } catch (err) {
+    console.warn(`  ⚠ Failed to downscale player sheet: ${err.message}`);
+  }
+}
+
 async function cleanupUnnecessaryFiles(dirPath) {
   const entries = await readdir(dirPath, { withFileTypes: true });
   for (const entry of entries) {
@@ -168,6 +212,49 @@ async function cleanupUnnecessaryFiles(dirPath) {
       if (fullPath.includes("/fonts/") && path.extname(fullPath).toLowerCase() === ".txt") {
         await rm(fullPath);
         console.log(`  ✓ Removed ${path.relative(outDir, fullPath)}`);
+      }
+    }
+  }
+}
+
+async function minifyHtmlFiles(dirPath) {
+  const entries = await readdir(dirPath, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      await minifyHtmlFiles(fullPath);
+    } else if (entry.isFile() && path.extname(fullPath).toLowerCase() === ".html") {
+      const original = await readFile(fullPath, "utf8");
+      const minified = await minifyHtml(original, {
+        collapseWhitespace: true,
+        removeComments: true,
+        removeRedundantAttributes: true,
+        removeOptionalTags: false,
+        minifyCSS: true,
+        minifyJS: true,
+        keepClosingSlash: true,
+      });
+      if (minified.length < original.length) {
+        await writeFile(fullPath, minified, "utf8");
+      }
+    }
+  }
+}
+
+async function minifyCssFiles(dirPath) {
+  const entries = await readdir(dirPath, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      await minifyCssFiles(fullPath);
+    } else if (entry.isFile() && path.extname(fullPath).toLowerCase() === ".css") {
+      const original = await readFile(fullPath, "utf8");
+      const minified = original
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/\s*([{}:;>,])\s*/g, "$1")
+        .replace(/;}/g, "}");
+      if (minified.length < original.length) {
+        await writeFile(fullPath, minified.trim(), "utf8");
       }
     }
   }
@@ -244,6 +331,15 @@ async function run() {
   for (const entry of staticEntries) {
     await copyStatic(entry);
   }
+
+  console.log("\nMinifying HTML files...");
+  await minifyHtmlFiles(outDir);
+
+  console.log("\nDownscaling player sheet image...");
+  await downscalePlayerSheet();
+
+  console.log("\nMinifying CSS files...");
+  await minifyCssFiles(outDir);
 
   // Copy _headers if it exists
   const headersPath = path.join(root, "public/_headers");
