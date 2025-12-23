@@ -144,12 +144,16 @@ import {
 
 const BOARD_SIZE = 5;
 const POPULATION_GRID_SIZE = 4;
+const SFX_PATH = "assets/sounds/sfx.mp3";
+const DICE_SFX_PATH = "assets/sounds/dice.mp3";
+const DEFAULT_DICE_ANIM_MS = 1200;
 
 const state = createState();
 
 let controlsReady = false;
 const urlParams = new URLSearchParams(window.location.search);
 const debugMode = urlParams.has("debug");
+const sfxEnabled = urlParams.has("sfx");
 let p2pFeatureEnabled = false;
 const MAX_P2P_SEATS = 2; // Only 2 players supported in current P2P implementation
 const P2P_SEAT_COLORS = {
@@ -182,6 +186,59 @@ const p2pUiState = {
   lockedPairSwap: false,
   splitUsed: {},
 };
+
+let sfxAudio = null;
+let diceAudio = null;
+let diceAudioDurationMs = DEFAULT_DICE_ANIM_MS;
+
+function safePlayAudio(instance, source, { onCreate } = {}) {
+  if (!sfxEnabled || typeof Audio === "undefined") return null;
+  if (!instance) {
+    instance = new Audio(source);
+    instance.preload = "auto";
+    if (typeof onCreate === "function") {
+      onCreate(instance);
+    }
+  }
+  try {
+    instance.currentTime = 0;
+    const playPromise = instance.play();
+    if (playPromise?.catch) {
+      playPromise.catch(() => {});
+    }
+  } catch (err) {
+    // Ignore playback failures (e.g., autoplay restrictions).
+  }
+  return instance;
+}
+
+function playSfx() {
+  if (!sfxEnabled) return;
+  sfxAudio = safePlayAudio(sfxAudio, SFX_PATH);
+}
+
+function playDiceSfx() {
+  if (!sfxEnabled) return;
+  const updateDuration = (audio) => {
+    if (!audio) return;
+    const duration = typeof audio.duration === "number" ? audio.duration : NaN;
+    if (Number.isFinite(duration) && duration > 0) {
+      diceAudioDurationMs = Math.max(200, Math.round(duration * 1000));
+    }
+  };
+  diceAudio = safePlayAudio(diceAudio, DICE_SFX_PATH, {
+    onCreate: (audio) => {
+      audio.addEventListener("loadedmetadata", () => updateDuration(audio), { once: true });
+    },
+  });
+  updateDuration(diceAudio);
+}
+
+function diceAnimationDuration(offsetMs = 0, tailMs = 0) {
+  const base = diceAudioDurationMs || DEFAULT_DICE_ANIM_MS;
+  const extra = 500;
+  return Math.max(200, base + extra + Math.max(0, tailMs) - Math.max(0, offsetMs));
+}
 
 // ============================================================================
 // HELPER FUNCTIONS - Utilities for state checks and DOM manipulation
@@ -1939,21 +1996,32 @@ function describeDice(dice) {
 
 function triggerDiceAnimation() {
   if (!diceView) return;
-  state.diceRolling = true;
-  diceView.classList.add("dice-rolling");
-  const rollingMsg = "Rolling dice...";
-  state.bannerOverride = rollingMsg;
-  updateActionBanner();
-  // Use 0ms delay in test mode to avoid blocking test interactions
-  const animDuration = (typeof window !== "undefined" && window.__RF_ENABLE_TEST_HOOKS__) ? 0 : 1200;
-  const animTimeout = setTimeout(() => {
-    state.diceRolling = false;
-    diceView.classList.remove("dice-rolling");
-    if (state.bannerOverride === rollingMsg) state.bannerOverride = null;
+  playDiceSfx();
+  const isTest = typeof window !== "undefined" && window.__RF_ENABLE_TEST_HOOKS__;
+  const startDelay = isTest ? 0 : 500;
+
+  const startAnimation = () => {
+    state.diceRolling = true;
+    diceView.classList.add("dice-rolling");
+    const rollingMsg = "Rolling dice...";
+    state.bannerOverride = rollingMsg;
     updateActionBanner();
-  }, animDuration);
-  // Store for potential cleanup
-  if (typeof window !== "undefined") window.__diceAnimTimeout = animTimeout;
+    const animDuration = isTest ? 0 : diceAnimationDuration(startDelay, 200);
+    const animTimeout = setTimeout(() => {
+      state.diceRolling = false;
+      diceView.classList.remove("dice-rolling");
+      if (state.bannerOverride === rollingMsg) state.bannerOverride = null;
+      updateActionBanner();
+    }, animDuration);
+    if (typeof window !== "undefined") window.__diceAnimTimeout = animTimeout;
+  };
+
+  if (startDelay > 0) {
+    const delayTimeout = setTimeout(startAnimation, startDelay);
+    if (typeof window !== "undefined") window.__diceAnimDelayTimeout = delayTimeout;
+  } else {
+    startAnimation();
+  }
 }
 
 function dieMaxValue(die) {
@@ -2775,7 +2843,14 @@ function placeBuilding(r, c, code) {
   }
   cell.building = code;
   cell.buildingLabel = buildingLabel;
-  if (code === "C") state.tracks.housing += 4;
+  playSfx();
+  if (code === "C") {
+    const previousHousing = state.tracks.housing;
+    state.tracks.housing += 4;
+    if (state.tracks.housing > previousHousing) {
+      playSfx();
+    }
+  }
   const buildPool =
     p2pUiState.splitLocked && Array.isArray(state.lockedBuildDice) && state.lockedBuildDice.length === 2
       ? (lockedPairChoice().buildDice || state.lockedBuildDice)
@@ -2898,6 +2973,7 @@ function forfeitCell(r, c) {
   }
   const forcedFlow = state.pestilence || forceForfeitActive();
   cell.forfeited = true;
+  playSfx();
   state.forceForfeit = false;
   state.forceForfeitAdvisory = false;
   state.forceForfeitHighlight = false;
@@ -3149,6 +3225,7 @@ function onPopulationNodeClick(nr, nc) {
   });
   if (result.message) log(result.message);
   if (!result.placed) return;
+  playSfx();
   updateTracks();
   refreshScoreOverlay();
   renderBoard();
@@ -4146,6 +4223,7 @@ function allocateWorkersFromPop(popSel, buildingSel) {
   });
   if (result.message) log(result.message);
   if (!result.updated) return;
+  playSfx();
   renderBoard();
   highlightLocations();
   updateTracks();
