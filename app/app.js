@@ -58,8 +58,9 @@ import {
   isInfluenceEligibleDie,
   DICE_MIN_VALUE,
   DICE_MAX_VALUE,
-  POPS_PER_INFLUENCE,
   totalInfluenceSpent,
+  earnedInfluenceFromPopulation,
+  isInfluenceMilestone,
 } from "./influence.js";
 import { splitForcedDice } from "./dice-display.js";
 import { createDieFaceSVG } from "./dice-face.js";
@@ -518,14 +519,12 @@ const guildTypes = ["GF", "GQ", "GW", "GM"];
 let swapBtnPulseTimeout = null;
 let swapBtnLastVisible = false;
 
-const SHEET_VERSION = "v1.9";
+const SHEET_VERSION = "v1.10";
 const POP_CAPACITY = 5;
 const POP_LAYOUT = { rows: [8, 7], pipsPerCell: 4 };
 const POP_TRACK_TOTAL_CELLS = POP_LAYOUT.rows.reduce((sum, len) => sum + len, 0);
-const INFLUENCE_TRACK_SLOTS = Math.max(
-  1,
-  Math.floor((POP_TRACK_TOTAL_CELLS * POP_LAYOUT.pipsPerCell) / POPS_PER_INFLUENCE),
-);
+const POP_TRACK_TOTAL_PIPS = POP_TRACK_TOTAL_CELLS * POP_LAYOUT.pipsPerCell;
+const INFLUENCE_TRACK_SLOTS = Math.max(1, earnedInfluenceFromPopulation(POP_TRACK_TOTAL_PIPS));
 const THEME_STORAGE_KEY = "rolling-fiefdoms-theme";
 const TURN_PHASE = {
   AWAIT_ROLL: "awaiting-roll",
@@ -4131,7 +4130,7 @@ function renderPopHousingTrack(pop = 0, housing = 0, vagrants = 0) {
         const pip = document.createElement("div");
         pip.className = "pop-pip";
         const pipIndex = cellIdx * POP_LAYOUT.pipsPerCell + i + 1;
-        const milestone = pipIndex % POPS_PER_INFLUENCE === 0;
+        const milestone = isInfluenceMilestone(pipIndex);
         if (milestone) pip.classList.add("influence-marker");
         if (i < pipsThisCell) {
           pip.classList.add("filled-pop");

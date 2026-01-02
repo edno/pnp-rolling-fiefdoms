@@ -301,7 +301,7 @@ describe("die selection and location evaluation", () => {
 });
 
 describe("influence integration", () => {
-  it("awards influence every eight population pips", () => {
+  it("awards influence starting at pip 9, then every eight pips thereafter", () => {
     const state = createState();
     state.board = emptyBoard();
     state.populationNodes = [
@@ -312,13 +312,20 @@ describe("influence integration", () => {
     ];
     state.tracks = { population: 0, housing: 0, influence: 0 };
     state.influence = { earned: 0, spent: 0 };
+
+    const belowThreshold = recalcTracks(state, { computeScore, calcVagrants });
+    expect(belowThreshold.influence.earned).toBe(0);
+    expect(belowThreshold.influence.gained).toBe(0);
+    expect(state.tracks.influence).toBe(0);
+
+    state.populationNodes[0][1] = 4; // Total population now 9
     const first = recalcTracks(state, { computeScore, calcVagrants });
     expect(first.influence.earned).toBe(1);
     expect(first.influence.gained).toBe(1);
     expect(state.tracks.influence).toBe(1);
 
     state.populationNodes[0][2] = 5;
-    state.populationNodes[0][3] = 3;
+    state.populationNodes[1][0] = 3; // Total population now 17
     const second = recalcTracks(state, { computeScore, calcVagrants });
     expect(second.influence.earned).toBe(2);
     expect(second.influence.gained).toBe(1);
@@ -335,7 +342,7 @@ describe("influence integration", () => {
     const state = createState();
     state.board = emptyBoard();
     state.populationNodes = [
-      [5, 3, 0, 0],
+      [5, 4, 0, 0],
       [5, 3, 0, 0],
       [0, 0, 0, 0],
       [0, 0, 0, 0],

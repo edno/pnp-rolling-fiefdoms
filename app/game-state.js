@@ -1,11 +1,11 @@
 import { resetTurnState } from "./state-controller.js";
 import {
-  POPS_PER_INFLUENCE,
   applyInfluenceToDice,
   totalInfluenceSpent,
   isInfluenceEligibleDie,
   DICE_MIN_VALUE,
   DICE_MAX_VALUE,
+  earnedInfluenceFromPopulation,
 } from "./influence.js";
 
 const WINDROSE_FACE = "windrose";
@@ -499,7 +499,7 @@ export function recalcTracks(state, { computeScore, calcVagrants }) {
   const prevEarned = Math.max(0, state.influence?.earned || 0);
   const prevCommitted = Math.max(0, state.influence?.spent || 0);
   const adjustmentsSpent = totalInfluenceSpent(state.influenceAdjustments);
-  const newEarned = Math.max(0, Math.floor(pop / POPS_PER_INFLUENCE));
+  const newEarned = earnedInfluenceFromPopulation(pop);
   const committed = Math.min(prevCommitted, newEarned);
   const remaining = Math.max(0, newEarned - committed);
   const pending = Math.min(remaining, Math.max(0, adjustmentsSpent));

@@ -1,6 +1,19 @@
 export const POPS_PER_INFLUENCE = 8;
+export const FIRST_INFLUENCE_MILESTONE = 9;
 export const DICE_MIN_VALUE = 1;
 export const DICE_MAX_VALUE = 5;
+
+export function earnedInfluenceFromPopulation(population = 0) {
+  const popCount = Math.max(0, Math.floor(Number(population) || 0));
+  if (popCount < FIRST_INFLUENCE_MILESTONE) return 0;
+  return 1 + Math.floor((popCount - FIRST_INFLUENCE_MILESTONE) / POPS_PER_INFLUENCE);
+}
+
+export function isInfluenceMilestone(pipIndex = 0) {
+  const pipNumber = Math.max(0, Math.floor(Number(pipIndex) || 0));
+  if (pipNumber < FIRST_INFLUENCE_MILESTONE) return false;
+  return (pipNumber - FIRST_INFLUENCE_MILESTONE) % POPS_PER_INFLUENCE === 0;
+}
 
 export function clampDieValue(value) {
   if (typeof value !== "number") return value;
