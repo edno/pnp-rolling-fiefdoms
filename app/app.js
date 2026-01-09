@@ -519,7 +519,7 @@ const guildTypes = ["GF", "GQ", "GW", "GM"];
 let swapBtnPulseTimeout = null;
 let swapBtnLastVisible = false;
 
-const SHEET_VERSION = "v1.10";
+const SHEET_VERSION = "v1.11";
 const POP_CAPACITY = 5;
 const POP_LAYOUT = { rows: [8, 7], pipsPerCell: 4 };
 const POP_TRACK_TOTAL_CELLS = POP_LAYOUT.rows.reduce((sum, len) => sum + len, 0);

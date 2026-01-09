@@ -1,5 +1,5 @@
 :root {
-  --sheet-image: url("../../resources/rolling-fiefdoms-player-sheet.webp?v=v1.8");
+  --sheet-image: url("../../resources/rolling-fiefdoms-player-sheet.webp?v=v1.11");
   --bg: #fffbe2;
   --panel: #ffffff;
   --border: #d0c6b8;
@@ -1121,8 +1121,6 @@ button:disabled {
 
 .guild-hit.disabled,
 .building-hit.disabled {
-  background-color: white;
-  opacity: 0.45;
   cursor: not-allowed;
 }
 
