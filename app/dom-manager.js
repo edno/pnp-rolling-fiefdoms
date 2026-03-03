@@ -30,7 +30,6 @@ export const turnTrackOverlay = document.getElementById("turnTrackOverlay");
 // Action Buttons
 export const finishActivationBtn = document.getElementById("finishActivation");
 export const newGameBtn = document.getElementById("newGameBtn");
-export const finishSplitBtn = document.getElementById("finishSplitBtn");
 export const swapPairBtn = document.getElementById("swapPairBtn");
 
 // UI Controls
@@ -44,25 +43,6 @@ export const loadingOverlay = document.getElementById("loadingOverlay");
 export const sheetBaseImage = document.getElementById("sheetBaseImage");
 
 // P2P Multiplayer Elements
-export const p2pPanel = document.getElementById("p2pPanel");
-export const p2pStatusEl = document.getElementById("p2pStatus");
-export const p2pCodeEl = document.getElementById("p2pCode");
-export const p2pCodeLabel = document.querySelector('label[for="p2pCode"]');
-export const p2pCopyBtn = document.getElementById("p2pCopyBtn");
-export const p2pApplyBtn = document.getElementById("p2pApplyBtn");
-export const p2pHostBtn = document.getElementById("p2pHostBtn");
-export const p2pJoinBtn = document.getElementById("p2pJoinBtn");
-export const p2pDisconnectBtn = document.getElementById("p2pDisconnectBtn");
-export const p2pSendAnswerBtn = document.getElementById("p2pSendAnswerBtn");
-export const p2pHintEl = document.getElementById("p2pHint");
-export const p2pMeeplesEl = document.getElementById("p2pMeeples");
-export const p2pInviteRow = p2pCodeEl ? p2pCodeEl.closest(".p2p-row") : null;
-export const p2pQrImg = document.getElementById("p2pQrImg");
-export const p2pQrCaption = document.getElementById("p2pQrCaption");
-export const p2pQrModal = document.getElementById("p2pQrModal");
-export const p2pQrClose = document.getElementById("p2pQrClose");
-export const p2pShowQrBtn = document.getElementById("p2pShowQrBtn");
-
 // ============================================================================
 // DOM UTILITIES
 // ============================================================================
