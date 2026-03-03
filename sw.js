@@ -1,5 +1,5 @@
 /* eslint-env serviceworker */
-const CACHE_VERSION = "v1.29";
+const CACHE_VERSION = "v1.30";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
 const APP_VERSION = "v6";
 const SHEET_VERSION = "v1.12";
@@ -25,8 +25,6 @@ const ASSETS = [
   "/assets/img/github.webp",
   "/assets/img/fullscreen.webp",
   "/assets/img/bgg.webp",
-  "/assets/img/sun.svg",
-  "/assets/img/moon.svg",
   `/resources/rolling-fiefdoms-player-sheet.webp?v=${SHEET_VERSION}`,
   "/robots.txt",
   "/manifest.webmanifest",

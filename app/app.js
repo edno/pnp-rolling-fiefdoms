@@ -99,9 +99,6 @@ import {
   finishSplitBtn,
   swapPairBtn,
   fullscreenBtn,
-  themeToggleBtn,
-  themeToggleIcon,
-  themeToggleText,
   turnStatusChip,
   loadingOverlay,
   sheetBaseImage,
@@ -525,7 +522,6 @@ const POP_LAYOUT = { rows: [8, 7], pipsPerCell: 4 };
 const POP_TRACK_TOTAL_CELLS = POP_LAYOUT.rows.reduce((sum, len) => sum + len, 0);
 const POP_TRACK_TOTAL_PIPS = POP_TRACK_TOTAL_CELLS * POP_LAYOUT.pipsPerCell;
 const INFLUENCE_TRACK_SLOTS = Math.max(1, earnedInfluenceFromPopulation(POP_TRACK_TOTAL_PIPS));
-const THEME_STORAGE_KEY = "rolling-fiefdoms-theme";
 const TURN_PHASE = {
   AWAIT_ROLL: "awaiting-roll",
   SPLITTING: "splitting",
@@ -597,64 +593,6 @@ function registerServiceWorker() {
       }
     });
   });
-}
-
-function readStoredTheme() {
-  try {
-    const stored = localStorage.getItem(THEME_STORAGE_KEY);
-    if (stored === "dark" || stored === "light") return stored;
-  } catch (err) {
-    console.warn("Could not read theme preference", err);
-  }
-  return "light";
-}
-
-// Listen for storage events to detect cross-tab conflicts
-if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
-  window.addEventListener("storage", (e) => {
-    if (e.key === THEME_STORAGE_KEY && e.newValue) {
-      const newTheme = e.newValue === "dark" ? "dark" : "light";
-      if (state.theme !== newTheme) {
-        console.log("Theme changed by another tab, syncing...");
-        state.theme = newTheme;
-        document.body.classList.toggle("theme-dark", newTheme === "dark");
-        updateThemeToggle();
-      }
-    }
-  });
-}
-
-function updateThemeToggle() {
-  if (!themeToggleBtn) return;
-  const isDark = state.theme === "dark";
-  if (themeToggleIcon) {
-    themeToggleIcon.src = isDark ? "assets/img/moon.svg" : "assets/img/sun.svg";
-  }
-  if (themeToggleText) {
-    themeToggleText.textContent = isDark ? "Dark" : "Light";
-  }
-  themeToggleBtn.setAttribute("aria-pressed", String(isDark));
-  themeToggleBtn.title = isDark ? "Switch to light mode" : "Switch to dark mode";
-}
-
-function applyTheme(theme, persist = false) {
-  const normalized = theme === "dark" ? "dark" : "light";
-  state.theme = normalized;
-  document.body.classList.toggle("theme-dark", normalized === "dark");
-  if (persist) {
-    try {
-      localStorage.setItem(THEME_STORAGE_KEY, normalized);
-    } catch (err) {
-      console.warn("Could not store theme preference", err);
-    }
-  }
-  updateThemeToggle();
-}
-
-function setupThemeToggle() {
-  applyTheme(readStoredTheme());
-  if (!themeToggleBtn) return;
-  themeToggleBtn.onclick = () => applyTheme(state.theme === "dark" ? "light" : "dark", true);
 }
 
 async function init() {
@@ -753,7 +691,6 @@ async function fetchConfig() {
   }
 }
 
-setupThemeToggle();
 registerServiceWorker();
 
 async function initializeApp() {

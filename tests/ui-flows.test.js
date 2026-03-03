@@ -42,7 +42,6 @@ const baseHtml = `
   <button id="swapPairBtn"></button>
   <button id="newGameBtn"></button>
   <button id="fullscreenToggle"></button>
-  <button id="themeToggle"><span id="themeToggleIcon"></span><span id="themeToggleText"></span></button>
   <div id="actionBanner"></div>
   <span id="turnStatusChip"></span>
   <button id="rollBtn"></button>

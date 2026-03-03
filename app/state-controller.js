@@ -41,7 +41,6 @@ const baseState = {
   turnTrack: 0,
   invalidSelection: false,
   finalScore: null,
-  theme: "light",
   forcedLocationDice: [],
   rollAvailable: true,
   pendingTurnIndex: null,
