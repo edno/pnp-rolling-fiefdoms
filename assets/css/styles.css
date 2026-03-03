@@ -498,7 +498,7 @@ main {
     calc(100% - var(--o)) 50%,
     50% calc(100% - var(--o))
   );
-  background: rgba(60, 110, 113, 0.65);
+  background: rgba(57, 76, 109, 0.6);
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -1058,9 +1058,9 @@ button:disabled {
 }
 
 .buildings-overlay {
-  left: 716px;
+  left: 720px;
   top: 62px;
-  width: 286px;
+  width: 280px;
   height: 474px;
   grid-template-columns: repeat(1, 1fr);
   grid-template-rows: repeat(10, 1fr);
@@ -1100,7 +1100,7 @@ button:disabled {
 
 .guild-hit.available,
 .building-hit.available {
-  border-color: rgba(60, 110, 113, 0.6);
+  border-color: rgba(57, 76, 109, 1);
 }
 
 .guild-hit.disabled,
