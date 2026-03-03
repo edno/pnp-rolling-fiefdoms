@@ -452,8 +452,6 @@ main {
 }
 
 .pop-node-grid .population-node.market-claimed {
-  transform: scale(1.15);
-  box-shadow: 0 0 0 3px var(--accent), 0 4px 12px rgba(0, 0, 0, 0.3);
   z-index: 10;
 }
 
