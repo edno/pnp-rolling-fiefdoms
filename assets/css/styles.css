@@ -584,9 +584,9 @@ main {
 
 .pop-housing-overlay {
   position: absolute;
-  left: 565px;
-  top: 254px;
-  width: 131px;
+  left: 564px;
+  top: 255px;
+  width: 134px;
   height: 308px;
   pointer-events: none;
 }
