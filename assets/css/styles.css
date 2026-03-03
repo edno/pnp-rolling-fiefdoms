@@ -544,6 +544,8 @@ main {
   grid-template-columns: repeat(25, 1fr);
   gap: 0px;
   pointer-events: none;
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 
 .turn-track-overlay .turn-slot {
