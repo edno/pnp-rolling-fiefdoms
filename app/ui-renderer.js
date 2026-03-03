@@ -33,9 +33,9 @@ export const buildingHitboxes = [
 
 export const guildHitboxes = [
   { code: "GF", col: 1, row: 1 },
-  { code: "GW", col: 2, row: 1 },
   { code: "GQ", col: 1, row: 2 },
-  { code: "GM", col: 2, row: 2 },
+  { code: "GW", col: 1, row: 3 },
+  { code: "GM", col: 1, row: 4 },
 ];
 
 const buildingScoreSpots = [
