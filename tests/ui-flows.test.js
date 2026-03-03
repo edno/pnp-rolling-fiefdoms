@@ -152,6 +152,19 @@ describe("activation prompts (jsdom)", () => {
   });
 });
 
+describe("score rank banner (jsdom)", () => {
+  it("summarizes the final score with a rank label", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.state.activationComplete = true;
+    hooks.state.finalScore = 91;
+    const msg = hooks.actionMessage(hooks.state, null, hooks.TURN_PHASE.ACTIVATION_DONE);
+    expect(msg).toContain("Final score 91");
+    expect(msg).toContain("Legendary");
+    expect(msg).toContain("echo through the ages");
+  });
+});
+
 describe("blocked build flow (jsdom)", () => {
   it("logs and advances when no valid buildings are available for the split", async () => {
     await setupApp({ enableHooks: true });

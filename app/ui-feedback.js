@@ -9,6 +9,20 @@
 import { actionBannerEl } from "./dom-manager.js";
 import { BUILDING_RULES } from "./rules.js";
 
+const SCORE_RANKS = [
+  { min: 90, title: "Legendary", description: "Your name will echo through the ages." },
+  { min: 80, title: "Illustrious", description: "Your fief shines as a beacon of order and prosperity." },
+  { min: 70, title: "Distinguished", description: "Your rule is respected across neighboring fiefdoms." },
+  { min: 60, title: "Prosperous", description: "Your lands flourish and your people thrive." },
+  { min: 50, title: "Modest", description: "A small but stable holding, quietly enduring." },
+  { min: 0, title: "Forgotten", description: "Your fief leaves little mark upon the chronicles." },
+];
+
+function describeScoreRank(score) {
+  const numeric = Number(score) || 0;
+  return SCORE_RANKS.find((entry) => numeric >= entry.min) || SCORE_RANKS[SCORE_RANKS.length - 1];
+}
+
 /**
  * Turn phases for determining current game state
  */
@@ -45,7 +59,8 @@ export function actionMessage(state, currentPhase, options = {}) {
     const score = typeof state.finalScore === "number"
       ? state.finalScore
       : currentScore?.({ allowPopulationActivation: true }).total || 0;
-    return `Game over. Final score ${score}.`;
+    const rank = describeScoreRank(score);
+    return `Final score ${score} - ${rank.title} — ${rank.description}`;
   }
 
   if (phase === TURN_PHASE.ACTIVATION) {
