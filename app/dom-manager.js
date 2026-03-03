@@ -35,6 +35,9 @@ export const swapPairBtn = document.getElementById("swapPairBtn");
 
 // UI Controls
 export const fullscreenBtn = document.getElementById("fullscreenToggle");
+export const sfxToggleBtn = document.getElementById("sfxToggle");
+export const sfxToggleLabel = document.getElementById("sfxToggleLabel");
+export const sfxToggleIcon = document.getElementById("sfxToggleIcon");
 export const actionBannerEl = document.getElementById("actionBanner");
 export const turnStatusChip = document.getElementById("turnStatusChip");
 export const loadingOverlay = document.getElementById("loadingOverlay");

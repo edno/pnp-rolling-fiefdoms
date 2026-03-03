@@ -101,6 +101,9 @@ import {
   finishSplitBtn,
   swapPairBtn,
   fullscreenBtn,
+  sfxToggleBtn,
+  sfxToggleLabel,
+  sfxToggleIcon,
   turnStatusChip,
   loadingOverlay,
   sheetBaseImage,
@@ -146,14 +149,27 @@ const BOARD_SIZE = 5;
 const POPULATION_GRID_SIZE = 4;
 const SFX_PATH = "assets/sounds/sfx.mp3";
 const DICE_SFX_PATH = "assets/sounds/dice.mp3";
+const SFX_ICON_ON = "assets/img/sfx-on.svg";
+const SFX_ICON_OFF = "assets/img/sfx-off.svg";
 const DEFAULT_DICE_ANIM_MS = 1200;
+const SFX_STORAGE_KEY = "rf-sfx-enabled";
 
 const state = createState();
 
 let controlsReady = false;
 const urlParams = new URLSearchParams(window.location.search);
 const debugMode = urlParams.has("debug");
-const sfxEnabled = urlParams.has("sfx");
+let sfxEnabled = true;
+try {
+  if (typeof window !== "undefined" && window.localStorage) {
+    const stored = window.localStorage.getItem(SFX_STORAGE_KEY);
+    if (stored !== null) {
+      sfxEnabled = stored !== "false";
+    }
+  }
+} catch {
+  // ignore storage failures
+}
 let p2pFeatureEnabled = false;
 const MAX_P2P_SEATS = 2; // Only 2 players supported in current P2P implementation
 const P2P_SEAT_COLORS = {
@@ -209,6 +225,58 @@ enableDebugOverlayOutlines();
 let sfxAudio = null;
 let diceAudio = null;
 let diceAudioDurationMs = DEFAULT_DICE_ANIM_MS;
+
+function persistSfxPreference() {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(SFX_STORAGE_KEY, sfxEnabled ? "true" : "false");
+  } catch {
+    // ignore storage failures
+  }
+}
+
+function updateSfxToggleButton() {
+  if (!sfxToggleBtn) return;
+  sfxToggleBtn.setAttribute("aria-pressed", sfxEnabled ? "true" : "false");
+  sfxToggleBtn.classList.toggle("is-off", !sfxEnabled);
+  if (sfxToggleLabel) {
+    sfxToggleLabel.textContent = sfxEnabled ? "SFX On" : "SFX Off";
+  }
+  if (sfxToggleIcon) {
+    sfxToggleIcon.src = sfxEnabled ? SFX_ICON_ON : SFX_ICON_OFF;
+    sfxToggleIcon.alt = sfxEnabled ? "Sound on" : "Sound off";
+  }
+}
+
+function stopAllSfx() {
+  [sfxAudio, diceAudio].forEach((audio) => {
+    if (audio && typeof audio.pause === "function") {
+      try {
+        audio.pause();
+        audio.currentTime = 0;
+      } catch {
+        // ignore audio failures
+      }
+    }
+  });
+}
+
+function setSfxEnabled(enabled) {
+  const next = Boolean(enabled);
+  if (sfxEnabled === next) return;
+  sfxEnabled = next;
+  if (!sfxEnabled) {
+    stopAllSfx();
+  }
+  persistSfxPreference();
+  updateSfxToggleButton();
+}
+
+function toggleSfxEnabled() {
+  setSfxEnabled(!sfxEnabled);
+}
+
+updateSfxToggleButton();
 
 function safePlayAudio(instance, source, { onCreate } = {}) {
   if (!sfxEnabled || typeof Audio === "undefined") return null;
@@ -764,6 +832,10 @@ async function setupControls() {
   }
   if (fullscreenBtn) {
     fullscreenBtn.onclick = () => toggleFullscreen();
+  }
+  if (sfxToggleBtn) {
+    sfxToggleBtn.onclick = () => toggleSfxEnabled();
+    updateSfxToggleButton();
   }
   const fiefdomInput = document.getElementById("fiefdomInput");
   if (fiefdomInput) {
