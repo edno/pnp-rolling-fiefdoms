@@ -2,7 +2,7 @@
 const CACHE_VERSION = "v1.29";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
 const APP_VERSION = "v6";
-const SHEET_VERSION = "v1.11";
+const SHEET_VERSION = "v1.12";
 const ASSETS = [
   "/",
   "/index.html",
