@@ -329,7 +329,7 @@ describe("pestilence UI flow (jsdom)", () => {
 
     const logs = latestLogs();
     expect(logs.some((m) => m.includes("Forfeited row 1, col 1"))).toBe(true);
-    expect(logs.some((m) => /Rolled N1:1, N2:2/i.test(m))).toBe(true);
+    expect(logs.some((m) => /Rolled W1:1, W2:2/i.test(m))).toBe(true);
     expect(document.getElementById("turnHint").textContent).not.toContain("Pestilence");
   });
 
@@ -393,7 +393,7 @@ describe("pestilence windrose reroll (jsdom)", () => {
     logs = latestLogs();
     expect(logs.some((m) => m.toLowerCase().includes("windrose") && m.toLowerCase().includes("reroll"))).toBe(true);
     expect(document.getElementById("turnHint").textContent).toContain("Pestilence");
-    expect(logs.some((m) => m.includes("Rolled N1:2") && m.includes("N2:3"))).toBe(true);
+    expect(logs.some((m) => m.includes("Rolled W1:2") && m.includes("W2:3"))).toBe(true);
   });
 
   it("rerolls double windrose even without pestilence", async () => {
@@ -411,7 +411,7 @@ describe("pestilence windrose reroll (jsdom)", () => {
     expect(logs.some((m) => m.toLowerCase().includes("double windrose rolled"))).toBe(true);
     clickRoll(); // second roll should proceed
     logs = latestLogs();
-    expect(logs.some((m) => m.includes("Rolled N1:4") && m.includes("N2:5"))).toBe(true);
+    expect(logs.some((m) => m.includes("Rolled W1:4") && m.includes("W2:5"))).toBe(true);
   });
 });
 
@@ -1520,7 +1520,7 @@ describe("logging integrity (jsdom)", () => {
     });
     clickRoll();
     const logs = latestLogs();
-    const rolledLogs = logs.filter((m) => m.startsWith("Rolled N1:1, N2:2"));
+    const rolledLogs = logs.filter((m) => m.startsWith("Rolled W1:1, W2:2"));
     expect(rolledLogs).toHaveLength(1);
   });
 
@@ -1533,7 +1533,7 @@ describe("logging integrity (jsdom)", () => {
     const logs = latestLogs();
     const gameIdx = logs.findIndex((m) => m.includes("Game started."));
     const statusIdx = logs.findIndex((m) => /Active turn\.|Non-active turn\./.test(m));
-    const rollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:5, N2:2"));
+    const rollIdx = logs.findIndex((m) => m.startsWith("Rolled W1:5, W2:2"));
     expect(rollIdx).toBe(0); // newest first
     expect(statusIdx).toBe(1);
     expect(gameIdx).toBe(2);
@@ -1593,7 +1593,7 @@ describe("logging integrity (jsdom)", () => {
     clickRoll();
     const logs = latestLogs();
     const statusIdx = logs.findIndex((m) => m.startsWith("Active turn."));
-    const rollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:windrose, N2:4"));
+    const rollIdx = logs.findIndex((m) => m.startsWith("Rolled W1:windrose, W2:4"));
     const windroseIdx = logs.findIndex((m) => m.includes("Windrose rolled"));
     expect(windroseIdx).toBe(0); // newest
     expect(rollIdx).toBeGreaterThan(windroseIdx);
@@ -1612,18 +1612,18 @@ describe("logging integrity (jsdom)", () => {
     });
     clickRoll(); // double windrose -> reroll prompt
     let logs = latestLogs();
-    const firstRolls = logs.filter((m) => m.startsWith("Rolled N1:windrose, N2:windrose"));
+    const firstRolls = logs.filter((m) => m.startsWith("Rolled W1:windrose, W2:windrose"));
     expect(firstRolls).toHaveLength(1);
-    const rollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:windrose, N2:windrose"));
+    const rollIdx = logs.findIndex((m) => m.startsWith("Rolled W1:windrose, W2:windrose"));
     const promptIdx = logs.findIndex((m) => m.toLowerCase().includes("double windrose rolled"));
     expect(promptIdx).toBeGreaterThan(-1);
     expect(promptIdx).toBeLessThan(rollIdx); // newest first
 
     clickRoll(); // valid roll
     logs = latestLogs();
-    expect(logs.filter((m) => m.startsWith("Rolled N1:4, N2:5"))).toHaveLength(1);
+    expect(logs.filter((m) => m.startsWith("Rolled W1:4, W2:5"))).toHaveLength(1);
     const statusIdx = logs.findIndex((m) => /Active turn|Non-active turn/.test(m));
-    const rollIdxValid = logs.findIndex((m) => m.startsWith("Rolled N1:4, N2:5"));
+    const rollIdxValid = logs.findIndex((m) => m.startsWith("Rolled W1:4, W2:5"));
     expect(rollIdxValid).toBe(0); // newest
     expect(statusIdx).toBeGreaterThan(rollIdxValid);
   });
@@ -1644,7 +1644,7 @@ describe("logging integrity (jsdom)", () => {
 
     clickRoll(); // first roll windrose+2
     let logs = latestLogs();
-    const firstRollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:2, N2:windrose"));
+    const firstRollIdx = logs.findIndex((m) => m.startsWith("Rolled W1:2, W2:windrose"));
     const firstWindroseIdx = logs.findIndex((m) => m.includes("Windrose rolled"));
     const firstStatusIdx = logs.findIndex((m) => /Active turn|Non-active turn/.test(m));
     expect(firstWindroseIdx).toBe(0);
@@ -1653,7 +1653,7 @@ describe("logging integrity (jsdom)", () => {
 
     clickRoll(); // double windrose -> prompt reroll
     logs = latestLogs();
-    const doubleRollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:windrose, N2:windrose"));
+    const doubleRollIdx = logs.findIndex((m) => m.startsWith("Rolled W1:windrose, W2:windrose"));
     const doublePromptIdx = logs.findIndex((m) => m.toLowerCase().includes("double windrose rolled"));
     expect(doubleRollIdx).toBeGreaterThan(-1);
     expect(doublePromptIdx).toBeGreaterThan(-1);
@@ -1661,7 +1661,7 @@ describe("logging integrity (jsdom)", () => {
 
     clickRoll(); // reroll resolves (order should keep windrose message older than the roll)
     logs = latestLogs();
-    const rerollRollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:"));
+    const rerollRollIdx = logs.findIndex((m) => m.startsWith("Rolled W1:"));
     const rerollWindroseIdx = logs.findIndex((m, idx) => idx < rerollRollIdx && m.includes("Windrose rolled"));
     expect(rerollRollIdx).toBeGreaterThan(-1);
     expect(rerollWindroseIdx).toBeGreaterThan(-1);
@@ -1678,7 +1678,7 @@ describe("logging integrity (jsdom)", () => {
     clickRoll(); // roll 2 should be non-active with windrose
     const logs = latestLogs();
     const windroseIdx = logs.findIndex((m) => m.includes("Windrose rolled"));
-    const rollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:windrose, N2:1"));
+    const rollIdx = logs.findIndex((m) => m.startsWith("Rolled W1:windrose, W2:1"));
     const statusIdx = logs.findIndex((m) => /Non-active turn/.test(m));
     expect(windroseIdx).toBe(0);
     expect(rollIdx).toBeGreaterThan(windroseIdx);
@@ -1711,8 +1711,8 @@ describe("logging integrity (jsdom)", () => {
     const nonActiveIdx = logs.lastIndexOf("Non-active turn. Dice automatically assigned.");
     const activeIdx = logs.indexOf("Active turn.");
     const promptIdx = logs.indexOf("Double windrose rolled; press Roll Dice to reroll.");
-    const doubleRollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:windrose, N2:windrose"));
-    const rerollRollIdx = logs.indexOf("Rolled N1:2, N2:5, X1:4, X2:1");
+    const doubleRollIdx = logs.findIndex((m) => m.startsWith("Rolled W1:windrose, W2:windrose"));
+    const rerollRollIdx = logs.indexOf("Rolled W1:2, W2:5, E1:4, E2:1");
     if ([nonActiveIdx, activeIdx, promptIdx, doubleRollIdx, rerollRollIdx].some((idx) => idx === -1)) {
       throw new Error(`Unexpected logs: ${JSON.stringify(logs, null, 2)}`);
     }
@@ -1747,8 +1747,8 @@ describe("logging integrity (jsdom)", () => {
     const logs = latestLogs();
     const nonActiveIdx = logs.indexOf("Non-active turn. Dice automatically assigned.");
     const activeIdx = logs.indexOf("Active turn.");
-    const doubleRollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:windrose, N2:windrose"));
-    const rerollRollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:5, N2:2"));
+    const doubleRollIdx = logs.findIndex((m) => m.startsWith("Rolled W1:windrose, W2:windrose"));
+    const rerollRollIdx = logs.findIndex((m) => m.startsWith("Rolled W1:5, W2:2"));
     expect(nonActiveIdx).toBeGreaterThan(-1);
     expect(activeIdx).toBeGreaterThan(-1);
     expect(doubleRollIdx).toBeGreaterThan(-1);
@@ -1782,7 +1782,7 @@ describe("logging integrity (jsdom)", () => {
 
     const logs = latestLogs();
     const nonActiveIdx = logs.indexOf("Non-active turn. Dice automatically assigned.");
-    const doubleRollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:windrose, N2:windrose"));
+    const doubleRollIdx = logs.findIndex((m) => m.startsWith("Rolled W1:windrose, W2:windrose"));
     const promptIdx = logs.indexOf("Double windrose rolled; press Roll Dice to reroll.");
     if ([nonActiveIdx, doubleRollIdx, promptIdx].some((idx) => idx === -1)) {
       throw new Error(`Unexpected logs: ${JSON.stringify(logs, null, 2)}`);
@@ -1816,8 +1816,8 @@ describe("logging integrity (jsdom)", () => {
     await flushMicrotasks();
 
     const logs = latestLogs();
-    const previousRollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:3, N2:2"));
-    const doubleRollIdx = logs.findIndex((m) => m.startsWith("Rolled N1:windrose, N2:windrose"));
+    const previousRollIdx = logs.findIndex((m) => m.startsWith("Rolled W1:3, W2:2"));
+    const doubleRollIdx = logs.findIndex((m) => m.startsWith("Rolled W1:windrose, W2:windrose"));
     const activeIdx = logs.findIndex(
       (m, idx) => m === "Active turn." && idx > doubleRollIdx && idx < previousRollIdx,
     );
@@ -1849,7 +1849,7 @@ describe("logging integrity (jsdom)", () => {
     await flushMicrotasks();
     const logsAfterDouble = latestLogs();
     const windroseHelperIdx = logsAfterDouble.findIndex((m) => m.startsWith("Windrose rolled (acts as 1–5)."));
-    const doubleRollIdx = logsAfterDouble.findIndex((m) => m.startsWith("Rolled N1:windrose, N2:windrose"));
+    const doubleRollIdx = logsAfterDouble.findIndex((m) => m.startsWith("Rolled W1:windrose, W2:windrose"));
     const promptIdx = logsAfterDouble.indexOf("Double windrose rolled; press Roll Dice to reroll.");
     expect(doubleRollIdx).toBeGreaterThan(-1);
     expect(promptIdx).toBeGreaterThan(-1);
@@ -1859,7 +1859,7 @@ describe("logging integrity (jsdom)", () => {
     await flushMicrotasks();
     const logsAfterReroll = latestLogs();
     const rerollWindroseIdx = logsAfterReroll.findIndex((m) => m.startsWith("Windrose rolled (acts as 1–5)."));
-    const rerollRollIdx = logsAfterReroll.findIndex((m) => m.startsWith("Rolled N1:4, N2:5"));
+    const rerollRollIdx = logsAfterReroll.findIndex((m) => m.startsWith("Rolled W1:4, W2:5"));
     expect(rerollWindroseIdx).toBe(-1); // reroll had no windrose
     expect(rerollRollIdx).toBeGreaterThan(-1);
   });

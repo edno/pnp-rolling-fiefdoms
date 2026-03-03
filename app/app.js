@@ -1937,18 +1937,35 @@ function rollDice() {
   }
 }
 
+function formatDieLabelForLog(label) {
+  if (typeof label !== "string" || !label.length) return label;
+  if (label.startsWith("N")) return `W${label.slice(1)}`;
+  if (label.startsWith("X")) return `E${label.slice(1)}`;
+  return label;
+}
+
 function describeDice(dice) {
   return dice
     .map((d) => {
+      const label = formatDieLabelForLog(d.label || "");
       const face =
         d.face === "X"
           ? "X"
           : d.face === "windrose"
             ? "windrose"
             : d.face;
-      return `${d.label}:${face}`;
+      return `${label}:${face}`;
     })
     .join(", ");
+}
+
+function formatDiceLabelsInMessage(message) {
+  if (typeof message !== "string") return message;
+  return message.replace(/\b([NX])(\d+)\b/g, (_, prefix, digits) => {
+    if (prefix === "N") return `W${digits}`;
+    if (prefix === "X") return `E${digits}`;
+    return `${prefix}${digits}`;
+  });
 }
 
 function triggerDiceAnimation() {
@@ -2978,7 +2995,8 @@ function updateTracks() {
 }
 
 function log(msg) {
-  state.log.unshift(msg);
+  const formatted = formatDiceLabelsInMessage(msg);
+  state.log.unshift(formatted);
   if (logEl) {
     logEl.innerHTML = state.log.map((m) => `<li>${m}</li>`).join("");
   }
