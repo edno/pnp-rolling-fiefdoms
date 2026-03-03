@@ -163,6 +163,34 @@ describe("computeScore", () => {
     expect(result.marketDetails[0]?.points).toBe(1);
   });
 
+  it("provides buildings-total as the sum of all building categories", () => {
+    const board = emptyBoard();
+    board[0][0].building = "C";
+    board[0][1].building = "F";
+    const workers = Array.from({ length: 5 }, () => Array(5).fill(0));
+    workers[0][1] = 2; // activate the farm
+    const pop = emptyPop();
+    pop[0][0] = 1; // occupy the cottage
+
+    const result = computeScore(board, pop, workers);
+    const breakdown = result.breakdown;
+    const buildingKeys = [
+      "cottages",
+      "farm",
+      "quarry",
+      "windmill",
+      "market",
+      "springhouse",
+      "townhall",
+      "university",
+      "almshouse",
+      "guilds",
+    ];
+    const expectedSum = buildingKeys.reduce((sum, key) => sum + (breakdown[key] || 0), 0);
+    expect(breakdown["buildings-total"]).toBe(expectedSum);
+    expect(result.total).toBe(expectedSum + breakdown.vagrants);
+  });
+
   it("townhall scores unique basics in row/col when active", () => {
     const board = emptyBoard();
     board[2][2].building = "T";

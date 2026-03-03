@@ -14,6 +14,7 @@ const outDir = path.join(root, "dist");
 const staticEntries = ["index.html", "assets", "resources", "robots.txt", "manifest.webmanifest"];
 const PLAYER_SHEET_RELATIVE = path.join("resources", "rolling-fiefdoms-player-sheet.webp");
 const PLAYER_SHEET_TARGET = { width: 1076, height: 761 };
+const PLAYER_SHEET_FORMAT = path.extname(PLAYER_SHEET_RELATIVE).toLowerCase();
 
 // Parse CLI flags
 const enableSourcemaps = process.argv.includes("--sourcemap");
@@ -180,16 +181,22 @@ async function downscalePlayerSheet() {
       return; // already appropriately sized
     }
     const tempPath = `${sheetPath}.tmp`;
-    await image
-      .resize(PLAYER_SHEET_TARGET.width, PLAYER_SHEET_TARGET.height, {
-        fit: "inside",
-      })
-      .webp({
+    let transformer = image.resize(PLAYER_SHEET_TARGET.width, PLAYER_SHEET_TARGET.height, {
+      fit: "inside",
+    });
+    if (PLAYER_SHEET_FORMAT === ".webp") {
+      transformer = transformer.webp({
         quality: 85,
         effort: 6,
         smartSubsample: true,
-      })
-      .toFile(tempPath);
+      });
+    } else if (PLAYER_SHEET_FORMAT === ".png") {
+      transformer = transformer.png({
+        compressionLevel: 9,
+        adaptiveFiltering: true,
+      });
+    }
+    await transformer.toFile(tempPath);
     await rm(sheetPath);
     await cp(tempPath, sheetPath);
     await rm(tempPath);

@@ -24,11 +24,11 @@ export const buildingHitboxes = [
   { code: "Q", col: 1, row: 3 },
   { code: "W", col: 1, row: 4 },
   { code: "M", col: 1, row: 5 },
-  { code: "S", col: 2, row: 1 },
-  { code: "T", col: 2, row: 2 },
-  { code: "U", col: 2, row: 3 },
-  { code: "A", col: 2, row: 4 },
-  { code: "G", col: 2, row: 5 },
+  { code: "S", col: 1, row: 6 },
+  { code: "T", col: 1, row: 7 },
+  { code: "U", col: 1, row: 8 },
+  { code: "A", col: 1, row: 9 },
+  { code: "G", col: 1, row: 10 },
 ];
 
 export const guildHitboxes = [
@@ -38,20 +38,31 @@ export const guildHitboxes = [
   { code: "GM", col: 2, row: 2 },
 ];
 
-const SCORE_SPOT_TOP = 28;
-export const scoringSpots = [
-  { key: "cottages", x: 20, y: SCORE_SPOT_TOP },
-  { key: "farm", x: 66, y: SCORE_SPOT_TOP },
-  { key: "quarry", x: 112, y: SCORE_SPOT_TOP },
-  { key: "windmill", x: 156, y: SCORE_SPOT_TOP },
-  { key: "market", x: 202, y: SCORE_SPOT_TOP },
-  { key: "townhall", x: 244, y: SCORE_SPOT_TOP },
-  { key: "university", x: 290, y: SCORE_SPOT_TOP },
-  { key: "guilds", x: 334, y: SCORE_SPOT_TOP },
-  { key: "springhouse", x: 380, y: SCORE_SPOT_TOP },
-  { key: "vagrants", x: 424, y: SCORE_SPOT_TOP },
-  { key: "reputation", x: 527, y: SCORE_SPOT_TOP },
+const buildingScoreSpots = [
+  { key: "cottages", x: 6, y: 8 },
+  { key: "farm", x: 6, y: 56 },
+  { key: "quarry", x: 6, y: 104 },
+  { key: "windmill", x: 6, y: 150 },
+  { key: "market", x: 6, y: 198 },
+  { key: "springhouse", x: 6, y: 246 },
+  { key: "townhall", x: 6, y: 294 },
+  { key: "university", x: 6, y: 342 },
 ];
+
+const guildScoreSpots = [
+  { key: "guilds-gf", x: 6, y: 6 },
+  { key: "guilds-gw", x: 6, y: 54 },
+  { key: "guilds-gq", x: 6, y: 102 },
+  { key: "guilds-gm", x: 6, y: 150 },
+];
+
+const reputationScoreSpots = [
+  { key: "buildings-total", x: 28, y: 86 },
+  { key: "vagrants", x: 88, y: 86 },
+  { key: "reputation", x: 58, y: 20 },
+];
+
+export const scoringSpots = [...buildingScoreSpots, ...guildScoreSpots, ...reputationScoreSpots];
 
 export const TURN_TRACK_LENGTH = 25;
 
@@ -72,5 +83,3 @@ export function builtGuildTypes(board) {
   });
   return set;
 }
-
-

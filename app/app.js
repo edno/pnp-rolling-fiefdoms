@@ -90,7 +90,9 @@ import {
   locDicePreview,
   buildDicePreview,
   logEl,
-  scoreOverlayEl,
+  scoreOverlayBuildingsEl,
+  scoreOverlayGuildsEl,
+  scoreOverlayReputationEl,
   popHousingOverlay,
   influenceOverlay,
   turnTrackOverlay,
@@ -184,6 +186,25 @@ const p2pUiState = {
   lockedPairSwap: false,
   splitUsed: {},
 };
+
+function enableDebugOverlayOutlines() {
+  if (!debugMode || typeof document === "undefined") return;
+  [
+    "buildingsOverlay",
+    "guildsOverlay",
+    "popHousingOverlay",
+    "influenceOverlay",
+    "scoreOverlayBuildings",
+    "scoreOverlayGuilds",
+    "scoreOverlayReputation",
+    "turnTrackOverlay",
+  ].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add("overlay-debug");
+  });
+}
+
+enableDebugOverlayOutlines();
 
 let sfxAudio = null;
 let diceAudio = null;
@@ -516,9 +537,9 @@ const guildTypes = ["GF", "GQ", "GW", "GM"];
 let swapBtnPulseTimeout = null;
 let swapBtnLastVisible = false;
 
-const SHEET_VERSION = "v1.12";
+const SHEET_VERSION = "v1.13";
 const POP_CAPACITY = 5;
-const POP_LAYOUT = { rows: [8, 7], pipsPerCell: 4 };
+const POP_LAYOUT = { rows: [3, 3, 3, 3, 3, 3], pipsPerCell: 4 };
 const POP_TRACK_TOTAL_CELLS = POP_LAYOUT.rows.reduce((sum, len) => sum + len, 0);
 const POP_TRACK_TOTAL_PIPS = POP_TRACK_TOTAL_CELLS * POP_LAYOUT.pipsPerCell;
 const INFLUENCE_TRACK_SLOTS = Math.max(1, earnedInfluenceFromPopulation(POP_TRACK_TOTAL_PIPS));
@@ -2347,8 +2368,7 @@ function renderBuildingOverlay(options = [], disabled = false) {
     const div = document.createElement("div");
     div.className = "building-hit";
     div.dataset.code = hit.code;
-    div.style.gridColumn = hit.col;
-    div.style.gridRow = hit.row;
+    div.style.gridArea = `${hit.row} / ${hit.col}`;
     if (opt) {
       div.classList.add("available");
       if (opt.source) div.dataset.source = opt.source;
@@ -2945,7 +2965,12 @@ function updateTracks() {
         : `Population milestone reached: gained ${influence.gained} Influence.`,
     );
   }
-  updateScoreOverlay(scoreResult.breakdown, scoreResult.total);
+  updateScoreOverlays(
+    scoreResult.breakdown,
+    scoreResult.total,
+    scoreResult.marketDetails,
+    scoreResult.nodeToMarket,
+  );
   const influenceEarned = state.influence?.earned || 0;
   const influenceSpent = (state.influence?.spent || 0) + (state.influence?.pending || 0);
   renderInfluenceTrack({ influenceEarned, influenceSpent });
@@ -3997,34 +4022,48 @@ function currentScore({ allowPopulationActivation } = {}) {
 
 function refreshScoreOverlay(scoreResult = null) {
   const result = scoreResult || currentScore();
-  updateScoreOverlay(result.breakdown, result.total, result.marketDetails, result.nodeToMarket);
+  updateScoreOverlays(result.breakdown, result.total, result.marketDetails, result.nodeToMarket);
   return result;
 }
 
-function updateScoreOverlay(breakdown, total = 0, marketDetails = [], nodeToMarket = new Map()) {
-  if (!scoreOverlayEl) return;
+function updateScoreOverlays(breakdown, total = 0, marketDetails = [], nodeToMarket = new Map()) {
+  if (!scoreOverlayBuildingsEl || !scoreOverlayGuildsEl || !scoreOverlayReputationEl) return;
+  const buildingTotals = breakdown["buildings-total"] || 0;
   const formatScoreValue = (value, key) => {
     if (typeof value !== "number") return "0";
     if (key === "reputation") return `${value}`; // reputation spot shows negatives
     return `${Math.abs(value)}`;
   };
-  clearElement(scoreOverlayEl);
+  clearElement(scoreOverlayBuildingsEl);
+  clearElement(scoreOverlayGuildsEl);
+  clearElement(scoreOverlayReputationEl);
   scoringSpots.forEach((spot) => {
-      const topPos = spot.y ?? 30;
-      const val =
-        spot.key === "reputation"
-          ? total
-          : typeof breakdown[spot.key] === "number"
-            ? breakdown[spot.key]
-            : 0;
-      const negative = typeof val === "number" && val < 0;
-      const forceNegative = spot.key === "vagrants" || spot.key === "springhouse";
+    const leftPos = typeof spot.x === "number" ? spot.x : 0;
+    const topPos = typeof spot.y === "number" ? spot.y : 30;
+    let val;
+    if (spot.key === "reputation") {
+      val = total;
+    } else if (spot.key === "buildings-total") {
+      val = buildingTotals;
+    } else {
+      val = typeof breakdown[spot.key] === "number" ? breakdown[spot.key] : 0;
+    }
+    const negative = typeof val === "number" && val < 0;
+    const forceNegative = spot.key === "vagrants" || spot.key === "springhouse";
     const chip = document.createElement("div");
     chip.className = ["score-chip"]
       .concat(negative || forceNegative ? ["negative"] : [])
       .join(" ");
     chip.id = `score-chip-${spot.key}`;
-    chip.style.left = `${spot.x}px`;
+    const isGuildSpot = spot.key.startsWith("guilds-");
+    const isReputationSpot = spot.key === "reputation" || spot.key === "vagrants" || spot.key === "buildings-total";
+    let targetEl = scoreOverlayBuildingsEl;
+    if (isGuildSpot) {
+      targetEl = scoreOverlayGuildsEl;
+    } else if (isReputationSpot) {
+      targetEl = scoreOverlayReputationEl;
+    }
+    chip.style.left = `${leftPos}px`;
     chip.style.top = `${topPos}px`;
     chip.textContent = formatScoreValue(val, spot.key); // board art includes negatives for most spots
     
@@ -4035,7 +4074,7 @@ function updateScoreOverlay(breakdown, total = 0, marketDetails = [], nodeToMark
         .join('\n');
     }
     
-    scoreOverlayEl.appendChild(chip);
+    targetEl.appendChild(chip);
   });
   
   // Store for hover interactions
@@ -4052,9 +4091,7 @@ function renderPopHousingTrack(pop = 0, housing = 0, vagrants = 0) {
   const housingUnits = Math.max(0, Math.floor(housing / 4));
   let remainingPop = Math.max(0, pop);
   let cellIdx = 0;
-  POP_LAYOUT.rows.forEach((cols, rowIdx) => {
-    const rowEl = document.createElement("div");
-    rowEl.className = `pop-row ${rowIdx === 0 ? "top" : "bottom"}`;
+  POP_LAYOUT.rows.forEach((cols) => {
     for (let c = 0; c < cols; c += 1) {
       const cell = document.createElement("div");
       cell.className = "pop-cell";
@@ -4079,10 +4116,9 @@ function renderPopHousingTrack(pop = 0, housing = 0, vagrants = 0) {
       }
       remainingPop -= pipsThisCell;
       cell.appendChild(pipGrid);
-      rowEl.appendChild(cell);
+      track.appendChild(cell);
       cellIdx += 1;
     }
-    track.appendChild(rowEl);
   });
   popHousingOverlay.appendChild(track);
 }

@@ -90,6 +90,13 @@ export const BUILDING_RULES = {
   G: { name: "Guild", requirement: 4, base: 0, category: "advanced" },
 };
 
+const GUILD_LABEL_CONFIG = {
+  GF: { target: "F", scoreKey: "guilds-gf" },
+  GQ: { target: "Q", scoreKey: "guilds-gq" },
+  GW: { target: "W", scoreKey: "guilds-gw" },
+  GM: { target: "M", scoreKey: "guilds-gm" },
+};
+
 export function buildingOptions(buildVals, buildings = BUILDING_RULES) {
   const buildDice = buildVals.map((v) => ({ resolved: v }));
   return buildingOptionsFromDice(buildDice, buildings);
@@ -287,8 +294,11 @@ export function computeScore(board, populationNodes, workerAllocations = null, o
     springhouse: 0,
     townhall: 0,
     university: 0,
-    almshouse: 0,
     guilds: 0,
+    "guilds-gf": 0,
+    "guilds-gq": 0,
+    "guilds-gw": 0,
+    "guilds-gm": 0,
     forfeits: 0,
     vagrants: -calcVagrants(popTotal, housing),
   };
@@ -334,7 +344,11 @@ export function computeScore(board, populationNodes, workerAllocations = null, o
     }
   }
 
-  scores.guilds = guildBonuses(board, activation);
+  const guildScore = guildBonuses(board, activation);
+  scores.guilds = guildScore.total;
+  Object.entries(guildScore.breakdown).forEach(([key, val]) => {
+    scores[key] = val;
+  });
 
   // Almshouse cancels up to 12 vagrant penalty if active
   const almshouseActive = board.some((row, r) =>
@@ -346,7 +360,7 @@ export function computeScore(board, populationNodes, workerAllocations = null, o
     }
   }
 
-  const total =
+  const buildingsTotal =
     scores.cottages +
     scores.farm +
     scores.quarry +
@@ -355,8 +369,10 @@ export function computeScore(board, populationNodes, workerAllocations = null, o
     scores.springhouse +
     scores.townhall +
     scores.university +
-    scores.guilds +
-    scores.vagrants;
+    scores.guilds;
+  scores["buildings-total"] = buildingsTotal;
+
+  const total = buildingsTotal + scores.vagrants;
 
   // Build per-market details
   const marketDetails = [];
@@ -540,7 +556,13 @@ function uniPoints(uniqueAdv) {
 }
 
 function guildBonuses(board, activation) {
-  let bonus = 0;
+  const breakdown = {
+    "guilds-gf": 0,
+    "guilds-gq": 0,
+    "guilds-gw": 0,
+    "guilds-gm": 0,
+  };
+  let total = 0;
   for (let r = 0; r < board.length; r++) {
     for (let c = 0; c < board[0].length; c++) {
       const cell = board[r][c];
@@ -548,14 +570,15 @@ function guildBonuses(board, activation) {
       const active = activation.get(key(r, c));
       if (!active) continue;
       const guildLabel = (cell.buildingLabel || "G").toUpperCase();
-      const target = guildTargetFromLabel(guildLabel);
-      if (!target) continue;
-      if (meetsGuildCondition(board, activation, target)) {
-        bonus += 15;
+      const config = guildConfigForLabel(guildLabel);
+      if (!config) continue;
+      if (meetsGuildCondition(board, activation, config.target)) {
+        breakdown[config.scoreKey] += 15;
+        total += 15;
       }
     }
   }
-  return bonus;
+  return { total, breakdown };
 }
 
 function maxContiguous(board, activation, code) {
@@ -620,12 +643,12 @@ function centerCount(board, activation, code) {
   return count;
 }
 
+function guildConfigForLabel(label) {
+  return GUILD_LABEL_CONFIG[label] || null;
+}
+
 function guildTargetFromLabel(label) {
-  if (label === "GF") return "F";
-  if (label === "GQ") return "Q";
-  if (label === "GW") return "W";
-  if (label === "GM") return "M";
-  return null;
+  return guildConfigForLabel(label)?.target || null;
 }
 
 function meetsGuildCondition(board, activation, targetCode) {

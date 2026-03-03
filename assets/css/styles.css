@@ -1,5 +1,5 @@
 :root {
-  --sheet-image: url("../../resources/rolling-fiefdoms-player-sheet.webp?v=v1.12");
+  --sheet-image: url("../../resources/rolling-fiefdoms-player-sheet.webp?v=v1.13");
   --bg: #fffbe2;
   --panel: #ffffff;
   --border: #d0c6b8;
@@ -94,8 +94,8 @@ header h1 {
 
 .fiefdom-overlay {
   position: absolute;
-  top: 18px;
-  left: 210px;
+  top: 40px;
+  left: 170px;
   width: 220px;
   text-align: center;
   z-index: 5;
@@ -298,8 +298,8 @@ main {
 
 .board {
   position: absolute;
-  top: 143px;
-  left: 63px;
+  top: 162px;
+  left: 36px;
   width: 487px;
   height: 487px;
   display: grid;
@@ -492,19 +492,40 @@ main {
 
 .score-overlay {
   position: absolute;
-  left: 20px;
-  top: 666px;
-  width: 900px;
-  height: 70px;
   pointer-events: none;
+}
+
+.score-overlay-buildings {
+  left: 1000px;
+  top: 54px;
+  width: 50px;
+  height: 394px;
+}
+
+.score-overlay-guilds {
+  left: 1000px;
+  top: 534px;
+  width: 50px;
+  height: 198px;
+}
+
+.score-overlay-reputation {
+  left: 555px;
+  top: 590px;
+  width: 150px;
+  height: 150px;
+}
+.overlay-debug {
+  outline: 2px solid rgba(255, 0, 0, 0.6);
+  outline-offset: -2px;
 }
 
 .turn-track-overlay {
   position: absolute;
-  left: 626px;
-  top: 710px;
-  width: 422px;
-  height: 36px;
+  left: 35px;
+  top: 690px;
+  width: 488px;
+  height: 48px;
   display: grid;
   grid-template-columns: repeat(25, 1fr);
   gap: 0px;
@@ -547,34 +568,37 @@ main {
 
 .pop-housing-overlay {
   position: absolute;
-  left: 634px;
-  top: 132px;
-  width: 404px;
-  height: 82px;
+  left: 565px;
+  top: 254px;
+  width: 131px;
+  height: 308px;
   pointer-events: none;
 }
 
 .influence-overlay {
   position: absolute;
-  left: 634px;
-  top: 45px;
-  width: 224px;
-  height: 32px;
+  left: 565px;
+  top: 128px;
+  width: 128px;
+  height: 64px;
   pointer-events: none;
 }
 
 .influence-track {
-  display: flex;
-  gap: 4px;
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 2px 4px;
+  width: 100%;
   height: 100%;
 }
 .influence-slot {
-  width: 32px;
+  width: 100%;
   height: 100%;
   position: relative;
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 
 .influence-icon {
@@ -592,27 +616,14 @@ main {
 }
 
 .pop-track {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(6, 1fr);
+  gap: 6px 0px;
   width: 100%;
   height: 100%;
-  justify-content: flex-start;
-}
-
-.pop-row {
-  display: grid;
-  gap: 0px 12px;
-}
-
-.pop-row.top {
-  grid-template-columns: repeat(8, 1fr);
-}
-
-.pop-row.bottom {
-  grid-template-columns: repeat(7, 1fr);
-  width: calc(100% * 7 / 8);
-  align-self: flex-start;
+  justify-items: center;
+  align-items: center;
 }
 
 .pop-cell {
@@ -1019,9 +1030,9 @@ button:disabled {
 .guilds-overlay {
   position: absolute;
   pointer-events: auto;
-  padding: 14px 1px 8px 4px;
+  padding: 0px;
   display: grid;
-  gap: 2px 4px;
+  gap: 6px;
 }
 
 .guilds-overlay.disabled,
@@ -1031,21 +1042,21 @@ button:disabled {
 }
 
 .buildings-overlay {
-  left: 629px;
-  top: 254px;
-  width: 424px;
-  height: 280px;
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: repeat(5, 1fr);
+  left: 716px;
+  top: 62px;
+  width: 286px;
+  height: 474px;
+  grid-template-columns: repeat(1, 1fr);
+  grid-template-rows: repeat(10, 1fr);
 }
 
 .guilds-overlay {
-  left: 629px;
-  top: 555px;
-  width: 424px;
-  height: 126px;
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: repeat(2, 1fr);
+  left: 754px;
+  top: 534px;
+  width: 248px;
+  height: 198px;
+  grid-template-columns: repeat(1, 1fr);
+  grid-template-rows: repeat(4, 1fr);
 }
 
 .guild-hit,

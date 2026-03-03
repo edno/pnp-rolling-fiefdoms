@@ -1,8 +1,8 @@
 /* eslint-env serviceworker */
-const CACHE_VERSION = "v1.30";
+const CACHE_VERSION = "v1.31";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
-const APP_VERSION = "v6";
-const SHEET_VERSION = "v1.12";
+const APP_VERSION = "v7";
+const SHEET_VERSION = "v1.13";
 const ASSETS = [
   "/",
   "/index.html",
