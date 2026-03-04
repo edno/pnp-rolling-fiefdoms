@@ -1,5 +1,10 @@
 :root {
-  --sheet-image: url("../../resources/rolling-fiefdoms-player-sheet.webp?v=v1.13");
+  --sheet-image-1x: url("../../resources/rolling-fiefdoms-player-sheet.webp?v=v2.0");
+  --sheet-image-2x: url("../../resources/rolling-fiefdoms-player-sheet@2x.webp?v=v2.0");
+  --sheet-image: image-set(
+    var(--sheet-image-1x) 1x,
+    var(--sheet-image-2x) 2x
+  );
   --bg: #fffbe2;
   --panel: #ffffff;
   --border: #d0c6b8;

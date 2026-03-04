@@ -12,9 +12,16 @@ const { optimize } = require("svgo");
 const root = path.resolve(__dirname, "..");
 const outDir = path.join(root, "dist");
 const staticEntries = ["index.html", "assets", "resources", "robots.txt", "manifest.webmanifest"];
-const PLAYER_SHEET_RELATIVE = path.join("resources", "rolling-fiefdoms-player-sheet.webp");
-const PLAYER_SHEET_TARGET = { width: 1076, height: 761 };
-const PLAYER_SHEET_FORMAT = path.extname(PLAYER_SHEET_RELATIVE).toLowerCase();
+const PLAYER_SHEET_VARIANTS = [
+  {
+    relative: path.join("resources", "rolling-fiefdoms-player-sheet.webp"),
+    target: { width: 1086, height: 768 },
+  },
+  {
+    relative: path.join("resources", "rolling-fiefdoms-player-sheet@2x.webp"),
+    target: { width: 2172, height: 1536 },
+  },
+];
 
 // Parse CLI flags
 const enableSourcemaps = process.argv.includes("--sourcemap");
@@ -161,36 +168,32 @@ async function optimizeImagesInDirectory(dirPath) {
   }
 }
 
-async function downscalePlayerSheet() {
-  const sheetPath = path.join(outDir, PLAYER_SHEET_RELATIVE);
+async function downscalePlayerSheetVariant(relativePath, target) {
+  const sheetPath = path.join(outDir, relativePath);
   try {
     const sheetStat = await stat(sheetPath);
     if (!sheetStat.isFile()) return;
   } catch (err) {
-    if (err?.code !== "ENOENT") console.warn(`  ⚠ Player sheet missing: ${err.message}`);
+    if (err?.code !== "ENOENT") console.warn(`  ⚠ Player sheet missing (${relativePath}): ${err.message}`);
     return;
   }
 
   try {
     const image = sharp(sheetPath);
     const metadata = await image.metadata();
-    if (
-      metadata.width <= PLAYER_SHEET_TARGET.width &&
-      metadata.height <= PLAYER_SHEET_TARGET.height
-    ) {
+    if (metadata.width <= target.width && metadata.height <= target.height) {
       return; // already appropriately sized
     }
     const tempPath = `${sheetPath}.tmp`;
-    let transformer = image.resize(PLAYER_SHEET_TARGET.width, PLAYER_SHEET_TARGET.height, {
-      fit: "inside",
-    });
-    if (PLAYER_SHEET_FORMAT === ".webp") {
+    let transformer = image.resize(target.width, target.height, { fit: "inside" });
+    const format = path.extname(sheetPath).toLowerCase();
+    if (format === ".webp") {
       transformer = transformer.webp({
         quality: 85,
         effort: 6,
         smartSubsample: true,
       });
-    } else if (PLAYER_SHEET_FORMAT === ".png") {
+    } else if (format === ".png") {
       transformer = transformer.png({
         compressionLevel: 9,
         adaptiveFiltering: true,
@@ -201,10 +204,16 @@ async function downscalePlayerSheet() {
     await cp(tempPath, sheetPath);
     await rm(tempPath);
     console.log(
-      `  ✓ Downscaled ${path.relative(outDir, sheetPath)} to ${PLAYER_SHEET_TARGET.width}x${PLAYER_SHEET_TARGET.height}`,
+      `  ✓ Downscaled ${path.relative(outDir, sheetPath)} to ${target.width}x${target.height}`,
     );
   } catch (err) {
-    console.warn(`  ⚠ Failed to downscale player sheet: ${err.message}`);
+    console.warn(`  ⚠ Failed to downscale player sheet (${relativePath}): ${err.message}`);
+  }
+}
+
+async function downscalePlayerSheet() {
+  for (const variant of PLAYER_SHEET_VARIANTS) {
+    await downscalePlayerSheetVariant(variant.relative, variant.target);
   }
 }
 

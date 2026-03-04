@@ -346,7 +346,8 @@ const guildTypes = ["GF", "GQ", "GW", "GM"];
 let swapBtnPulseTimeout = null;
 let swapBtnLastVisible = false;
 
-const SHEET_VERSION = "v1.13";
+const SHEET_VERSION = "v2.0";
+const SHEET_BASE_PATH = "resources/rolling-fiefdoms-player-sheet";
 const POP_CAPACITY = 5;
 const POP_LAYOUT = { rows: [3, 3, 3, 3, 3, 3], pipsPerCell: 4 };
 const POP_TRACK_TOTAL_CELLS = POP_LAYOUT.rows.reduce((sum, len) => sum + len, 0);
@@ -464,29 +465,53 @@ function resetState() {
   log("Game started.");
 }
 
+function setSheetImageSources(el) {
+  if (!el) return;
+  const standardSrc = sheetImageUrl();
+  const highSrc = sheetImageUrl(2);
+  el.src = standardSrc;
+  if ("srcset" in el) {
+    el.srcset = `${standardSrc} 1x, ${highSrc} 2x`;
+  }
+  if ("sizes" in el) {
+    el.sizes = "(max-width: 1100px) 100vw, 1100px";
+  }
+}
+
 function preloadSheet() {
   return new Promise((resolve) => {
     const imgEl = sheetBaseImage;
-    const src = sheetImageUrl();
     if (imgEl) {
-      imgEl.src = src;
+      const cleanup = () => {
+        imgEl.onload = null;
+        imgEl.onerror = null;
+      };
+      imgEl.onload = () => {
+        cleanup();
+        resolve(true);
+      };
+      imgEl.onerror = () => {
+        cleanup();
+        resolve(false);
+      };
+      setSheetImageSources(imgEl);
       if (imgEl.complete) {
+        cleanup();
         resolve(true);
         return;
       }
-      imgEl.onload = () => resolve(true);
-      imgEl.onerror = () => resolve(false);
       return;
     }
     const img = new Image();
     img.onload = () => resolve(true);
     img.onerror = () => resolve(false);
-    img.src = src;
+    setSheetImageSources(img);
   });
 }
 
-function sheetImageUrl() {
-  return new URL(`resources/rolling-fiefdoms-player-sheet.webp?v=${SHEET_VERSION}`, window.location.href).toString();
+function sheetImageUrl(scale = 1) {
+  const suffix = scale > 1 ? "@2x" : "";
+  return new URL(`${SHEET_BASE_PATH}${suffix}.webp?v=${SHEET_VERSION}`, window.location.href).toString();
 }
 
 registerServiceWorker();

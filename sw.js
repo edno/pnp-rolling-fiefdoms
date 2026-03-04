@@ -1,8 +1,9 @@
 /* eslint-env serviceworker */
-const CACHE_VERSION = "v1.31";
+const CACHE_VERSION = "v1.32";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
 const APP_VERSION = "v7";
-const SHEET_VERSION = "v1.13";
+const SHEET_VERSION = "v2.0";
+const SHEET_BASE_PATH = "/resources/rolling-fiefdoms-player-sheet";
 const ASSETS = [
   "/",
   "/index.html",
@@ -25,7 +26,8 @@ const ASSETS = [
   "/assets/img/github.webp",
   "/assets/img/fullscreen.webp",
   "/assets/img/bgg.webp",
-  `/resources/rolling-fiefdoms-player-sheet.webp?v=${SHEET_VERSION}`,
+  `${SHEET_BASE_PATH}.webp?v=${SHEET_VERSION}`,
+  `${SHEET_BASE_PATH}@2x.webp?v=${SHEET_VERSION}`,
   "/robots.txt",
   "/manifest.webmanifest",
 ];
