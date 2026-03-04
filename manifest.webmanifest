@@ -1,6 +1,7 @@
 {
-  "name": "Rolling Fiefdoms Helper",
-  "short_name": "Fiefdoms",
+  "name": "Rolling Fiefdoms Solo Play",
+  "short_name": "Rolling Fiefdoms",
+  "description": "Play Rolling Fiefdoms solo in your browser with automated scoring, overlays, and offline support.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
