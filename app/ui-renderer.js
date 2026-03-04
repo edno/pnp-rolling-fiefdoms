@@ -57,9 +57,9 @@ const guildScoreSpots = [
 ];
 
 const reputationScoreSpots = [
-  { key: "buildings-total", x: 28, y: 86 },
-  { key: "vagrants", x: 88, y: 86 },
-  { key: "reputation", x: 58, y: 20 },
+  { key: "buildings-total", x: 28, y: 92 },
+  { key: "vagrants", x: 88, y: 92 },
+  { key: "reputation", x: 56, y: 24 },
 ];
 
 export const scoringSpots = [...buildingScoreSpots, ...guildScoreSpots, ...reputationScoreSpots];
