@@ -348,6 +348,19 @@ async function run() {
     await copyStatic(entry);
   }
 
+  // Remove source-only assets that are not meant for deployment (e.g., oversized masters)
+  const sourceOnlyAssets = [path.join("resources", "rolling-fiefdoms-player-sheet.png")];
+  for (const asset of sourceOnlyAssets) {
+    const assetPath = path.join(outDir, asset);
+    try {
+      await rm(assetPath, { force: true });
+    } catch (err) {
+      if (err?.code !== "ENOENT") {
+        console.warn(`⚠ Could not remove source-only asset ${asset}: ${err.message}`);
+      }
+    }
+  }
+
   console.log("\nMinifying HTML files...");
   await minifyHtmlFiles(outDir);
 
