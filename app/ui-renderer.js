@@ -39,13 +39,13 @@ export const guildHitboxes = [
 ];
 
 const buildingScoreSpots = [
-  { key: "cottages", x: 6, y: 8 },
-  { key: "farm", x: 6, y: 56 },
+  { key: "cottages", x: 6, y: 10 },
+  { key: "farm", x: 6, y: 58 },
   { key: "quarry", x: 6, y: 104 },
-  { key: "windmill", x: 6, y: 150 },
-  { key: "market", x: 6, y: 198 },
+  { key: "windmill", x: 6, y: 154 },
+  { key: "market", x: 6, y: 202 },
   { key: "springhouse", x: 6, y: 246 },
-  { key: "townhall", x: 6, y: 294 },
+  { key: "townhall", x: 6, y: 296 },
   { key: "university", x: 6, y: 342 },
 ];
 
