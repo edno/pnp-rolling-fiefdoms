@@ -65,6 +65,13 @@ function stubEnvironment() {
   if (!window.matchMedia) {
     window.matchMedia = () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} });
   }
+  if (window.HTMLMediaElement) {
+    Object.defineProperty(window.HTMLMediaElement.prototype, "play", {
+      configurable: true,
+      writable: true,
+      value: vi.fn().mockResolvedValue(undefined),
+    });
+  }
   class InstantImage {
     set src(val) {
       this._src = val;
