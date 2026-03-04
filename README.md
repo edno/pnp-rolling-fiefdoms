@@ -1,38 +1,41 @@
-# Rolling Fiefdoms
+# Rolling Fiefdoms — Solo Web Edition
 
-This is a lightweight online version of the Rolling Fiefdoms roll-and-write game.
+Rolling Fiefdoms is a roll-and-write game where you grow a small fief through clever dice pairing and careful planning. Each turn, the Regent rolls four dice and groups them into two pairs; players then choose where to build cottages, markets, and landmarks on their fief. When all plots are filled, assign labourers to activate buildings, score reputation, and see whose fief prospers most.
 
-## Quick start
+Rolling Fiefdoms won the **BGG 2025 Roll & Write Game Design Contest**.
 
-```
+This repository hosts the solo-friendly browser implementation. It mirrors the printed sheet and provides digital experience while keeping the tactile “split & choose” flow intact.
+
+## What’s inside
+
+- **Authentic sheet & rules**: The in-browser board is the same art you’d print at home; the included PDF rulebook matches the tabletop release.
+- **Solo assistant**: Lock dice, track influence, place population, and tally reputation without reaching for an eraser.
+- **Offline-ready**: A lightweight service worker caches the core shell so you can play even when the connection drops.
+
+## Learn & play
+
+- **Official rules**: `resources/rolling-fiefdoms-rulebook.pdf`
+- **Player sheet**: `resources/rolling-fiefdoms-player-sheet.webp`
+- **BoardGameGeek**: [Rolling Fiefdoms @ BGG](https://boardgamegeek.com/boardgame/465867)
+- **Download**: [Rolling Fiefdoms @ PnP Stash](https://pnpstash.com/product/rolling-fiefdoms/)
+
+Open `index.html` directly or run the dev server to explore the solo helper. Dice rolls, overlays, and the score log all mirror the physical experience.
+
+## For developers
+
+```bash
 npm install
-npm test     # eslint + vitest
-npm run serve # start a static server at http://localhost:4173
-npm run build # bundle + minify JS into dist/ for deployment
-# tip: npm run serve -- --dist will serve the built dist/ output instead of source files
-# clean: npm run clean will remove dist/ if you need a fresh build
-
-The app now includes a service worker + manifest for install/offline use. When served over HTTPS or localhost, the core assets cache for offline play.
+npm test      # ESLint + Vitest
+npm run serve # http://localhost:4173
+npm run build # outputs dist/ for deployment
 ```
 
-Open `index.html` directly or serve the folder with your preferred static server. The app is plain JS/DOM; no bundler required for basic usage.
+- `npm run serve -- --dist` serves the built bundle instead of source files.
+- `npm run clean` removes the `dist/` folder when you need a fresh build.
 
-## How to play in the helper
-
-- Roll phase: four dice (two numbered, two X) appear in the Turn panel. Click two non-X dice to set the Location pair; X dice are auto-assigned to Build. Building/Guild overlays stay disabled until two location dice are selected.
-- Build phase: pick a building from the overlay, then click a highlighted plot. Dice lock (grey) after a build/forfeit/pestilence and stay visible until the next roll; location/build previews should persist while locked.
-- Pestilence: if both Xs show, skip pairing and forfeit any empty plot; dice lock during this step.
-- The log shows the actions (newest first) and includes Pestilence details.
-
-## Tests and lint
-
-- `npm test` runs ESLint and Vitest. Add or update tests alongside any rule changes.
-
-## Known gaps
-
-See `AGENTS.md` Appendix for the current TODO/Known Gaps (pip fidelity, pestilence section config, turn flow alignment, etc.). Keep this list updated as you address issues.
+See `AGENTS.md` for the current implementation notes and design clarifications.
 
 ## License
 
-- Code: MIT (see `LICENSE`)
-- Rulebook & player sheet: CC BY-NC-SA 4.0 (see `LICENSE-ASSETS` in `resources/`)
+- **Code**: MIT (see `LICENSE`)
+- **Rulebook & sheet**: CC BY-NC-SA 4.0 (see `LICENSE-ASSETS`)
