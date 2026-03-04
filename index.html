@@ -154,10 +154,13 @@
       <span class="footer-sep">·</span>
       <span>Assets: <a href="LICENSE-ASSETS">CC BY-NC-SA 4.0</a></span>
       <span class="footer-sep">·</span>
-      <span>&copy; 2025 Gregory Heitz</span>
+      <span>&copy; 2025-<span id="currentYear">2026</span> Gregory Heitz</span>
     </div>
   </footer>
 
+  <script>
+    document.getElementById('currentYear').textContent = new Date().getFullYear();
+  </script>
   <script type="module" src="app/app.js?v=v7"></script>
 
 </body>
