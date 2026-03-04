@@ -19,7 +19,7 @@ This repository hosts the solo-friendly browser implementation. It mirrors the p
 - **BoardGameGeek**: [Rolling Fiefdoms @ BGG](https://boardgamegeek.com/boardgame/465867)
 - **Download**: [Rolling Fiefdoms @ PnP Stash](https://pnpstash.com/product/rolling-fiefdoms/)
 
-Open `index.html` directly or run the dev server to explore the solo helper. Dice rolls, overlays, and the score log all mirror the physical experience.
+Open `index.html` directly or run the dev server to explore the solo app. Dice rolls, overlays, and the score log all mirror the physical experience.
 
 ## For developers
 
