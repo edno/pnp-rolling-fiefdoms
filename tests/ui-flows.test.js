@@ -101,6 +101,12 @@ async function setupApp({ numbered = [], x = [], debug = false, enableHooks = fa
   await flushMicrotasks();
 }
 
+function createEmptyBoard() {
+  return Array.from({ length: 5 }, () =>
+    Array.from({ length: 5 }, () => ({ building: null, forfeited: false, springBoost: 0 })),
+  );
+}
+
 function clickDie(idx) {
   const badge = document.querySelector(`.die-badge[data-idx="${idx}"]`);
   if (!badge) throw new Error(`Die badge ${idx} not found`);
@@ -193,6 +199,42 @@ describe("blocked build flow (jsdom)", () => {
     const msg = hooks.actionMessage();
     expect(msg.toLowerCase()).toContain("forfeit");
     expect(hooks.state.diceLocked).toBe(true);
+  });
+});
+
+describe("dice selection UI (jsdom)", () => {
+  it("clears build dice assignment when fewer than two location dice are selected", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.state.dice = [
+      { label: "N1", face: 1, resolved: 1 },
+      { label: "N2", face: 2, resolved: 2 },
+      { label: "N3", face: 3, resolved: 3 },
+      { label: "N4", face: 4, resolved: 4 },
+    ];
+    hooks.state.rollAvailable = false;
+    hooks.state.activeTurn = true;
+    hooks.state.board = createEmptyBoard();
+    hooks.state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    hooks.state.locationSelection = [];
+    hooks.state.forceForfeit = false;
+
+    hooks.updateDiceAssignments();
+    await flushMicrotasks();
+
+    const buildPreviewDice = () => document.querySelectorAll("#buildDicePreview .die-badge");
+
+    clickDie(0);
+    clickDie(1);
+    await flushMicrotasks();
+    expect(document.querySelectorAll(".die-badge.build-assigned").length).toBe(2);
+    expect(buildPreviewDice().length).toBe(2);
+
+    clickDie(0);
+    await flushMicrotasks();
+    expect(hooks.state.locationSelection.length).toBe(1);
+    expect(document.querySelectorAll(".die-badge.build-assigned").length).toBe(0);
+    expect(buildPreviewDice().length).toBe(0);
   });
 });
 

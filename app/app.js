@@ -2379,9 +2379,11 @@ function updateDiceAssignments() {
   const previewBuild =
     state.diceLocked && state.lockedBuildDice?.length
       ? state.lockedBuildDice
-      : buildDice.length
-        ? buildDice
-        : state.lastBuildDice;
+      : state.diceLocked && state.lastBuildDice?.length
+        ? state.lastBuildDice
+        : buildDice.length
+          ? buildDice
+          : [];
 
   renderSelectionDice(previewLocation, previewBuild);
   fillBuildings(previewBuild);
