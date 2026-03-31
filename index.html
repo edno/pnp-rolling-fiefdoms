@@ -1,196 +1,330 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta
-    name="description"
-    content="Play Rolling Fiefdoms solo in your browser: Roll, Split, Build and Populate your Fiefdom."
-  />
-  <meta name="robots" content="index, follow" />
-  <meta property="og:type" content="website" />
-  <meta property="og:title" content="Rolling Fiefdoms Online Solo" />
-  <meta
-    property="og:description"
-    content="Roll, Split, Build and Populate your Fiefdom with the solo-friendly Rolling Fiefdoms web app."
-  />
-  <meta property="og:image" content="resources/rolling-fiefdoms-cover-wide.jpg" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="798" />
-  <meta property="og:url" content="https://rolling-fiefdoms.edno.io" />
-  <meta property="og:see_also" content="https://boardgamegeek.com/boardgame/465867" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Rolling Fiefdoms Online Solo" />
-  <meta
-    name="twitter:description"
-    content="Play Rolling Fiefdoms solo in your browser: Roll, Split, Build and Populate your Fiefdom."
-  />
-  <meta name="twitter:image" content="resources/rolling-fiefdoms-cover-wide.jpg" />
-  <meta name="theme-color" content="#e67e22" />
-  <title>Rolling Fiefdoms - Online Solo</title>
-  <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="modulepreload" href="app/app.js?v=v7" />
-  <link rel="icon" type="image/svg+xml" href="assets/img/forfeit.svg" />
-  <style>
-    /* Critical CSS - hide content until fonts and CSS load */
-    .loading header,
-    .loading main,
-    .loading .site-footer {
-      visibility: hidden !important;
-      pointer-events: none !important;
-    }
-    .loading-overlay {
-      position: fixed;
-      inset: 0;
-      background: #ffffff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 999;
-    }
-  </style>
-  <link rel="stylesheet" href="assets/css/fonts.css" />
-  <link rel="stylesheet" href="assets/css/styles.css" />
-</head>
-<body class="loading">
-  <header>
-    <h1>Rolling Fiefdoms</h1>
-    <nav class="top-menu" aria-label="Quick links">
-      <a class="menu-item" href="resources/rolling-fiefdoms-rulebook.pdf" target="_blank" rel="noopener">
-        <span class="menu-icon"><img src="assets/img/rules.webp" alt="" loading="lazy" decoding="async" width="32" height="32" /></span>
-        <span class="menu-text">Rules</span>
-      </a>
-      <a class="menu-item" href="https://pnpstash.com/product/rolling-fiefdoms/" target="_blank" rel="noopener">
-        <span class="menu-icon"><img src="assets/img/playersheet.webp" alt="" loading="lazy" decoding="async" width="32" height="32" /></span>
-        <span class="menu-text">Download</span>
-      </a>
-      <a
-        class="menu-item"
-        href="https://boardgamegeek.com/boardgame/465867"
-        target="_blank"
-        rel="noopener"
-      >
-        <span class="menu-icon"><img src="assets/img/bgg.webp" alt="" loading="lazy" decoding="async" width="32" height="32" /></span>
-        <span class="menu-text">BGG</span>
-      </a>
-      <a class="menu-item" href="https://github.com/edno/pnp-rolling-fiefdoms" target="_blank" rel="noopener">
-        <span class="menu-icon"><img src="assets/img/github.webp" alt="" loading="lazy" decoding="async" width="32" height="32" /></span>
-        <span class="menu-text">Github</span>
-      </a>
-      <button class="menu-item" id="sfxToggle" type="button" aria-pressed="true">
-        <span class="menu-icon">
-          <img id="sfxToggleIcon" src="assets/img/sfx-on.svg" alt="" loading="lazy" decoding="async" width="32" height="32" aria-hidden="true" />
-        </span>
-        <span class="menu-text" id="sfxToggleLabel">Sound On</span>
-      </button>
-      <button class="menu-item" id="fullscreenToggle" type="button">
-        <span class="menu-icon"><img src="assets/img/fullscreen.webp" alt="" loading="lazy" decoding="async" width="32" height="32" /></span>
-        <span class="menu-text">Fullscreen</span>
-      </button>
-    </nav>
-  </header>
-  <div id="loadingOverlay" class="loading-overlay">
-    <div class="spinner" aria-hidden="true"></div>
-    <div class="loading-text">Loading board…</div>
-  </div>
-  <div id="actionBanner" class="action-banner" aria-live="polite"></div>
-
-  <main>
-    <section class="board-panel">
-      <div class="sheet" id="sheet">
-        <img
-          id="sheetBaseImage"
-          class="sheet-base"
-          src="resources/rolling-fiefdoms-player-sheet.webp?v=v2.0"
-          srcset="
-            resources/rolling-fiefdoms-player-sheet.webp?v=v2.0 1x,
-            resources/rolling-fiefdoms-player-sheet@2x.webp?v=v2.0 2x
-          "
-          sizes="(max-width: 1100px) 100vw, 1100px"
-          alt="Rolling Fiefdoms player sheet showing the 5x5 board, tracks, and overlays."
-          loading="lazy"
-          decoding="async"
-          width="1086"
-          height="767"
-        />
-        <div class="fiefdom-overlay">
-          <input id="fiefdomInput" type="text" maxlength="20" placeholder="Fiefdom name" />
-        </div>
-        <div class="board" id="board"></div>
-        <div id="scoreOverlayBuildings" class="score-overlay score-overlay-buildings"></div>
-        <div id="scoreOverlayGuilds" class="score-overlay score-overlay-guilds"></div>
-        <div id="scoreOverlayReputation" class="score-overlay score-overlay-reputation"></div>
-        <div id="turnTrackOverlay" class="turn-track-overlay" aria-hidden="true"></div>
-        <div id="influenceOverlay" class="influence-overlay"></div>
-        <div id="popHousingOverlay" class="pop-housing-overlay"></div>
-        <div id="buildingsOverlay" class="buildings-overlay" aria-label="Select building"></div>
-        <div id="guildsOverlay" class="guilds-overlay" aria-label="Select guild"></div>
-      </div>
-    </section>
-
-    <section class="controls">
-      <div class="panel">
-        <h2>Turn <span id="turnStatusChip" class="status-chip" aria-live="polite"></span></h2>
-        <button id="rollBtn">Roll Dice</button>
-        <div id="diceView"></div>
-        <div id="turnHint" class="hint"></div>
-        <button id="finishActivation" style="display:none;">Finish Activation</button>
-        <button id="newGameBtn" style="display:none;">Play again</button>
-      </div>
-
-      <div class="panel">
-        <h2 class="panel-title-with-action">
-          <span>Split &amp; Build</span>
-          <button
-            id="swapPairBtn"
-            class="icon-btn"
-            type="button"
-            title="Click to swap dice pairs allocation"
-            aria-label="Swap location/build dice pairs"
-            style="display:none;"
-          >
-            <img src="assets/img/swap.svg" alt="" class="swap-icon" />
-          </button>
-        </h2>
-        <div class="field">
-          <label>Location Dice</label>
-          <div class="dice-row" id="locDicePreview"></div>
-        </div>
-        <div class="field">
-          <label>Build Dice</label>
-          <div class="dice-row" id="buildDicePreview"></div>
-        </div>
-      </div>
-
-      <div class="panel log-panel">
-        <h2>Log</h2>
-        <div class="log-body">
-          <ul id="log"></ul>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <footer class="site-footer">
-    <div class="footer-inner">
-      <span class="footer-title"><a
-        href="https://boardgamegeek.com/boardgame/465867"
-        target="_blank"
-        rel="noopener"
-      >Rolling&nbsp;Fiefdoms</a></span>
-      <span class="footer-sep">·</span>
-      <span>Code: <a href="LICENSE">MIT</a></span>
-      <span class="footer-sep">·</span>
-      <span>Assets: <a href="LICENSE-ASSETS">CC BY-NC-SA 4.0</a></span>
-      <span class="footer-sep">·</span>
-      <span>&copy; 2025-<span id="currentYear">2026</span> Gregory Heitz</span>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Play Rolling Fiefdoms solo in your browser: Roll, Split, Build and Populate your Fiefdom."
+    />
+    <meta name="robots" content="index, follow" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Rolling Fiefdoms Online Solo" />
+    <meta
+      property="og:description"
+      content="Roll, Split, Build and Populate your Fiefdom with the solo-friendly Rolling Fiefdoms web app."
+    />
+    <meta
+      property="og:image"
+      content="resources/rolling-fiefdoms-cover-wide.jpg"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="798" />
+    <meta property="og:url" content="https://rolling-fiefdoms.edno.io" />
+    <meta
+      property="og:see_also"
+      content="https://boardgamegeek.com/boardgame/465867"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Rolling Fiefdoms Online Solo" />
+    <meta
+      name="twitter:description"
+      content="Play Rolling Fiefdoms solo in your browser: Roll, Split, Build and Populate your Fiefdom."
+    />
+    <meta
+      name="twitter:image"
+      content="resources/rolling-fiefdoms-cover-wide.jpg"
+    />
+    <meta name="theme-color" content="#e67e22" />
+    <title>Rolling Fiefdoms - Online Solo</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="modulepreload" href="app/app.js?v=v7" />
+    <link rel="icon" type="image/svg+xml" href="assets/img/forfeit.svg" />
+    <style>
+      /* Critical CSS - hide content until fonts and CSS load */
+      .loading header,
+      .loading main,
+      .loading .site-footer {
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+      .loading-overlay {
+        position: fixed;
+        inset: 0;
+        background: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 999;
+      }
+    </style>
+    <link rel="stylesheet" href="assets/css/fonts.css" />
+    <link rel="stylesheet" href="assets/css/styles.css" />
+  </head>
+  <body class="loading">
+    <header>
+      <h1>Rolling Fiefdoms</h1>
+      <nav class="top-menu" aria-label="Quick links">
+        <a
+          class="menu-item"
+          href="resources/rolling-fiefdoms-rulebook.pdf"
+          target="_blank"
+          rel="noopener"
+        >
+          <span class="menu-icon"
+            ><img
+              src="assets/img/rules.webp"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              width="32"
+              height="32"
+          /></span>
+          <span class="menu-text">Rules</span>
+        </a>
+        <a
+          class="menu-item"
+          href="https://pnpstash.com/product/rolling-fiefdoms/"
+          target="_blank"
+          rel="noopener"
+        >
+          <span class="menu-icon"
+            ><img
+              src="assets/img/playersheet.webp"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              width="32"
+              height="32"
+          /></span>
+          <span class="menu-text">Download</span>
+        </a>
+        <a
+          class="menu-item"
+          href="https://boardgamegeek.com/boardgame/465867"
+          target="_blank"
+          rel="noopener"
+        >
+          <span class="menu-icon"
+            ><img
+              src="assets/img/bgg.webp"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              width="32"
+              height="32"
+          /></span>
+          <span class="menu-text">BGG</span>
+        </a>
+        <a
+          class="menu-item"
+          href="https://github.com/edno/pnp-rolling-fiefdoms"
+          target="_blank"
+          rel="noopener"
+        >
+          <span class="menu-icon"
+            ><img
+              src="assets/img/github.webp"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              width="32"
+              height="32"
+          /></span>
+          <span class="menu-text">Github</span>
+        </a>
+        <button
+          class="menu-item"
+          id="sfxToggle"
+          type="button"
+          aria-pressed="true"
+        >
+          <span class="menu-icon">
+            <img
+              id="sfxToggleIcon"
+              src="assets/img/sfx-on.svg"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              width="32"
+              height="32"
+              aria-hidden="true"
+            />
+          </span>
+          <span class="menu-text" id="sfxToggleLabel">Sound On</span>
+        </button>
+        <button class="menu-item" id="fullscreenToggle" type="button">
+          <span class="menu-icon"
+            ><img
+              src="assets/img/fullscreen.webp"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              width="32"
+              height="32"
+          /></span>
+          <span class="menu-text">Fullscreen</span>
+        </button>
+      </nav>
+    </header>
+    <div id="loadingOverlay" class="loading-overlay">
+      <div class="spinner" aria-hidden="true"></div>
+      <div class="loading-text">Loading board…</div>
     </div>
-  </footer>
+    <div id="actionBanner" class="action-banner" aria-live="polite"></div>
 
-  <script>
-    document.getElementById('currentYear').textContent = new Date().getFullYear();
-  </script>
-  <script type="module" src="app/app.js?v=v7"></script>
+    <main>
+      <section class="board-panel">
+        <div class="sheet" id="sheet">
+          <img
+            id="sheetBaseImage"
+            class="sheet-base"
+            src="resources/rolling-fiefdoms-player-sheet.webp?v=v2.0"
+            srcset="
+              resources/rolling-fiefdoms-player-sheet.webp?v=v2.0    1x,
+              resources/rolling-fiefdoms-player-sheet@2x.webp?v=v2.0 2x
+            "
+            sizes="(max-width: 1100px) 100vw, 1100px"
+            alt="Rolling Fiefdoms player sheet showing the 5x5 board, tracks, and overlays."
+            loading="lazy"
+            decoding="async"
+            width="1086"
+            height="767"
+          />
+          <div class="fiefdom-overlay">
+            <input
+              id="fiefdomInput"
+              type="text"
+              maxlength="20"
+              placeholder="Fiefdom name"
+            />
+          </div>
+          <div class="board" id="board"></div>
+          <div
+            id="scoreOverlayBuildings"
+            class="score-overlay score-overlay-buildings"
+          ></div>
+          <div
+            id="scoreOverlayGuilds"
+            class="score-overlay score-overlay-guilds"
+          ></div>
+          <div
+            id="scoreOverlayReputation"
+            class="score-overlay score-overlay-reputation"
+          ></div>
+          <div
+            id="turnTrackOverlay"
+            class="turn-track-overlay"
+            aria-hidden="true"
+          ></div>
+          <div id="influenceOverlay" class="influence-overlay"></div>
+          <div id="popHousingOverlay" class="pop-housing-overlay"></div>
+          <div
+            id="buildingsOverlay"
+            class="buildings-overlay"
+            aria-label="Select building"
+          ></div>
+          <div
+            id="guildsOverlay"
+            class="guilds-overlay"
+            aria-label="Select guild"
+          ></div>
+        </div>
+      </section>
 
-</body>
+      <section class="controls">
+        <div class="panel">
+          <h2>
+            Turn
+            <span
+              id="turnStatusChip"
+              class="status-chip"
+              aria-live="polite"
+            ></span>
+          </h2>
+          <button id="rollBtn">Roll Dice</button>
+          <div id="diceView"></div>
+          <div id="turnHint" class="hint"></div>
+          <button id="finishActivation" style="display: none">
+            Finish Activation
+          </button>
+          <button id="newGameBtn" style="display: none">Play again</button>
+        </div>
+
+        <div class="panel">
+          <h2 class="panel-title-with-action">
+            <span>Split &amp; Build</span>
+            <button
+              id="swapPairBtn"
+              class="icon-btn"
+              type="button"
+              title="Click to swap dice pairs allocation"
+              aria-label="Swap location/build dice pairs"
+              style="display: none"
+            >
+              <img src="assets/img/swap.svg" alt="" class="swap-icon" />
+            </button>
+          </h2>
+          <div class="field">
+            <label>Location Dice</label>
+            <div class="dice-row" id="locDicePreview"></div>
+          </div>
+          <div class="field">
+            <label>Build Dice</label>
+            <div class="dice-row" id="buildDicePreview"></div>
+          </div>
+        </div>
+
+        <div class="panel log-panel">
+          <h2>Log</h2>
+          <div class="log-body">
+            <ul id="log"></ul>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <span class="footer-title"
+          ><a
+            href="https://boardgamegeek.com/boardgame/465867"
+            target="_blank"
+            rel="noopener"
+            >Rolling&nbsp;Fiefdoms</a
+          ></span
+        >
+        <span class="footer-sep">·</span>
+        <span
+          >Code:
+          <a
+            href="https://github.com/edno/pnp-rolling-fiefdoms/blob/main/LICENSE"
+            target="_blank"
+            rel="noopener"
+            >MIT</a
+          ></span
+        >
+        <span class="footer-sep">·</span>
+        <span
+          >Assets:
+          <a
+            href="https://github.com/edno/pnp-rolling-fiefdoms/blob/main/LICENSE-ASSETS"
+            target="_blank"
+            rel="noopener"
+            >CC BY-NC-SA 4.0</a
+          ></span
+        >
+        <span class="footer-sep">·</span>
+        <span
+          >&copy; 2025-<span id="currentYear">2026</span> Gregory Heitz</span
+        >
+      </div>
+    </footer>
+
+    <script>
+      document.getElementById("currentYear").textContent =
+        new Date().getFullYear();
+    </script>
+    <script type="module" src="app/app.js?v=v7"></script>
+  </body>
 </html>
