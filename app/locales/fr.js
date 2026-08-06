@@ -28,7 +28,7 @@ export default {
     rulesHref: "resources/rolling-fiefdoms-rulebook-fr.pdf",
     navDownload: "Télécharger",
     navBgg: "BGG",
-    navGithub: "Github",
+    navGithub: "GitHub",
     fullscreen: "Plein écran",
     switchLanguage: "Langue",
     switchLanguageTitle: "Changer de langue",
