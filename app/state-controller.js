@@ -52,6 +52,8 @@ const baseState = {
   invalidSelectionMessage: null,
   forceForfeitAdvisory: false,
   forceForfeitHighlight: false,
+  challengeId: null,
+  turnLimit: null,
 };
 
 function commitPendingInfluence(state) {

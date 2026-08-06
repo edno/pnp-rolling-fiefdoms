@@ -12,6 +12,7 @@ import {
   autoAdvanceState,
   recalcTracks,
   maybeRollAfterLockState,
+  turnLimitReached,
 } from "../app/game-state.js";
 import { createState, lockDiceSnapshot, resetTurnState } from "../app/state-controller.js";
 import {
@@ -888,6 +889,32 @@ describe("auto advance and tracks", () => {
     );
     const result = autoAdvanceState(state, state.board);
     expect(result.action).toBe("activate");
+  });
+
+  it("requests activation early when a challenge turn limit is reached, even with an open board", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.turnLimit = 24;
+    state.turnIndex = 24;
+    expect(turnLimitReached(state)).toBe(true);
+    const result = autoAdvanceState(state, state.board);
+    expect(result.action).toBe("activate");
+  });
+
+  it("does not force activation before the turn limit is reached", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.turnLimit = 24;
+    state.turnIndex = 10;
+    expect(turnLimitReached(state)).toBe(false);
+    const result = autoAdvanceState(state, state.board);
+    expect(result.action).toBe("roll");
+  });
+
+  it("ignores turn limit when unset (normal game)", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    expect(turnLimitReached(state)).toBe(false);
   });
 
   it("recalculates tracks and returns score info", () => {

@@ -485,9 +485,13 @@ export function finishActivation(state) {
   state.activationComplete = true;
 }
 
+export function turnLimitReached(state) {
+  return typeof state.turnLimit === "number" && state.turnIndex >= state.turnLimit;
+}
+
 export function evaluateAutoAdvance(state, board) {
   if (state.pendingPopulation?.remaining > 0) return "wait";
-  if (boardFull(board)) return "activate";
+  if (boardFull(board) || turnLimitReached(state)) return "activate";
   if (state.diceLocked) return "wait";
   return "roll";
 }

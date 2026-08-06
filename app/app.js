@@ -99,6 +99,7 @@ import {
   formatButtonLabelHtml,
 } from "./ui-feedback.js";
 import { initI18n, applyStaticDom, setLocale, getLocale, supportedLocales, localeDisplayName, localeFlag, t } from "./i18n.js";
+import { CHALLENGES } from "./challenges.js";
 
 const BOARD_SIZE = 5;
 const POPULATION_GRID_SIZE = 4;
@@ -473,7 +474,12 @@ async function init() {
   }
 }
 
-function resetState() {
+function activeChallenge() {
+  return state.challengeId ? CHALLENGES[state.challengeId] || null : null;
+}
+
+function resetState(challengeId = null) {
+  const challenge = challengeId ? CHALLENGES[challengeId] || null : null;
   state.board = Array.from({ length: BOARD_SIZE }, () =>
     Array.from({ length: BOARD_SIZE }, () => ({ building: null, buildingLabel: null, forfeited: false, springBoost: 0 })),
   );
@@ -496,6 +502,22 @@ function resetState() {
   state.rollAvailable = true;
   state.pendingTurnIndex = null;
   state.pendingActiveTurn = null;
+  state.challengeId = challenge?.id || null;
+  state.turnLimit = challenge?.turnLimit ?? null;
+  if (challenge?.setup?.startingInfluence) {
+    state.influence.earned = challenge.setup.startingInfluence;
+  }
+  if (challenge?.setup?.forcedCenterBuilding) {
+    const { code, guildType } = challenge.setup.forcedCenterBuilding;
+    const centerRow = Math.floor(BOARD_SIZE / 2);
+    const centerCol = Math.floor(BOARD_SIZE / 2);
+    state.board[centerRow][centerCol] = {
+      building: code,
+      buildingLabel: code === "G" ? guildType : null,
+      forfeited: false,
+      springBoost: 0,
+    };
+  }
   resetTurnState(state);
   clearElement(logEl);
   if (finishActivationBtn) finishActivationBtn.style.display = "none";
@@ -504,6 +526,9 @@ function resetState() {
   refreshDiceVisibility();
   updateTurnStatusChip();
   log(t("game.started"));
+  if (challenge) {
+    log(t(challenge.nameKey));
+  }
 }
 
 function setSheetImageSources(el) {
@@ -1113,7 +1138,11 @@ function fillBuildings(buildDice) {
     return;
   }
   const adjustedBuildDice = applyInfluenceToDice(state, effectiveBuildDice);
-  const allowed = restrictBuildOptionsForBoard(buildingOptionsFromDice(adjustedBuildDice), state.board);
+  const allowed = restrictBuildOptionsForBoard(
+    buildingOptionsFromDice(adjustedBuildDice),
+    state.board,
+    activeChallenge()?.rules?.disabledBuildings,
+  );
   const availableGuildTypes = guildTypes.filter((gt) => !builtGuildTypes(state.board).has(gt));
   const options = allowed.filter((opt) => {
     if (opt.code !== "G") return true;
@@ -1181,7 +1210,11 @@ function renderBuildingOverlay(options = [], disabled = false) {
       ? (lockedPairChoice().buildDice || state.lockedBuildDice)
       : state.buildDice;
   if ((!options || !options.length) && buildDice?.length && !forceDisabled) {
-    const fallback = restrictBuildOptionsForBoard(buildingOptionsFromDice(buildDice), state.board);
+    const fallback = restrictBuildOptionsForBoard(
+      buildingOptionsFromDice(buildDice),
+      state.board,
+      activeChallenge()?.rules?.disabledBuildings,
+    );
     options = fallback;
   }
   clearElement(overlay);
@@ -1813,8 +1846,8 @@ function finishActivation() {
   updateTurnStatusChip();
 }
 
-function newGame() {
-  resetState();
+function newGame(challengeId = null) {
+  resetState(challengeId);
   renderBoard();
   prepareNextRoll();
   renderSelectionDice([], []);
