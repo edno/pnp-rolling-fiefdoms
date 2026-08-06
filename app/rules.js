@@ -1,4 +1,5 @@
 // Rule helper utilities
+import { t } from "./i18n.js";
 
 // Return unique location pairs (unordered) expanding flexible faces (windrose, paired faces) and excluding X
 export function uniqueLocationPairs(dice) {
@@ -77,17 +78,20 @@ function possibleValues(die) {
 }
 
 // Map build dice to building options (die1, die2, sum)
+// `name` is a getter so it re-evaluates against the active locale on each
+// access, rather than freezing in whatever locale was active when this
+// module was first imported.
 export const BUILDING_RULES = {
-  C: { name: "Cottage", requirement: 0, base: 0, category: "special" },
-  F: { name: "Farm", requirement: 2, base: 3, category: "basic" },
-  Q: { name: "Quarry", requirement: 2, base: 3, category: "basic" },
-  W: { name: "Windmill", requirement: 2, base: 3, category: "basic" },
-  M: { name: "Market", requirement: 3, base: 0, category: "basic" },
-  S: { name: "Springhouse", requirement: 0, base: 0, category: "special" },
-  T: { name: "Townhall", requirement: 4, base: 5, category: "advanced" },
-  U: { name: "University", requirement: 3, base: 0, category: "advanced" },
-  A: { name: "Almshouse", requirement: 2, base: 0, category: "advanced" },
-  G: { name: "Guild", requirement: 4, base: 0, category: "advanced" },
+  C: { get name() { return t("buildings.C"); }, requirement: 0, base: 0, category: "special" },
+  F: { get name() { return t("buildings.F"); }, requirement: 2, base: 3, category: "basic" },
+  Q: { get name() { return t("buildings.Q"); }, requirement: 2, base: 3, category: "basic" },
+  W: { get name() { return t("buildings.W"); }, requirement: 2, base: 3, category: "basic" },
+  M: { get name() { return t("buildings.M"); }, requirement: 3, base: 0, category: "basic" },
+  S: { get name() { return t("buildings.S"); }, requirement: 0, base: 0, category: "special" },
+  T: { get name() { return t("buildings.T"); }, requirement: 4, base: 5, category: "advanced" },
+  U: { get name() { return t("buildings.U"); }, requirement: 3, base: 0, category: "advanced" },
+  A: { get name() { return t("buildings.A"); }, requirement: 2, base: 0, category: "advanced" },
+  G: { get name() { return t("buildings.G"); }, requirement: 4, base: 0, category: "advanced" },
 };
 
 const GUILD_LABEL_CONFIG = {
@@ -143,8 +147,8 @@ export function buildingOptionsFromDice(buildDice, buildings = BUILDING_RULES) {
     .forEach((combo) => {
       const a = combo[0];
       const b = combo[1];
-      const dieLabelA = buildDice[0]?.label || "die A";
-      const dieLabelB = buildDice[1]?.label || "die B";
+      const dieLabelA = buildDice[0]?.label || t("build.dieAFallback");
+      const dieLabelB = buildDice[1]?.label || t("build.dieBFallback");
       const die1 = typeof a === "number" ? map[a] : null;
       const die2 = typeof b === "number" ? map[b] : null;
       if (die1) {
@@ -179,7 +183,7 @@ export function buildingOptionsFromDice(buildDice, buildings = BUILDING_RULES) {
               code: sumCode,
               name: buildings[sumCode].name,
               source: "sum",
-              sourceLabel: `sum ${sum}`,
+              sourceLabel: t("build.sumSource", { sum }),
               popGain: 0,
             });
         }
@@ -647,7 +651,7 @@ function guildConfigForLabel(label) {
   return GUILD_LABEL_CONFIG[label] || null;
 }
 
-function guildTargetFromLabel(label) {
+export function guildTargetFromLabel(label) {
   return guildConfigForLabel(label)?.target || null;
 }
 

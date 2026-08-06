@@ -23,6 +23,7 @@ import {
   BUILDING_RULES,
   computeActivationMap,
   scoreBuildingAt,
+  guildTargetFromLabel,
 } from "./rules.js";
 import { createState, resetTurnState, lockDiceSnapshot } from "./state-controller.js";
 import {
@@ -73,6 +74,8 @@ import {
   sfxToggleBtn,
   sfxToggleLabel,
   sfxToggleIcon,
+  localeToggleBtn,
+  localeToggleIcon,
   turnStatusChip,
   loadingOverlay,
   sheetBaseImage,
@@ -94,7 +97,7 @@ import {
   actionMessage as generateActionMessage,
   updateActionBanner as updateBannerUI,
 } from "./ui-feedback.js";
-import { initI18n, applyStaticDom, t } from "./i18n.js";
+import { initI18n, applyStaticDom, setLocale, getLocale, supportedLocales, t } from "./i18n.js";
 
 const BOARD_SIZE = 5;
 const POPULATION_GRID_SIZE = 4;
@@ -164,6 +167,32 @@ function updateSfxToggleButton() {
     sfxToggleIcon.src = sfxEnabled ? SFX_ICON_ON : SFX_ICON_OFF;
     sfxToggleIcon.alt = sfxEnabled ? t("sfx.onAlt") : t("sfx.offAlt");
   }
+}
+
+function updateLocaleToggleButton() {
+  if (!localeToggleBtn) return;
+  const locales = supportedLocales();
+  const current = getLocale();
+  const next = locales[(locales.indexOf(current) + 1) % locales.length] || current;
+  if (localeToggleIcon) localeToggleIcon.textContent = next.toUpperCase();
+}
+
+function cycleLocale() {
+  const locales = supportedLocales();
+  if (locales.length < 2) return;
+  const current = getLocale();
+  const next = locales[(locales.indexOf(current) + 1) % locales.length];
+  setLocale(next);
+  applyStaticDom();
+  updateLocaleToggleButton();
+  updateSfxToggleButton();
+  updateRollButton();
+  renderBoard();
+  updateTracks();
+  updateDiceAssignments();
+  updateTurnStatusChip();
+  refreshDiceVisibility();
+  updateActionBanner();
 }
 
 function stopAllSfx() {
@@ -574,6 +603,10 @@ async function setupControls() {
     sfxToggleBtn.onclick = () => toggleSfxEnabled();
     updateSfxToggleButton();
   }
+  if (localeToggleBtn) {
+    localeToggleBtn.onclick = () => cycleLocale();
+    updateLocaleToggleButton();
+  }
   const fiefdomInput = document.getElementById("fiefdomInput");
   if (fiefdomInput) {
     fiefdomInput.value = state.fiefdomName || "";
@@ -707,10 +740,21 @@ function rollDice() {
   }
 }
 
+function buildingDisplayLetter(code) {
+  const name = t(`buildings.${code}`);
+  return typeof name === "string" && name.length ? name[0].toUpperCase() : code;
+}
+
+function guildDisplayLabel(guildLabel) {
+  const target = guildTargetFromLabel(guildLabel);
+  if (!target) return (guildLabel || "G").toUpperCase();
+  return `${buildingDisplayLetter(target)}G`;
+}
+
 function formatDieLabelForLog(label) {
   if (typeof label !== "string" || !label.length) return label;
-  if (label.startsWith("N")) return `W${label.slice(1)}`;
-  if (label.startsWith("X")) return `E${label.slice(1)}`;
+  if (label.startsWith("N")) return `${t("dice.windrosePrefix")}${label.slice(1)}`;
+  if (label.startsWith("X")) return `${t("dice.eventPrefix")}${label.slice(1)}`;
   return label;
 }
 
@@ -722,7 +766,7 @@ function describeDice(dice) {
         d.face === "X"
           ? "X"
           : d.face === "windrose"
-            ? "windrose"
+            ? t("dice.windroseFace")
             : d.face;
       return `${label}:${face}`;
     })
@@ -732,8 +776,8 @@ function describeDice(dice) {
 function formatDiceLabelsInMessage(message) {
   if (typeof message !== "string") return message;
   return message.replace(/\b([NX])(\d+)\b/g, (_, prefix, digits) => {
-    if (prefix === "N") return `W${digits}`;
-    if (prefix === "X") return `E${digits}`;
+    if (prefix === "N") return `${t("dice.windrosePrefix")}${digits}`;
+    if (prefix === "X") return `${t("dice.eventPrefix")}${digits}`;
     return `${prefix}${digits}`;
   });
 }
@@ -1212,13 +1256,7 @@ function renderBoard() {
         const label = document.createElement("div");
         label.className = "label building";
         label.textContent =
-          data.building === "G"
-            ? (() => {
-                const map = { GF: "FG", GQ: "QG", GW: "WG", GM: "MG" };
-                const raw = (data.buildingLabel || "G").toUpperCase();
-                return map[raw] || raw;
-              })()
-            : data.buildingLabel || data.building;
+          data.building === "G" ? guildDisplayLabel(data.buildingLabel) : buildingDisplayLetter(data.building);
         cell.appendChild(label);
         if (data.activationForfeit) {
           cell.classList.add("forfeit");
@@ -1569,14 +1607,7 @@ function placeBuilding(r, c, code) {
   lockDiceSnapshot(state, { markPendingNextRoll: true, uniqueLocationPairs });
   renderBoard();
   updateTracks();
-  const displayLabel =
-    code === "G"
-      ? (() => {
-          const map = { GF: "FG", GQ: "QG", GW: "WG" };
-          const raw = (buildingLabel || "G").toUpperCase();
-          return map[raw] || raw;
-        })()
-      : code;
+  const displayLabel = code === "G" ? guildDisplayLabel(buildingLabel) : buildingDisplayLetter(code);
   log(t("build.placed", { label: displayLabel, row: r + 1, col: c + 1 }));
   state.splitUsedForBuild = true;
   updateDiceAssignments();

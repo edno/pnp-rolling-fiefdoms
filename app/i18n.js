@@ -6,10 +6,12 @@
  * in LOCALES below.
  */
 import en from "./locales/en.js";
+import fr from "./locales/fr.js";
 
-const LOCALES = { en };
+const LOCALES = { en, fr };
 const DEFAULT_LOCALE = "en";
 const PLACEHOLDER_RE = /\{(\w+)\}/g;
+const LOCALE_STORAGE_KEY = "rf-locale";
 
 let currentLocale = DEFAULT_LOCALE;
 let strings = LOCALES[DEFAULT_LOCALE];
@@ -18,7 +20,21 @@ export function supportedLocales() {
   return Object.keys(LOCALES);
 }
 
+function storedLocale() {
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY);
+      if (stored && LOCALES[stored]) return stored;
+    }
+  } catch {
+    // ignore storage failures
+  }
+  return null;
+}
+
 export function detectLocale() {
+  const stored = storedLocale();
+  if (stored) return stored;
   const nav = (typeof navigator !== "undefined" && navigator.language) || DEFAULT_LOCALE;
   const short = nav.slice(0, 2).toLowerCase();
   return supportedLocales().includes(short) ? short : DEFAULT_LOCALE;
@@ -37,6 +53,23 @@ export function initI18n(locale) {
     document.documentElement.lang = currentLocale;
   }
   return currentLocale;
+}
+
+/**
+ * Explicitly switch locale and persist the choice for future visits.
+ * @param {string} locale
+ * @returns {string} the locale actually applied
+ */
+export function setLocale(locale) {
+  const applied = initI18n(locale);
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, applied);
+    }
+  } catch {
+    // ignore storage failures
+  }
+  return applied;
 }
 
 export function getLocale() {
