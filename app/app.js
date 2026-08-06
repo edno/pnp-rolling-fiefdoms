@@ -191,6 +191,7 @@ function applyLocaleChange(locale) {
   applyStaticDom();
   if (localeSelect) localeSelect.value = getLocale();
   updateLocaleFlagIcon();
+  setSheetImageSources(sheetBaseImage);
   updateSfxToggleButton();
   updateRollButton();
   renderBoard();
@@ -384,6 +385,9 @@ let swapBtnLastVisible = false;
 
 const SHEET_VERSION = "v2.0";
 const SHEET_BASE_PATH = "resources/rolling-fiefdoms-player-sheet";
+// Locales with dedicated board artwork (baked-in translated text). Any
+// locale not listed here falls back to the English board.
+const LOCALIZED_SHEET_LOCALES = new Set(["fr"]);
 const POP_CAPACITY = 5;
 const POP_LAYOUT = { rows: [3, 3, 3, 3, 3, 3], pipsPerCell: 4 };
 const POP_TRACK_TOTAL_CELLS = POP_LAYOUT.rows.reduce((sum, len) => sum + len, 0);
@@ -545,9 +549,14 @@ function preloadSheet() {
   });
 }
 
+function sheetBasePathForLocale() {
+  const locale = getLocale();
+  return LOCALIZED_SHEET_LOCALES.has(locale) ? `${SHEET_BASE_PATH}-${locale}` : SHEET_BASE_PATH;
+}
+
 function sheetImageUrl(scale = 1) {
   const suffix = scale > 1 ? "@2x" : "";
-  return new URL(`${SHEET_BASE_PATH}${suffix}.webp?v=${SHEET_VERSION}`, window.location.href).toString();
+  return new URL(`${sheetBasePathForLocale()}${suffix}.webp?v=${SHEET_VERSION}`, window.location.href).toString();
 }
 
 registerServiceWorker();
