@@ -100,6 +100,91 @@ describe("beginTurn", () => {
   });
 });
 
+describe("beginTurn Unrest tracking (challenge VI)", () => {
+  const dice = () => [
+    { face: 1, resolved: 1 },
+    { face: 2, resolved: 2 },
+    { face: 3, resolved: 3 },
+    { face: 4, resolved: 4 },
+  ];
+
+  it("does not accrue Unrest when unrestTracking is off", () => {
+    const state = createState();
+    beginTurn(state, dice(), emptyBoard(), helpers);
+    expect(state.unrest.total).toBe(0);
+  });
+
+  it("does not accrue Unrest on the very first turn (no prior turn to score)", () => {
+    const state = createState();
+    state.unrestTracking = true;
+    state.turnFlags = { advancedBuiltThisTurn: true };
+    beginTurn(state, dice(), emptyBoard(), helpers);
+    expect(state.unrest.total).toBe(0);
+  });
+
+  it("gains 1 Unrest for an Advanced building built during the completed turn", () => {
+    const state = createState();
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.turnFlags = { advancedBuiltThisTurn: true };
+    beginTurn(state, dice(), emptyBoard(), helpers);
+    expect(state.unrest.total).toBe(1);
+  });
+
+  it("gains 1 Unrest per Influence spent during the completed turn", () => {
+    const state = createState();
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.influenceAdjustments = { N1: { delta: 2 }, N2: { delta: -1 } };
+    beginTurn(state, dice(), emptyBoard(), helpers);
+    expect(state.unrest.total).toBe(3);
+  });
+
+  it("caps Unrest gain at 4 per turn", () => {
+    const state = createState();
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.turnFlags = { advancedBuiltThisTurn: true };
+    state.influenceAdjustments = { N1: { delta: 5 } };
+    beginTurn(state, dice(), emptyBoard(), helpers);
+    expect(state.unrest.total).toBe(4);
+  });
+
+  it("raises Barricades and hatches an empty population square on crossing a multiple of 4", () => {
+    const state = createState();
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.unrest = { total: 3 };
+    state.turnFlags = { advancedBuiltThisTurn: true };
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    const { messages } = beginTurn(state, dice(), emptyBoard(), {
+      ...helpers,
+      allocatePopulationToNode,
+      popCapacity: 5,
+    });
+    expect(state.unrest.total).toBe(4);
+    expect(state.populationNodes[0][0]).toBe(1);
+    expect(messages.some((m) => m.kind === "unrest")).toBe(true);
+  });
+
+  it("does not raise Barricades when Unrest does not cross a multiple of 4", () => {
+    const state = createState();
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.unrest = { total: 1 };
+    state.turnFlags = { advancedBuiltThisTurn: true };
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    const { messages } = beginTurn(state, dice(), emptyBoard(), {
+      ...helpers,
+      allocatePopulationToNode,
+      popCapacity: 5,
+    });
+    expect(state.unrest.total).toBe(2);
+    expect(state.populationNodes[0][0]).toBe(0);
+    expect(messages.some((m) => m.kind === "unrest")).toBe(false);
+  });
+});
+
 describe("activation worker assignment", () => {
   const buildingRules = BUILDING_RULES;
   const nodesForCell = (r, c) => [[r, c]];

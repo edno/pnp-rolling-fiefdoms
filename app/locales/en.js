@@ -273,6 +273,6 @@ export default {
       victory1: "Achieve at least 80 Reputation Points.",
     },
     unrestLabel: "Unrest",
-    barricadesRaised: "Barricades raised! A Population square has been hatched.",
+    barricadesRaised: 'Barricades raised! A Population square has been hatched. <img src="assets/img/hatch.webp" alt="" class="inline-icon">',
   },
 };

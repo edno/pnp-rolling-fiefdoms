@@ -181,7 +181,8 @@ button.menu-item {
   animation: banner-bump 1.2s ease 0.4s;
 }
 
-.action-banner .inline-icon {
+.action-banner .inline-icon,
+#log .inline-icon {
   height: 24px;
   width: auto;
   vertical-align: middle;
@@ -841,6 +842,12 @@ main {
   background: rgba(52, 73, 94, 0.08);
   color: #2c3e50;
   border-color: rgba(52, 73, 94, 0.35);
+}
+
+.status-chip.unrest-badge {
+  background: rgba(192, 57, 43, 0.12);
+  color: #922b21;
+  border-color: rgba(192, 57, 43, 0.4);
 }
 
 .field label {

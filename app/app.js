@@ -77,6 +77,7 @@ import {
   localeSelect,
   localeFlagIcon,
   turnStatusChip,
+  unrestBadge,
   loadingOverlay,
   sheetBaseImage,
   forEachCell,
@@ -505,6 +506,8 @@ function resetState(challengeId = null) {
   state.challengeId = challenge?.id || null;
   state.turnLimit = challenge?.turnLimit ?? null;
   state.influenceBonus = challenge?.setup?.startingInfluence || 0;
+  state.unrestTracking = Boolean(challenge?.rules?.unrestTracking);
+  state.unrest = { total: 0 };
   if (challenge?.setup?.forcedCenterBuilding) {
     const { code, guildType } = challenge.setup.forcedCenterBuilding;
     const centerRow = Math.floor(BOARD_SIZE / 2);
@@ -729,6 +732,8 @@ function rollDice() {
     filterAvailablePairs,
     turnIndexOverride,
     activeTurnOverride,
+    allocatePopulationToNode,
+    popCapacity: POP_CAPACITY,
   });
   state.pendingTurnIndex = null;
   state.pendingActiveTurn = null;
@@ -1638,6 +1643,9 @@ function placeBuilding(r, c, code) {
   }
   cell.building = code;
   cell.buildingLabel = buildingLabel;
+  if (BUILDING_RULES[code]?.category === "advanced") {
+    state.turnFlags.advancedBuiltThisTurn = true;
+  }
   playSfx();
   if (code === "C") {
     const previousHousing = state.tracks.housing;
@@ -2078,6 +2086,23 @@ function updateTurnStatusChip() {
     turnStatusChip.classList.toggle("status-active", active);
     turnStatusChip.classList.toggle("status-inactive", !active);
   }
+  updateUnrestBadge();
+}
+
+function updateUnrestBadge() {
+  if (!unrestBadge) return;
+  if (!state.unrestTracking) {
+    unrestBadge.classList.add("hidden");
+    unrestBadge.setAttribute("aria-hidden", "true");
+    return;
+  }
+  const total = state.unrest?.total || 0;
+  const label = `${t("challenges.unrestLabel")}: ${total}`;
+  unrestBadge.textContent = label;
+  unrestBadge.setAttribute("aria-label", label);
+  unrestBadge.title = label;
+  unrestBadge.classList.remove("hidden");
+  unrestBadge.removeAttribute("aria-hidden");
 }
 
 function maybeRollAfterLock() {

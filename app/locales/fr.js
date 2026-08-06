@@ -273,6 +273,6 @@ export default {
       victory1: "Obtenez au moins 80 Points de Réputation.",
     },
     unrestLabel: "Agitation",
-    barricadesRaised: "Barricades érigées ! Une case Population a été hachurée.",
+    barricadesRaised: 'Barricades érigées ! Une case Population a été hachurée. <img src="assets/img/hatch.webp" alt="" class="inline-icon">',
   },
 };

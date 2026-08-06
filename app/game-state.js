@@ -123,13 +123,66 @@ function mergeForcedLocationDice(state) {
   state.locationSelection = merged.slice(0, 2);
 }
 
+function calcVagrantsFromState(state, board) {
+  const pop = state.populationNodes ? state.populationNodes.flat().reduce((a, b) => a + b, 0) : 0;
+  const cottages = board.flat().filter((c) => c.building === "C").length;
+  return Math.max(0, pop - cottages * 4);
+}
+
+function firstEmptyPopulationNode(grid) {
+  if (!Array.isArray(grid)) return null;
+  for (let r = 0; r < grid.length; r++) {
+    for (let c = 0; c < (grid[r]?.length || 0); c++) {
+      if (!grid[r][c]) return [r, c];
+    }
+  }
+  return null;
+}
+
+// Unrest (challenge VI, "Embers of Revolt") is tallied at the end of each completed turn:
+// +1 if an Advanced building was built that turn, +1 per Influence spent that turn, +1 if
+// Vagrants exceed 8, capped at +4/turn. Every 4th Unrest reached raises Barricades, hatching
+// one empty Population square.
+function applyUnrestForCompletedTurn(state, board, { allocatePopulationToNode, popCapacity = 5 } = {}) {
+  const influenceUsed = totalInfluenceSpent(state.influenceAdjustments);
+  const advancedBuilt = state.turnFlags?.advancedBuiltThisTurn ? 1 : 0;
+  const vagrantUnrest = calcVagrantsFromState(state, board) > 8 ? 1 : 0;
+  const gain = Math.min(4, advancedBuilt + influenceUsed + vagrantUnrest);
+  if (gain <= 0) return null;
+  const prevTotal = state.unrest?.total || 0;
+  const nextTotal = prevTotal + gain;
+  state.unrest = { total: nextTotal };
+  const barricadesRaised = Math.floor(nextTotal / 4) > Math.floor(prevTotal / 4);
+  if (barricadesRaised && typeof allocatePopulationToNode === "function") {
+    const empty = firstEmptyPopulationNode(state.populationNodes);
+    if (empty) {
+      const { grid } = allocatePopulationToNode(state.populationNodes, empty[0], empty[1], 1, popCapacity);
+      state.populationNodes = grid;
+      return { gain, total: nextTotal, barricades: true };
+    }
+  }
+  return { gain, total: nextTotal, barricades: false };
+}
+
 export function beginTurn(
   state,
   dice,
   board,
-  { uniqueLocationPairs, filterAvailablePairs, computePestilenceInfo, turnIndexOverride = null, activeTurnOverride = null },
+  {
+    uniqueLocationPairs,
+    filterAvailablePairs,
+    computePestilenceInfo,
+    turnIndexOverride = null,
+    activeTurnOverride = null,
+    allocatePopulationToNode,
+    popCapacity,
+  },
 ) {
   const messages = [];
+  let unrestResult = null;
+  if (state.unrestTracking && state.turnIndex > 0) {
+    unrestResult = applyUnrestForCompletedTurn(state, board, { allocatePopulationToNode, popCapacity });
+  }
   resetTurnState(state);
   const newTurnIndex = typeof turnIndexOverride === "number" ? turnIndexOverride : state.turnIndex + 1;
   state.turnIndex = newTurnIndex;
@@ -140,6 +193,9 @@ export function beginTurn(
   if (!statusLogged) {
     messages.push({ kind: "status", text: state.activeTurn ? t("turn.active") : t("turn.nonActive") });
     state.lastStatusTurnIndex = newTurnIndex;
+  }
+  if (unrestResult?.barricades) {
+    messages.push({ kind: "unrest", text: t("challenges.barricadesRaised") });
   }
   state.dice = dice;
   state.forcedLocationDice = forcedLocationDiceIndices(state.dice);

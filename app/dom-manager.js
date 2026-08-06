@@ -41,6 +41,7 @@ export const localeSelect = document.getElementById("localeSelect");
 export const localeFlagIcon = document.getElementById("localeFlagIcon");
 export const actionBannerEl = document.getElementById("actionBanner");
 export const turnStatusChip = document.getElementById("turnStatusChip");
+export const unrestBadge = document.getElementById("unrestBadge");
 export const loadingOverlay = document.getElementById("loadingOverlay");
 export const sheetBaseImage = document.getElementById("sheetBaseImage");
 

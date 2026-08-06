@@ -55,6 +55,9 @@ const baseState = {
   forceForfeitHighlight: false,
   challengeId: null,
   turnLimit: null,
+  unrestTracking: false,
+  unrest: { total: 0 },
+  turnFlags: { advancedBuiltThisTurn: false },
 };
 
 function commitPendingInfluence(state) {
@@ -108,6 +111,7 @@ export function resetTurnState(state) {
   state.influenceTarget = null;
   state.influenceSelectionKey = null;
   state.forceForfeitHighlight = false;
+  state.turnFlags = { advancedBuiltThisTurn: false };
   // rollAvailable intentionally not reset here to preserve per-turn lock until explicitly re-enabled
 }
 
