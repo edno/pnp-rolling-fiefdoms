@@ -1,4 +1,3 @@
-/* eslint-env serviceworker */
 const CACHE_VERSION = "v1.32";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
 const APP_VERSION = "v7";

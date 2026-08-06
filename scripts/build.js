@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-/* eslint-env node */
-/* eslint-disable no-console */
 const path = require("node:path");
 const { mkdir, rm, cp, readFile, writeFile, readdir, stat } = require("node:fs/promises");
 const { build } = require("esbuild");
@@ -36,7 +34,7 @@ async function copyStatic(entry) {
     await cp(src, dest, { recursive: true, force: true });
   } catch (err) {
     const reason = err?.code === "ENOENT" ? "missing source" : err.message || err;
-    throw new Error(`Unable to copy ${entry}: ${reason}`);
+    throw new Error(`Unable to copy ${entry}: ${reason}`, { cause: err });
   }
 }
 
