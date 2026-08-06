@@ -29,6 +29,14 @@ export function localeDisplayName(code) {
   return LOCALES[code]?.meta?.languageName || code;
 }
 
+/**
+ * Flag emoji representing a locale (e.g. "🇫🇷" for fr).
+ * @param {string} code
+ */
+export function localeFlag(code) {
+  return LOCALES[code]?.meta?.flag || "🌐";
+}
+
 function storedLocale() {
   try {
     if (typeof window !== "undefined" && window.localStorage) {

@@ -134,6 +134,15 @@
           /></span>
           <span class="menu-text" data-i18n="html.navGithub">GitHub</span>
         </a>
+        <div class="menu-item locale-switcher">
+          <span class="menu-icon" id="localeFlagIcon" aria-hidden="true">🌐</span>
+          <span class="menu-text" data-i18n="html.switchLanguage">Language</span>
+          <select
+            id="localeSelect"
+            class="locale-select"
+            data-i18n-attr="aria-label:html.switchLanguageTitle;title:html.switchLanguageTitle"
+          ></select>
+        </div>
         <button
           class="menu-item"
           id="sfxToggle"
@@ -166,14 +175,6 @@
           /></span>
           <span class="menu-text" data-i18n="html.fullscreen">Fullscreen</span>
         </button>
-        <div class="menu-item locale-switcher">
-          <span class="menu-icon" aria-hidden="true">🌐</span>
-          <select
-            id="localeSelect"
-            class="locale-select"
-            data-i18n-attr="aria-label:html.switchLanguageTitle;title:html.switchLanguageTitle"
-          ></select>
-        </div>
       </nav>
     </header>
     <div id="loadingOverlay" class="loading-overlay">

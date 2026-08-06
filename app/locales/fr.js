@@ -2,6 +2,7 @@ export default {
   meta: {
     title: "Rolling Fiefdoms - En ligne solo",
     languageName: "Français",
+    flag: "🇫🇷",
   },
   dice: {
     windrosePrefix: "R",
@@ -29,6 +30,7 @@ export default {
     navBgg: "BGG",
     navGithub: "Github",
     fullscreen: "Plein écran",
+    switchLanguage: "Langue",
     switchLanguageTitle: "Changer de langue",
     loadingBoard: "Chargement du plateau…",
     fiefdomNamePlaceholder: "Nom du fief",

@@ -38,6 +38,7 @@ export const sfxToggleBtn = document.getElementById("sfxToggle");
 export const sfxToggleLabel = document.getElementById("sfxToggleLabel");
 export const sfxToggleIcon = document.getElementById("sfxToggleIcon");
 export const localeSelect = document.getElementById("localeSelect");
+export const localeFlagIcon = document.getElementById("localeFlagIcon");
 export const actionBannerEl = document.getElementById("actionBanner");
 export const turnStatusChip = document.getElementById("turnStatusChip");
 export const loadingOverlay = document.getElementById("loadingOverlay");

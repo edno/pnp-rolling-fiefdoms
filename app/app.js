@@ -75,6 +75,7 @@ import {
   sfxToggleLabel,
   sfxToggleIcon,
   localeSelect,
+  localeFlagIcon,
   turnStatusChip,
   loadingOverlay,
   sheetBaseImage,
@@ -96,7 +97,7 @@ import {
   actionMessage as generateActionMessage,
   updateActionBanner as updateBannerUI,
 } from "./ui-feedback.js";
-import { initI18n, applyStaticDom, setLocale, getLocale, supportedLocales, localeDisplayName, t } from "./i18n.js";
+import { initI18n, applyStaticDom, setLocale, getLocale, supportedLocales, localeDisplayName, localeFlag, t } from "./i18n.js";
 
 const BOARD_SIZE = 5;
 const POPULATION_GRID_SIZE = 4;
@@ -168,6 +169,10 @@ function updateSfxToggleButton() {
   }
 }
 
+function updateLocaleFlagIcon() {
+  if (localeFlagIcon) localeFlagIcon.textContent = localeFlag(getLocale());
+}
+
 function populateLocaleSelect() {
   if (!localeSelect) return;
   localeSelect.innerHTML = "";
@@ -178,12 +183,14 @@ function populateLocaleSelect() {
     localeSelect.appendChild(option);
   });
   localeSelect.value = getLocale();
+  updateLocaleFlagIcon();
 }
 
 function applyLocaleChange(locale) {
   setLocale(locale);
   applyStaticDom();
   if (localeSelect) localeSelect.value = getLocale();
+  updateLocaleFlagIcon();
   updateSfxToggleButton();
   updateRollButton();
   renderBoard();
