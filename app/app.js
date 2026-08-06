@@ -96,9 +96,6 @@ import {
 } from "./ui-feedback.js";
 import { initI18n, applyStaticDom, t } from "./i18n.js";
 
-initI18n();
-applyStaticDom();
-
 const BOARD_SIZE = 5;
 const POPULATION_GRID_SIZE = 4;
 const SFX_PATH = "assets/sounds/sfx.mp3";
@@ -522,6 +519,11 @@ registerServiceWorker();
 
 async function initializeApp() {
   try {
+    // Run after the module has executed (DOM is already parsed by then, since this
+    // is a deferred `type="module"` script), but explicit rather than relying on that.
+    initI18n();
+    applyStaticDom();
+
     // Wait for sheet to preload before continuing
     await preloadSheet();
     

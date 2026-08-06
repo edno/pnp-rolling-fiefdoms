@@ -75,7 +75,8 @@ export function t(key, params) {
  * Apply translations to static markup: [data-i18n] sets textContent,
  * [data-i18n-attr]="attr1:key1;attr2:key2" sets attributes.
  */
-export function applyStaticDom(root = document) {
+export function applyStaticDom(root = typeof document !== "undefined" ? document : null) {
+  if (!root) return;
   root.querySelectorAll("[data-i18n]").forEach((el) => {
     el.textContent = t(el.getAttribute("data-i18n"));
   });
