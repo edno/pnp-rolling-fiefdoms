@@ -7,10 +7,9 @@ import {
   DICE_MAX_VALUE,
   earnedInfluenceFromPopulation,
 } from "./influence.js";
+import { t } from "./i18n.js";
 
 const WINDROSE_FACE = "windrose";
-const SELECT_LOCATION_DICE_PROMPT = "Select two location dice in the Turn panel.";
-const INFLUENCE_FORFEIT_MESSAGE = "No valid location pairs; spend Influence or forfeit a plot.";
 
 // Check if die is labeled with "N" (N-type dice for auto-assignment)
 const isNDie = (die) => {
@@ -139,13 +138,13 @@ export function beginTurn(
   state.pendingActiveTurn = null;
   const statusLogged = state.lastStatusTurnIndex === newTurnIndex;
   if (!statusLogged) {
-    messages.push(state.activeTurn ? "Active turn." : "Non-active turn. Dice automatically assigned.");
+    messages.push({ kind: "status", text: state.activeTurn ? t("turn.active") : t("turn.nonActive") });
     state.lastStatusTurnIndex = newTurnIndex;
   }
   state.dice = dice;
   state.forcedLocationDice = forcedLocationDiceIndices(state.dice);
   if (state.forcedLocationDice.length) {
-    messages.push("Windrose rolled (acts as 1–5).");
+    messages.push({ kind: "windrose", text: t("turn.windroseRolled") });
   }
   state.autoLocationSelection = [];
   state.nonActiveSwap = false;
@@ -166,7 +165,10 @@ export function beginTurn(
     state.forceForfeit = allPairs.length === 0 && !advisory;
     state.forceForfeitAdvisory = advisory;
     if (allPairs.length === 0) {
-      messages.push(state.forceForfeit ? "No valid location pairs; forfeit a plot." : INFLUENCE_FORFEIT_MESSAGE);
+      messages.push({
+        kind: "location",
+        text: state.forceForfeit ? t("location.noValidPairsForfeit") : t("location.noValidPairsSpendInfluence"),
+      });
     }
   } else {
     state.locationSelection = state.forcedLocationDice.slice();
@@ -177,7 +179,7 @@ export function beginTurn(
   state.pestilence = dice.filter((d) => d.face === "X").length === 2;
   state.pestilenceInfo = state.pestilence ? computePestilenceInfo(state.dice, board) : null;
   if (state.pestilence) {
-    messages.push("Pestilence! Forfeit any empty plot.");
+    messages.push({ kind: "pestilence", text: t("pestilence.forfeitEmptyPlot") });
   }
   return { messages };
 }
@@ -191,7 +193,7 @@ export function selectLocationDie(state, dieIndex, { uniqueLocationPairs, filter
   // Block X dice that show the "X" face (no resolved numeric value)
   if (!die || (die.face === "X" && typeof die.resolved !== "number")) return { invalidSelection: false };
   if ((state.forcedLocationDice || []).includes(dieIndex)) {
-    return { invalidSelection: false, message: "Windrose dice must stay in the location pair." };
+    return { invalidSelection: false, message: t("turn.windroseMustStay") };
   }
 
   const sel = state.locationSelection.slice();
@@ -201,7 +203,7 @@ export function selectLocationDie(state, dieIndex, { uniqueLocationPairs, filter
   } else if (sel.length < 2) {
     sel.push(dieIndex);
   } else {
-    return { invalidSelection: false, message: "Unassign a location die before choosing another." };
+    return { invalidSelection: false, message: t("turn.unassignFirst") };
   }
   state.locationSelection = sel;
   mergeForcedLocationDice(state);
@@ -351,11 +353,11 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
       invalidSelection = true;
       const selectionCount = Array.isArray(state.locationSelection) ? state.locationSelection.length : 0;
       const showSelectPrompt = state.activeTurn && selectionCount < 2;
-      message = showSelectPrompt ? SELECT_LOCATION_DICE_PROMPT : INFLUENCE_FORFEIT_MESSAGE;
+      message = showSelectPrompt ? t("location.selectTwoInTurnPanel") : t("location.noValidPairsSpendInfluence");
     } else {
       forceForfeit = true;
       invalidSelection = false;
-      if (!prevForce) message = "No valid location pairs; forfeit a plot.";
+      if (!prevForce) message = t("location.noValidPairsForfeit");
     }
   }
 
@@ -374,16 +376,16 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
         locationPairs = [];
         invalidSelection = true;
         if (canAdjustSelected && influenceBudget(state) > 0) {
-          message = "No valid plots for that pair; spend Influence or choose a different location pair.";
+          message = t("location.noValidPlotsSpendInfluence");
         } else if (!prevForce) {
-          message = "No valid plots for that pair; choose a different location pair.";
+          message = t("location.noValidPlotsForPair");
         }
       } else if (!hadGeneralRescue) {
         forceForfeit = true;
-        if (!prevForce) message = "No valid location pairs; forfeit a plot.";
+        if (!prevForce) message = t("location.noValidPairsForfeit");
       }
     } else if (forceForfeit && !prevForce) {
-      message = "No valid location pairs; forfeit a plot.";
+      message = t("location.noValidPairsForfeit");
     }
   } else {
     if (locationDice.length === 2) {
@@ -405,7 +407,7 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
       forceForfeit = false;
       rescueHint = true;
       if (!invalidSelection) invalidSelection = true;
-      message = INFLUENCE_FORFEIT_MESSAGE;
+      message = t("location.noValidPairsSpendInfluence");
     }
   }
 
@@ -488,7 +490,7 @@ export function evaluateAutoAdvance(state, board) {
 
 export function autoAdvanceState(state, board) {
   const action = evaluateAutoAdvance(state, board);
-  if (action === "activate") return { action, message: "Board full." };
+  if (action === "activate") return { action, message: t("game.boardFull") };
   return { action, message: null };
 }
 
@@ -537,10 +539,13 @@ export function startPopulationPlacement(state, cellCoord, count, { nodesForCell
   const availableNodes = nodes.filter(([nr, nc]) => (state.populationNodes?.[nr]?.[nc] || 0) === 0);
   if (!availableNodes.length) {
     state.pendingPopulation = null;
-    return { started: false, message: "No available population spots around this plot; population skipped." };
+    return { started: false, message: t("population.noAvailableSpotsSkipped") };
   }
   state.pendingPopulation = { remaining: count, cell: cellCoord };
-  return { started: true, message: `Place ${count} population on one intersection around row ${cellCoord[0] + 1}, col ${cellCoord[1] + 1}.` };
+  return {
+    started: true,
+    message: t("population.placeOnIntersection", { count, row: cellCoord[0] + 1, col: cellCoord[1] + 1 }),
+  };
 }
 
 export function placePopulationNode(state, nr, nc, { nodesForCell, allocatePopulationToNode, popCapacity }) {
@@ -551,9 +556,9 @@ export function placePopulationNode(state, nr, nc, { nodesForCell, allocatePopul
     ([r, c]) => r === nr && c === nc,
   );
   if (!eligible)
-    return { placed: 0, message: "Population must be placed on an intersection touching the built plot." };
+    return { placed: 0, message: t("population.mustTouchBuiltPlot") };
   if ((state.populationNodes[nr]?.[nc] || 0) > 0)
-    return { placed: 0, message: "That population spot is already used." };
+    return { placed: 0, message: t("population.spotAlreadyUsed") };
 
   const { placed, grid } = allocatePopulationToNode(
     state.populationNodes,
@@ -562,7 +567,7 @@ export function placePopulationNode(state, nr, nc, { nodesForCell, allocatePopul
     state.pendingPopulation.remaining,
     popCapacity,
   );
-  if (placed <= 0) return { placed: 0, message: "That population spot is full." };
+  if (placed <= 0) return { placed: 0, message: t("population.spotFull") };
   state.populationNodes = grid;
   const unplaced = state.pendingPopulation.remaining - placed;
   state.pendingPopulation = null;
@@ -571,32 +576,32 @@ export function placePopulationNode(state, nr, nc, { nodesForCell, allocatePopul
     unplaced,
     message:
       unplaced > 0
-        ? `Placed ${placed} population; ${unplaced} could not be placed (spot full).`
-        : `Placed ${placed} population on row ${nr + 1}, col ${nc + 1}.`,
+        ? t("population.placedPartial", { placed, unplaced })
+        : t("population.placedOnCell", { placed, row: nr + 1, col: nc + 1 }),
   };
 }
 
 export function allocateWorker(state, popSel, buildingSel, { nodesForCell, buildingRules }) {
   if (!state.activationMode) {
-    return { updated: false, message: "Workers can only be assigned during activation." };
+    return { updated: false, message: t("activation.onlyDuringActivation") };
   }
   if (!state.populationAvailable || !state.workerAllocations) {
-    return { updated: false, message: "Activation not initialized." };
+    return { updated: false, message: t("activation.notInitialized") };
   }
   const [pr, pc] = popSel;
   const [br, bc] = buildingSel;
   const cell = state.board[br]?.[bc];
   if (!cell || !cell.building || cell.forfeited || cell.activationForfeit) {
-    return { updated: false, message: "Select a valid building." };
+    return { updated: false, message: t("activation.selectValidBuilding") };
   }
   const available = state.populationAvailable?.[pr]?.[pc] || 0;
-  if (available <= 0) return { updated: false, message: "No available population on that node." };
+  if (available <= 0) return { updated: false, message: t("population.noAvailableNode") };
   const adj = nodesForCell(br, bc).some(([nr, nc]) => nr === pr && nc === pc);
-  if (!adj) return { updated: false, message: "Population must be adjacent to the building." };
+  if (!adj) return { updated: false, message: t("activation.mustBeAdjacent") };
   const req = Math.max(0, (buildingRules[cell.building]?.requirement || 0) - Math.max(0, Number(cell.springBoost) || 0));
   const filled = Math.max(0, state.workerAllocations?.[br]?.[bc] || 0);
   const remaining = Math.max(0, req - filled);
-  if (remaining <= 0) return { updated: false, message: "Building already filled." };
+  if (remaining <= 0) return { updated: false, message: t("activation.buildingAlreadyFilled") };
 
   state.populationAvailable[pr][pc] = Math.max(0, available - 1);
   state.workerAllocations[br][bc] = filled + 1;
@@ -605,7 +610,7 @@ export function allocateWorker(state, popSel, buildingSel, { nodesForCell, build
   return {
     updated: true,
     activated,
-    message: activated ? `Activated ${cell.building} at row ${br + 1}, col ${bc + 1}.` : null,
+    message: activated ? t("activation.activated", { building: cell.building, row: br + 1, col: bc + 1 }) : null,
   };
 }
 
@@ -636,9 +641,7 @@ export function autoForfeitUnfillableState(state, { nodesForCell, buildingRules,
       const shouldForfeit = finalize ? remaining > 0 : availableAdj < remaining;
       if (shouldForfeit) {
         if (!cell.activationForfeit) {
-          messages.push(
-            `Could not activate ${cell.building} at row ${r + 1}, col ${c + 1}; marked forfeited for scoring.`,
-          );
+          messages.push(t("activation.couldNotActivate", { building: cell.building, row: r + 1, col: c + 1 }));
         }
         cell.activationForfeit = true;
       } else if (!finalize) {

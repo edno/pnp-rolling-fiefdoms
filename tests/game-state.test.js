@@ -408,7 +408,7 @@ describe("influence integration", () => {
     const { messages } = beginTurn(state, dice, state.board, helpers);
     expect(state.activeTurn).toBe(false);
     expect(state.forceForfeit).toBe(false);
-    expect(messages).toContain("No valid location pairs; spend Influence or forfeit a plot.");
+    expect(messages.map((m) => m.text)).toContain("No valid location pairs; spend Influence or forfeit a plot.");
   });
 
   it("prompts active turns to select location dice when influence can rescue before choosing dice", () => {

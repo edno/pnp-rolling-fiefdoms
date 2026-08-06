@@ -94,6 +94,10 @@ import {
   actionMessage as generateActionMessage,
   updateActionBanner as updateBannerUI,
 } from "./ui-feedback.js";
+import { initI18n, applyStaticDom, t } from "./i18n.js";
+
+initI18n();
+applyStaticDom();
 
 const BOARD_SIZE = 5;
 const POPULATION_GRID_SIZE = 4;
@@ -157,11 +161,11 @@ function updateSfxToggleButton() {
   sfxToggleBtn.setAttribute("aria-pressed", sfxEnabled ? "true" : "false");
   sfxToggleBtn.classList.toggle("is-off", !sfxEnabled);
   if (sfxToggleLabel) {
-    sfxToggleLabel.textContent = sfxEnabled ? "SFX On" : "SFX Off";
+    sfxToggleLabel.textContent = sfxEnabled ? t("sfx.on") : t("sfx.off");
   }
   if (sfxToggleIcon) {
     sfxToggleIcon.src = sfxEnabled ? SFX_ICON_ON : SFX_ICON_OFF;
-    sfxToggleIcon.alt = sfxEnabled ? "Sound on" : "Sound off";
+    sfxToggleIcon.alt = sfxEnabled ? t("sfx.onAlt") : t("sfx.offAlt");
   }
 }
 
@@ -311,7 +315,7 @@ function updateRollButton() {
   const enabled = allowDebugBypass || state.rollAvailable;
   rollBtn.disabled = !enabled;
   rollBtn.classList.toggle("dice-locked", !enabled && !debugMode);
-  rollBtn.title = enabled ? "Roll dice" : "Roll used; complete the turn to roll again.";
+  rollBtn.title = enabled ? t("turn.rollIdleTitle") : t("turn.rollUsedTitle");
 }
 
 function refreshDiceVisibility() {
@@ -462,7 +466,7 @@ function resetState() {
   renderTurnTrack(state.turnTrack);
   refreshDiceVisibility();
   updateTurnStatusChip();
-  log("Game started.");
+  log(t("game.started"));
 }
 
 function setSheetImageSources(el) {
@@ -538,7 +542,7 @@ async function initializeApp() {
     if (loadingOverlay) {
       const loadingText = loadingOverlay.querySelector(".loading-text");
       if (loadingText) {
-        loadingText.textContent = "Failed to load game. Please refresh.";
+        loadingText.textContent = t("game.loadFailed");
       }
     }
   }
@@ -618,7 +622,7 @@ function rollDice() {
   try {
     if (state.activationMode) return;
     if (!debugMode && !state.rollAvailable) {
-      log("Roll already used this turn. Finish the turn to roll again.");
+      log(t("turn.rollAlreadyUsed"));
       return;
     }
   const n1 = rollNumberedDie("N1");
@@ -647,25 +651,23 @@ function rollDice() {
   });
   state.pendingTurnIndex = null;
   state.pendingActiveTurn = null;
-  const rollMsg = `Rolled ${describeDice(dice)}`;
+  const rollMsg = t("turn.rolled", { dice: describeDice(dice) });
   if (Array.isArray(messages) && messages.length) {
-    const statusPattern = /^(Active|Non-active) turn/;
-    const status = statusPattern.test(messages[0]) ? messages[0] : null;
+    const status = messages[0]?.kind === "status" ? messages[0].text : null;
     let extras = status ? messages.slice(1) : messages.slice(); // windrose/pestilence/etc
     if (needsDoubleReroll) {
-      extras = extras.filter((m) => !m.startsWith("Windrose rolled"));
+      extras = extras.filter((m) => m.kind !== "windrose");
     }
     if (status) log(status);
     log(rollMsg); // mid-layer
-    extras.forEach((m) => log(m)); // newest
+    extras.forEach((m) => log(m.text)); // newest
   } else {
     log(rollMsg);
   }
   if (needsDoubleReroll) {
-    const msg = "Double windrose rolled; press Roll Dice to reroll.";
+    const msg = t("turn.doubleWindroseRolled");
     log(msg);
-    state.bannerOverride =
-      'Double <img src="assets/img/windrose.svg" alt="windrose" class="inline-icon"> rolled; press Roll Dice to reroll.';
+    state.bannerOverride = t("turn.doubleWindroseRolledBanner");
     updateActionBanner();
     state.pendingTurnIndex = state.turnIndex;
     state.pendingActiveTurn = state.activeTurn;
@@ -674,7 +676,7 @@ function rollDice() {
     return;
   }
   if (state.pestilence) {
-    if (turnHintEl) turnHintEl.textContent = "Pestilence! Forfeit any empty plot.";
+    if (turnHintEl) turnHintEl.textContent = t("pestilence.forfeitEmptyPlot");
     // Auto-assign the split for pestilence: numbered/windrose stay in location, X dice in build.
     const forcedSplit = splitForcedDice(state.dice || []);
     const locIdx = [];
@@ -743,7 +745,7 @@ function triggerDiceAnimation() {
   const startAnimation = () => {
     state.diceRolling = true;
     diceView.classList.add("dice-rolling");
-    const rollingMsg = "Rolling dice...";
+    const rollingMsg = t("turn.rollingDice");
     state.bannerOverride = rollingMsg;
     updateActionBanner();
     const animDuration = isTest ? 0 : diceAnimationDuration(startDelay, 200);
@@ -873,16 +875,16 @@ function adjustDieWithInfluence(idx, direction) {
   if (!state.dice || !state.dice[idx]) return;
   const die = state.dice[idx];
   if (!isInfluenceEligibleDie(die)) {
-    log("Influence can only adjust numbered dice.");
+    log(t("influence.numberedOnly"));
     return;
   }
   if (influenceTargetBlocked(die.label)) {
-    log("Influence can only adjust one die per roll. Reset previous adjustments first.");
+    log(t("influence.oneAdjustmentOnly"));
     return;
   }
   const base = typeof die.resolved === "number" ? die.resolved : null;
   if (base === null) {
-    log("That die cannot be adjusted.");
+    log(t("influence.cannotAdjustDie"));
     return;
   }
   const delta = influenceAdjustmentDelta(die.label);
@@ -890,12 +892,12 @@ function adjustDieWithInfluence(idx, direction) {
   if (nextDelta === delta) return;
   const target = base + nextDelta;
   if (target < DICE_MIN_VALUE || target > DICE_MAX_VALUE) {
-    log("Influence cannot adjust dice beyond 1–5.");
+    log(t("influence.outOfRange"));
     return;
   }
   const reducesMagnitude = Math.abs(nextDelta) < Math.abs(delta);
   if (!reducesMagnitude && influenceAvailable() <= 0) {
-    log("No Influence available.");
+    log(t("influence.none"));
     return;
   }
   if (!state.influenceAdjustments) state.influenceAdjustments = {};
@@ -912,7 +914,7 @@ function adjustDieWithInfluence(idx, direction) {
   }
   state.influenceSelectionKey =
     state.locationSelection.length >= 1 ? canonicalSelectionKey(state.locationSelection) : null;
-  log(`Influence adjustment: ${die.label} now ${target}.`);
+  log(t("influence.adjusted", { label: die.label, value: target }));
   updateTracks();
   updateDiceAssignments();
   refreshDiceVisibility();
@@ -934,7 +936,7 @@ function resetDieInfluence(idx) {
         : die.face === "windrose"
           ? "windrose"
           : die.face;
-  log(`Influence reset: ${die.label} restored to ${base}.`);
+  log(t("influence.resetAdjustment", { label: die.label, value: base }));
   updateTracks();
   updateDiceAssignments();
   refreshDiceVisibility();
@@ -952,14 +954,14 @@ function renderDice() {
   clearElement(diceView);
   if (turnHintEl) {
     if (state.pestilence) {
-      turnHintEl.textContent = "Pestilence! Forfeit any empty plot.";
+      turnHintEl.textContent = t("pestilence.forfeitEmptyPlot");
     } else if (state.activeTurn && state.invalidSelection) {
       turnHintEl.textContent =
-        state.invalidSelectionMessage || "No valid plots for that pair; choose a different location pair.";
+        state.invalidSelectionMessage || t("location.noValidPlotsForPair");
     } else if (state.forceForfeitAdvisory && !state.forceForfeit) {
-      turnHintEl.textContent = "No valid location pairs; spend Influence or forfeit a plot.";
+      turnHintEl.textContent = t("location.noValidPairsSpendInfluence");
     } else if (forceForfeitActive()) {
-      turnHintEl.textContent = "No valid location pairs; forfeit a plot.";
+      turnHintEl.textContent = t("location.noValidPairsForfeit");
     } else if (!state.activeTurn) {
       turnHintEl.textContent = nonActiveAutoHintText();
     } else {
@@ -1050,21 +1052,21 @@ function fillBuildings(buildDice) {
   }
   const adjustedBuildDice = applyInfluenceToDice(state, effectiveBuildDice);
   const allowed = restrictBuildOptionsForBoard(buildingOptionsFromDice(adjustedBuildDice), state.board);
-  const availableGuildTypes = guildTypes.filter((t) => !builtGuildTypes(state.board).has(t));
+  const availableGuildTypes = guildTypes.filter((gt) => !builtGuildTypes(state.board).has(gt));
   const options = allowed.filter((opt) => {
     if (opt.code !== "G") return true;
     return availableGuildTypes.length > 0;
   });
   if (!options.length && !state.forceForfeit && !state.pestilence) {
     if (!state.noBuildOptionsLogged) {
-      log("No valid buildings for this split; forfeit a plot.");
+      log(t("build.noValidBuildingsForSplit"));
       state.noBuildOptionsLogged = true;
     }
     state.buildChoice = null;
     state.selectedGuildType = null;
     state.forceForfeit = true;
     lockDiceSnapshot(state, { uniqueLocationPairs });
-    state.bannerOverride = "No valid builds; forfeit an empty plot.";
+    state.bannerOverride = t("build.noValidBuilds");
     updateActionBanner();
     renderSelectionDice(state.lockedLocationDice || [], state.lockedBuildDice || []);
     highlightLocations();
@@ -1152,7 +1154,10 @@ function renderBuildingOverlay(options = [], disabled = false) {
       handleBuildingChoice();
       renderSelectionDice();
     });
-    div.setAttribute("aria-label", `${hit.code}${opt?.sourceLabel ? ` via ${opt.sourceLabel}` : ""}`);
+    div.setAttribute(
+      "aria-label",
+      `${hit.code}${opt?.sourceLabel ? t("build.viaSource", { source: opt.sourceLabel }) : ""}`,
+    );
     overlay.appendChild(div);
   });
 }
@@ -1197,7 +1202,7 @@ function renderBoard() {
         cell.classList.add("forfeited");
         const forfeiture = document.createElement("img");
         forfeiture.src = "assets/img/forfeit.svg";
-        forfeiture.alt = "Forfeit";
+        forfeiture.alt = t("forfeit.forfeitedAlt");
         forfeiture.className = "forfeit-icon";
         cell.appendChild(forfeiture);
       } else if (data.building) {
@@ -1293,17 +1298,17 @@ function onCellClick(r, c) {
   const hasLockedLocation = state.diceLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
   const phase = currentTurnPhase();
   if (state.locationSelection.length < 2 && !hasLockedLocation && !state.pestilence && !forceForfeitActive() && !state.activationMode) {
-    log("Split the dice first, then pick a plot.");
+    log(t("build.splitFirst"));
     return;
   }
   if (state.pendingPopulation?.remaining > 0) {
-    log("Place pending population first.");
+    log(t("population.placePendingFirst"));
     return;
   }
   if (state.activationMode) {
     const popSel = state.activationSelection.pop;
     if (!popSel) {
-      log("Select a population node first.");
+      log(t("population.selectNodeFirst"));
       return;
     }
     allocateWorkersFromPop(popSel, [r, c]);
@@ -1313,7 +1318,7 @@ function onCellClick(r, c) {
     const { options } = state.pendingSpringhouseTarget;
     const isOption = options.some(([or, oc]) => or === r && oc === c);
     if (!isOption) {
-      log("Choose an adjacent building to reduce with the Springhouse.");
+      log(t("springhouse.chooseAdjacentBeforeBuilding"));
       return;
     }
     applySpringhouseTarget([r, c]);
@@ -1322,14 +1327,14 @@ function onCellClick(r, c) {
   if (isPestilenceOrForfeit) {
     const cell = state.board[r][c];
     if (cell.building || cell.forfeited) {
-      log("Choose an empty plot to forfeit.");
+      log(t("forfeit.chooseEmptyPlot"));
       return;
     }
     forfeitCell(r, c);
     return;
   }
   if (state.locationSelection.length !== 2 || !state.locationPairs.length) {
-    log("Select two dice for Location first.");
+    log(t("location.selectTwoDice"));
     return;
   }
   const locPairs =
@@ -1337,7 +1342,7 @@ function onCellClick(r, c) {
       ? effectiveLockedLocationPairs()
       : state.locationPairs;
   if (!locPairs?.length) {
-    log("Select two dice for Location first.");
+    log(t("location.selectTwoDice"));
     return;
   }
   const matches = locPairs.some(([a, b]) => {
@@ -1348,15 +1353,15 @@ function onCellClick(r, c) {
     return (r === r1 && c === c1) || (r === r2 && c === c2);
   });
   if (!matches) {
-    log("Cell does not match location pair.");
+    log(t("location.cellMismatch"));
     return;
   }
   if (!state.buildChoice) {
-    log("Choose a building first.");
+    log(t("build.chooseBuildingFirst"));
     return;
   }
   if (phase !== TURN_PHASE.BUILDING && phase !== TURN_PHASE.SPLITTING) {
-    log("Finish the current step before building.");
+    log(t("build.finishStepBeforeBuilding"));
     return;
   }
   placeBuilding(r, c, state.buildChoice.code);
@@ -1385,11 +1390,13 @@ function highlightLocations() {
             : true);
         if (canSelect) {
           cell.classList.add("highlight");
-          cell.title = `Workers ${filled}/${req}`;
+          cell.title = t("build.workersTitle", { filled, req });
         } else {
           cell.classList.add("disabled");
           if (data.building && req > 0) {
-            cell.title = `Workers ${filled}/${req}${data.activationForfeit ? " (forfeited)" : ""}`;
+            cell.title = data.activationForfeit
+              ? t("build.workersForfeitedTitle", { filled, req })
+              : t("build.workersTitle", { filled, req });
           }
         }
         if ((req === 0 && data.building) || filled >= req) {
@@ -1501,36 +1508,36 @@ function highlightLocations() {
 function placeBuilding(r, c, code) {
   const cell = state.board[r][c];
   if (cell.building || cell.forfeited) {
-    log("Cell occupied or forfeited.");
+    log(t("build.cellOccupiedOrForfeited"));
     return;
   }
   const advancedLimit = new Set(["T", "U", "A"]);
   if (advancedLimit.has(code)) {
     const exists = state.board.flat().some((b) => b.building === code);
     if (exists) {
-      log("That advanced building is already built.");
+      log(t("build.advancedAlreadyBuilt"));
       return;
     }
   }
   if (code === "G") {
     if (!state.selectedGuildType) {
-      log("Select a guild type before placing a Guild.");
+      log(t("build.selectGuildTypeFirst"));
       return;
     }
     const guildCount = countGuilds(state.board);
     if (guildCount >= 2) {
-      log("Maximum number of guilds already built.");
+      log(t("build.maxGuildsBuilt"));
       return;
     }
-    const available = guildTypes.filter((t) => !builtGuildTypes(state.board).has(t));
+    const available = guildTypes.filter((gt) => !builtGuildTypes(state.board).has(gt));
     if (!available.length) {
-      log("No guild types available.");
+      log(t("build.noGuildTypesAvailable"));
       return;
     }
   }
   let buildingLabel = code;
   if (code === "G") {
-    const selection = state.selectedGuildType || guildTypes.find((t) => !builtGuildTypes(state.board).has(t)) || "GF";
+    const selection = state.selectedGuildType || guildTypes.find((gt) => !builtGuildTypes(state.board).has(gt)) || "GF";
     const normalized = selection.toUpperCase().trim();
     const valid = ["GF", "GQ", "GW", "GM"];
     buildingLabel = valid.includes(normalized) ? normalized : "G";
@@ -1568,7 +1575,7 @@ function placeBuilding(r, c, code) {
           return map[raw] || raw;
         })()
       : code;
-  log(`Placed ${displayLabel} at row ${r + 1}, col ${c + 1}`);
+  log(t("build.placed", { label: displayLabel, row: r + 1, col: c + 1 }));
   state.splitUsedForBuild = true;
   updateDiceAssignments();
   updateMultiplayerButtons();
@@ -1607,12 +1614,12 @@ function handleSpringhouseTargeting(r, c) {
     return remainingReq > 0;
   });
   if (!options.length) {
-    log("No adjacent buildings with remaining worker requirement; Springhouse effect unused.");
+    log(t("springhouse.noAdjacentBuildings"));
     return "none";
   }
   state.pendingSpringhouseTarget = { source: [r, c], options };
   renderBoard();
-  log("Choose an adjacent building to reduce its worker requirement by 1.");
+  log(t("springhouse.chooseAdjacentToReduce"));
   return "pending";
 }
 
@@ -1620,14 +1627,14 @@ function applySpringhouseBoost(target) {
   const [tr, tc] = target;
   const targetCell = state.board[tr][tc];
   if (!targetCell.building || targetCell.forfeited) {
-    log("Select a built, non-forfeited building for the Springhouse effect.");
+    log(t("springhouse.selectBuiltNonForfeited"));
     return;
   }
   const rule = BUILDING_RULES[targetCell.building];
   const maxBoost = Math.max(0, rule?.requirement || 0);
   const nextBoost = Math.min(maxBoost, (Number(targetCell.springBoost) || 0) + 1);
   targetCell.springBoost = nextBoost;
-  log(`Springhouse reduced worker requirement for row ${tr + 1}, col ${tc + 1} by 1.`);
+  log(t("springhouse.reduced", { row: tr + 1, col: tc + 1 }));
   renderBoard();
   updateTracks();
   refreshScoreOverlay();
@@ -1646,7 +1653,7 @@ function applySpringhouseTarget(target) {
 function forfeitCell(r, c) {
   const cell = state.board[r][c];
   if (cell.building || cell.forfeited) {
-    log("Cell occupied or forfeited.");
+    log(t("build.cellOccupiedOrForfeited"));
     return;
   }
   const forcedFlow = state.pestilence || forceForfeitActive();
@@ -1660,8 +1667,8 @@ function forfeitCell(r, c) {
   lockDiceSnapshot(state, { markPendingNextRoll: true, uniqueLocationPairs });
   updateDiceAssignments();
   renderBoard();
-  const context = state.pestilence ? " during Pestilence" : "";
-  log(`Forfeited row ${r + 1}, col ${c + 1}${context}`);
+  const context = state.pestilence ? t("forfeit.duringPestilence") : "";
+  log(t("forfeit.forfeitedCell", { row: r + 1, col: c + 1, context }));
   // Resolve pestilence/forfeit state so the turn can advance
   state.pestilence = false;
   state.pestilenceInfo = null;
@@ -1683,8 +1690,8 @@ function updateTracks() {
   if (influence?.gained > 0) {
     log(
       influence.gained === 1
-        ? "Population milestone reached: gained 1 Influence."
-        : `Population milestone reached: gained ${influence.gained} Influence.`,
+        ? t("population.milestoneSingle")
+        : t("population.milestonePlural", { count: influence.gained }),
     );
   }
   updateScoreOverlays(
@@ -1716,7 +1723,7 @@ function autoAdvance() {
   }
   if (action === "roll") {
     prepareNextRoll();
-    state.bannerOverride = state.pestilence ? "Press Roll Dice to continue after pestilence." : null;
+    state.bannerOverride = state.pestilence ? t("hints.pressRollAfterPestilence") : null;
     updateActionBanner();
   }
 }
@@ -1733,7 +1740,7 @@ function enterActivationMode() {
   renderBoard();
   highlightLocations();
   refreshDiceVisibility();
-  log("Activation phase: select a population node, then click adjacent buildings to fill workers one at a time.");
+  log(t("activation.phaseHint"));
   updateActionBanner();
 }
 
@@ -1749,8 +1756,8 @@ function finishActivation() {
   highlightLocations();
   refreshDiceVisibility();
   updateTracks();
-  log("Activation finished. Scoring updated.");
-  log(`Game end. Final score ${state.finalScore}.`);
+  log(t("activation.finished"));
+  log(t("game.endScore", { score: state.finalScore }));
   updateActionBanner();
   updateTurnStatusChip();
 }
@@ -1792,14 +1799,14 @@ function handleBuildingChoice() {
   const popGain = Number(selected.dataset.pop || 0);
   state.buildChoice = { code, source, popGain };
   if (code === "G") {
-    const available = guildTypes.filter((t) => !builtGuildTypes(state.board).has(t));
+    const available = guildTypes.filter((gt) => !builtGuildTypes(state.board).has(gt));
     renderGuildOverlay(available);
     if (!available.length) {
-      log("No guild types available.");
+      log(t("build.noGuildTypesAvailable"));
       return;
     }
     if (!state.selectedGuildType) {
-      log("Select a guild type from the guilds overlay.");
+      log(t("build.selectGuildTypeFromOverlay"));
       return;
     }
   } else {
@@ -1889,7 +1896,7 @@ function onPopulationNodeClick(nr, nc) {
   if (state.activationMode) {
     const availablePop = state.populationAvailable?.[nr]?.[nc] || 0;
     if (availablePop <= 0) {
-      log("No available population on that node.");
+      log(t("population.noAvailableNode"));
       return;
     }
     state.activationSelection.pop = [nr, nc];
@@ -1969,7 +1976,7 @@ function updateTurnStatusChip() {
   const awaitingRoll = !debugMode && state.rollAvailable;
   const show = hasDice && !state.activationComplete && !awaitingRoll;
   const active = Boolean(state.activeTurn);
-  const label = active ? "Active turn" : "Non-active turn";
+  const label = active ? t("turn.activeLabel") : t("turn.nonActiveLabel");
   if (!show) {
     turnStatusChip.classList.add("hidden");
     turnStatusChip.setAttribute("aria-hidden", "true");
@@ -2100,13 +2107,13 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
   if (ignoreState) {
     const loc = clampDice(locationDice || []);
     const build = clampDice(forceBuildPreview ? buildDice || [] : buildDice || []);
-    if (locDicePreview) renderDicePreview(locDicePreview, loc, "location", "Select 2 dice for location");
-    if (buildDicePreview) renderDicePreview(buildDicePreview, build, "build", "Remaining dice used for build");
+    if (locDicePreview) renderDicePreview(locDicePreview, loc, "location", t("location.selectTwoPreview"));
+    if (buildDicePreview) renderDicePreview(buildDicePreview, build, "build", t("location.remainingUsedForBuild"));
     return;
   }
   if (state.activationMode || state.activationComplete) {
-    if (locDicePreview) renderDicePreview(locDicePreview, [], "location", "Select 2 dice for location");
-    if (buildDicePreview) renderDicePreview(buildDicePreview, [], "build", "Remaining dice used for build");
+    if (locDicePreview) renderDicePreview(locDicePreview, [], "location", t("location.selectTwoPreview"));
+    if (buildDicePreview) renderDicePreview(buildDicePreview, [], "build", t("location.remainingUsedForBuild"));
     return;
   }
   const respectSwap = () => {
@@ -2164,7 +2171,7 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
       locDicePreview,
       clampDice(effectiveLoc),
       "location",
-      "Select 2 dice for location",
+      t("location.selectTwoPreview"),
       { allowInfluence: showInfluenceControls },
     );
   }
@@ -2173,7 +2180,7 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
       buildDicePreview,
       clampDice(effectiveBuild),
       "build",
-      "Remaining dice used for build",
+      t("location.remainingUsedForBuild"),
       { allowInfluence: showInfluenceControls },
     );
   }
@@ -2206,7 +2213,7 @@ function makeDieBadge(
     if (role === "location") badge.classList.add("location-selected");
     if (role === "build") badge.classList.add("build-assigned");
   }
-  if (forcedLocation) badge.title = "Windrose stays in the location pair (acts as 1–5).";
+  if (forcedLocation) badge.title = t("turn.windroseStaysTitle");
   if (locked) badge.classList.add("dice-locked");
   const effectiveIdx = typeof sourceIndex === "number" ? sourceIndex : idx;
   if (effectiveIdx >= 0) badge.dataset.idx = effectiveIdx;
@@ -2236,7 +2243,7 @@ function makeDieBadge(
         minusBtn.type = "button";
         minusBtn.className = "influence-btn minus";
         minusBtn.textContent = "-";
-        minusBtn.title = "Spend 1 Influence to decrease this die by 1.";
+        minusBtn.title = t("influence.decreaseTitle");
         minusBtn.addEventListener("click", (event) => {
           event.stopPropagation();
           adjustDieWithInfluence(effectiveIdx, -1);
@@ -2248,7 +2255,7 @@ function makeDieBadge(
         plusBtn.type = "button";
         plusBtn.className = "influence-btn plus";
         plusBtn.textContent = "+";
-        plusBtn.title = "Spend 1 Influence to increase this die by 1.";
+        plusBtn.title = t("influence.increaseTitle");
         plusBtn.addEventListener("click", (event) => {
           event.stopPropagation();
           adjustDieWithInfluence(effectiveIdx, 1);
@@ -2260,7 +2267,7 @@ function makeDieBadge(
         resetBtn.type = "button";
         resetBtn.className = "influence-btn reset";
         resetBtn.textContent = "↺";
-        resetBtn.title = "Reset this die to its rolled value.";
+        resetBtn.title = t("influence.resetTitle");
         resetBtn.addEventListener("click", (event) => {
           event.stopPropagation();
           resetDieInfluence(effectiveIdx);
@@ -2327,7 +2334,7 @@ function updateDiceAssignments() {
     if (state.influenceSelectionKey && state.influenceSelectionKey !== selectionKey) {
       const cleared = clearInfluenceAdjustments();
       if (cleared) {
-        log("Influence adjustments reset after changing dice selection.");
+        log(t("influence.resetOnSelectionChange"));
         updateTracks();
       }
     }
@@ -2355,11 +2362,11 @@ function updateDiceAssignments() {
   if (turnHintEl) {
     if (state.activeTurn && state.invalidSelection) {
       turnHintEl.textContent =
-        state.invalidSelectionMessage || "No valid plots for that pair; choose a different location pair.";
+        state.invalidSelectionMessage || t("location.noValidPlotsForPair");
     } else if (state.forceForfeitAdvisory) {
-      turnHintEl.textContent = "No valid location pairs; spend Influence or forfeit a plot.";
+      turnHintEl.textContent = t("location.noValidPairsSpendInfluence");
     } else if (forceForfeitActive()) {
-      turnHintEl.textContent = "No valid location pairs; forfeit a plot.";
+      turnHintEl.textContent = t("location.noValidPairsForfeit");
     } else if (!state.activeTurn) {
       turnHintEl.textContent = nonActiveAutoHintText();
     } else {
@@ -2585,7 +2592,7 @@ function updateScoreOverlays(breakdown, total = 0, marketDetails = [], nodeToMar
     // Add market details tooltip
     if (spot.key === "market" && marketDetails.length > 0) {
       chip.title = marketDetails
-        .map(m => `Row ${m.row + 1}, Col ${m.col + 1}: ${m.points}pts`)
+        .map((m) => t("market.tooltipRow", { row: m.row + 1, col: m.col + 1, points: m.points }))
         .join('\n');
     }
     
@@ -2661,10 +2668,10 @@ function renderInfluenceTrack({ influenceEarned = 0, influenceSpent = 0 } = {}) 
         scribble.alt = "";
         scribble.className = "influence-scribble";
         slot.appendChild(scribble);
-        slot.title = "Influence spent.";
+        slot.title = t("influence.spentTitle");
       } else {
         slot.classList.add("available");
-        slot.title = "Influence available.";
+        slot.title = t("influence.availableTitle");
       }
     }
     track.appendChild(slot);
