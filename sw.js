@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v1.33";
+const CACHE_VERSION = "v1.34";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
 const APP_VERSION = "v8";
 const SHEET_VERSION = "v2.0";
@@ -26,6 +26,7 @@ const ASSETS = [
   "/assets/img/github.webp",
   "/assets/img/fullscreen.webp",
   "/assets/img/bgg.webp",
+  "/assets/img/hatch.webp",
   `${SHEET_BASE_PATH}.webp?v=${SHEET_VERSION}`,
   `${SHEET_BASE_PATH}@2x.webp?v=${SHEET_VERSION}`,
   `${SHEET_BASE_PATH_FR}.webp?v=${SHEET_VERSION}`,

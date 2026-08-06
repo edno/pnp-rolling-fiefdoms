@@ -179,8 +179,12 @@ export function beginTurn(
   },
 ) {
   const messages = [];
+  // A double-windrose reroll calls beginTurn again with turnIndexOverride pinned to the
+  // same turnIndex (see rollDice() in app.js) rather than advancing it. Unrest must only
+  // be tallied once per completed turn, so skip it on that reroll pass.
+  const isSameTurnReroll = turnIndexOverride === state.turnIndex;
   let unrestResult = null;
-  if (state.unrestTracking && state.turnIndex > 0) {
+  if (state.unrestTracking && state.turnIndex > 0 && !isSameTurnReroll) {
     unrestResult = applyUnrestForCompletedTurn(state, board, { allocatePopulationToNode, popCapacity });
   }
   resetTurnState(state);

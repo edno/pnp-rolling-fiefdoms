@@ -183,6 +183,29 @@ describe("beginTurn Unrest tracking (challenge VI)", () => {
     expect(state.populationNodes[0][0]).toBe(0);
     expect(messages.some((m) => m.kind === "unrest")).toBe(false);
   });
+
+  it("gains 1 Unrest when Vagrants exceed 8", () => {
+    const state = createState();
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    state.populationNodes[0][0] = 9; // 9 population, no Cottages -> 9 Vagrants
+    beginTurn(state, dice(), emptyBoard(), helpers);
+    expect(state.unrest.total).toBe(1);
+  });
+
+  it("does not double-count Unrest on a same-turn double-windrose reroll", () => {
+    const state = createState();
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.turnFlags = { advancedBuiltThisTurn: true };
+    beginTurn(state, dice(), emptyBoard(), { ...helpers, turnIndexOverride: null });
+    expect(state.unrest.total).toBe(1);
+    // A double-windrose reroll calls beginTurn again with turnIndexOverride pinned to the
+    // turnIndex just set above, rather than advancing it further.
+    beginTurn(state, dice(), emptyBoard(), { ...helpers, turnIndexOverride: state.turnIndex });
+    expect(state.unrest.total).toBe(1);
+  });
 });
 
 describe("activation worker assignment", () => {
