@@ -6,6 +6,7 @@ const baseState = {
   populationAvailable: null,
   tracks: { population: 0, housing: 0, influence: 0 },
   influence: { earned: 0, spent: 0, pending: 0 },
+  influenceBonus: 0,
   influenceAdjustments: {},
   influenceTarget: null,
   influenceSelectionKey: null,

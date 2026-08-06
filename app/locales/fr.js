@@ -99,6 +99,8 @@ export default {
     resetTitle: "Réinitialiser ce dé à sa valeur lancée.",
     spentTitle: "Influence dépensée.",
     availableTitle: "Influence disponible.",
+    startingSingle: "Débute avec 1 Influence.",
+    startingPlural: "Débute avec {count} Influence.",
   },
   location: {
     noValidPlotsForPair: "Aucune parcelle valide pour cette paire ; choisissez une autre paire de coordonnées.",

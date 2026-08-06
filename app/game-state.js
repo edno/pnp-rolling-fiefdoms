@@ -506,10 +506,13 @@ export function recalcTracks(state, { computeScore, calcVagrants }) {
   const pop = state.populationNodes ? state.populationNodes.flat().reduce((a, b) => a + b, 0) : 0;
   const cottages = boardCottages(state.board);
   const housing = cottages * 4;
+  const bonus = Math.max(0, state.influenceBonus || 0);
   const prevEarned = Math.max(0, state.influence?.earned || 0);
+  const prevPopulationEarned = Math.max(0, prevEarned - bonus);
   const prevCommitted = Math.max(0, state.influence?.spent || 0);
   const adjustmentsSpent = totalInfluenceSpent(state.influenceAdjustments);
-  const newEarned = earnedInfluenceFromPopulation(pop);
+  const populationEarned = earnedInfluenceFromPopulation(pop);
+  const newEarned = populationEarned + bonus;
   const committed = Math.min(prevCommitted, newEarned);
   const remaining = Math.max(0, newEarned - committed);
   const pending = Math.min(remaining, Math.max(0, adjustmentsSpent));
@@ -522,7 +525,11 @@ export function recalcTracks(state, { computeScore, calcVagrants }) {
   const scoreResult = computeScore(state.board, state.populationNodes, state.workerAllocations, {
     allowPopulationActivation: false,
   });
-  return { vagrants, scoreResult, influence: { earned: newEarned, available: availableInfluence, gained: Math.max(0, newEarned - prevEarned) } };
+  return {
+    vagrants,
+    scoreResult,
+    influence: { earned: newEarned, available: availableInfluence, gained: Math.max(0, populationEarned - prevPopulationEarned) },
+  };
 }
 
 export function boardFull(board) {

@@ -339,6 +339,24 @@ describe("influence integration", () => {
     expect(state.influence.pending).toBe(2);
   });
 
+  it("folds a challenge's flat starting-Influence bonus into earned without reporting it as a population gain", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    state.influenceBonus = 1;
+    state.influence = { earned: 0, spent: 0 };
+
+    const start = recalcTracks(state, { computeScore, calcVagrants });
+    expect(start.influence.earned).toBe(1);
+    expect(start.influence.gained).toBe(0); // the bonus isn't a population milestone
+    expect(state.tracks.influence).toBe(1);
+
+    state.populationNodes[0][0] = 9; // crosses the first population-influence threshold
+    const afterPopGrowth = recalcTracks(state, { computeScore, calcVagrants });
+    expect(afterPopGrowth.influence.earned).toBe(2); // 1 from population + the flat bonus
+    expect(afterPopGrowth.influence.gained).toBe(1); // now correctly attributed to population
+  });
+
   it("commits spent influence between turns", () => {
     const state = createState();
     state.board = emptyBoard();

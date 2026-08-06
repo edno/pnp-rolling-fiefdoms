@@ -99,6 +99,8 @@ export default {
     resetTitle: "Reset this die to its rolled value.",
     spentTitle: "Influence spent.",
     availableTitle: "Influence available.",
+    startingSingle: "Starts with 1 Influence.",
+    startingPlural: "Starts with {count} Influence.",
   },
   location: {
     noValidPlotsForPair: "No valid plots for that pair; choose a different location pair.",

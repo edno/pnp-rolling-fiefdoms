@@ -504,9 +504,7 @@ function resetState(challengeId = null) {
   state.pendingActiveTurn = null;
   state.challengeId = challenge?.id || null;
   state.turnLimit = challenge?.turnLimit ?? null;
-  if (challenge?.setup?.startingInfluence) {
-    state.influence.earned = challenge.setup.startingInfluence;
-  }
+  state.influenceBonus = challenge?.setup?.startingInfluence || 0;
   if (challenge?.setup?.forcedCenterBuilding) {
     const { code, guildType } = challenge.setup.forcedCenterBuilding;
     const centerRow = Math.floor(BOARD_SIZE / 2);
@@ -528,6 +526,13 @@ function resetState(challengeId = null) {
   log(t("game.started"));
   if (challenge) {
     log(t(challenge.nameKey));
+  }
+  if (state.influenceBonus > 0) {
+    log(
+      state.influenceBonus === 1
+        ? t("influence.startingSingle")
+        : t("influence.startingPlural", { count: state.influenceBonus }),
+    );
   }
 }
 
