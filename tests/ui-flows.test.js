@@ -89,7 +89,6 @@ async function setupApp({ numbered = [], x = [], debug = false, enableHooks = fa
   stubEnvironment();
   const url = new URL("http://localhost/");
   if (debug) url.searchParams.set("debug", "");
-  // eslint-disable-next-line no-global-assign
   location = url;
   if (enableHooks) {
     window.__RF_ENABLE_TEST_HOOKS__ = true;

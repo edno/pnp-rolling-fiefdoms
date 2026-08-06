@@ -210,7 +210,7 @@ function safePlayAudio(instance, source, { onCreate } = {}) {
     if (playPromise?.catch) {
       playPromise.catch(() => {});
     }
-  } catch (err) {
+  } catch {
     // Ignore playback failures (e.g., autoplay restrictions).
   }
   return instance;
@@ -2335,10 +2335,6 @@ function updateDiceAssignments() {
     state.influenceSelectionKey = null;
   }
   
-  let locationDice = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
-  let buildDice =
-    state.locationSelection.length === 2 ? state.dice.filter((_, idx) => !state.locationSelection.includes(idx)) : [];
-
   const { message } = evaluateLocationSelection(state, {
     uniqueLocationPairs,
     filterAvailablePairs,
@@ -2346,9 +2342,10 @@ function updateDiceAssignments() {
   });
   if (message) log(message);
 
-  // Re-evaluate dice assignments in case the selection changed (e.g. auto-swap on non-active turns).
-  locationDice = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
-  buildDice =
+  // Dice assignments are evaluated after evaluateLocationSelection() in case the
+  // selection changed (e.g. auto-swap on non-active turns).
+  const locationDice = state.locationSelection.map((i) => state.dice[i]).filter(Boolean);
+  const buildDice =
     state.locationSelection.length === 2 ? state.dice.filter((_, idx) => !state.locationSelection.includes(idx)) : [];
   if (locationDice.length === 2) {
     state.lastLocationDice = locationDice;

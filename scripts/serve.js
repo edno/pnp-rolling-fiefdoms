@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-/* eslint-env node */
-/* eslint-disable no-console */
 const { createServer } = require("node:http");
 const { readFile, stat, access } = require("node:fs/promises");
 const path = require("node:path");
