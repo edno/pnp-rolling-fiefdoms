@@ -48,7 +48,7 @@ export const CHALLENGES = {
       const springhouses = countBuilding(state.board, "S");
       const repOk = scoreResult.total >= 60;
       const springhousesOk = springhouses >= 3;
-      const penaltyOk = scoreResult.breakdown.springhouse >= 0;
+      const penaltyOk = scoreResult.breakdown.springhouse === 0;
       return {
         passed: repOk && springhousesOk && penaltyOk,
         reasons: [
@@ -91,7 +91,7 @@ export const CHALLENGES = {
     turnLimit: 24,
     victory(scoreResult) {
       const repOk = scoreResult.total >= 70;
-      const vagrantsOk = scoreResult.breakdown.vagrants >= 0;
+      const vagrantsOk = scoreResult.breakdown.vagrants === 0;
       return {
         passed: repOk && vagrantsOk,
         reasons: [

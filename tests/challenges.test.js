@@ -10,6 +10,7 @@ const emptyPop = () => Array.from({ length: 4 }, () => Array(4).fill(0));
 
 describe("CHALLENGE_ORDER", () => {
   it("lists every challenge exactly once", () => {
+    expect(new Set(CHALLENGE_ORDER).size).toBe(CHALLENGE_ORDER.length);
     expect(CHALLENGE_ORDER.length).toBe(Object.keys(CHALLENGES).length);
     CHALLENGE_ORDER.forEach((id) => expect(CHALLENGES[id]).toBeDefined());
   });
@@ -23,21 +24,21 @@ describe("foundations victory", () => {
     expect(outcome.passed).toBe(false);
   });
 
-  it("passes with 40+ RP and 6 occupied cottages", () => {
+  it("passes with 40+ RP and 6+ occupied cottages", () => {
     const board = emptyBoard();
     const pop = emptyPop();
-    for (let i = 0; i < 6; i++) {
+    // 20 occupied Cottages (2 RP each) clears the 40 RP bar on their own and stays well under
+    // their 80-pip housing capacity, so there's no Vagrant penalty to offset the score.
+    for (let i = 0; i < 20; i++) {
       board[Math.floor(i / 5)][i % 5].building = "C";
     }
-    pop[0][0] = 8;
-    pop[0][1] = 8;
-    pop[0][2] = 8;
-    pop[0][3] = 8;
-    pop[1][0] = 8;
-    pop[1][1] = 8;
+    pop[0][0] = 20;
     const result = computeScore(board, pop);
     const outcome = CHALLENGES.foundations.victory(result, { board });
+    expect(result.total).toBeGreaterThanOrEqual(40);
     expect(outcome.reasons.find((r) => r.textKey === "challenges.reasons.cottages").ok).toBe(true);
+    expect(outcome.reasons.find((r) => r.textKey === "challenges.reasons.reputation").ok).toBe(true);
+    expect(outcome.passed).toBe(true);
   });
 });
 
@@ -47,6 +48,19 @@ describe("waterRights victory", () => {
     board[0][0].building = "S";
     const result = computeScore(board, emptyPop());
     const outcome = CHALLENGES.waterRights.victory(result, { board });
+    expect(outcome.passed).toBe(false);
+  });
+
+  it("fails the springhouse-penalty reason when a forfeited plot sits adjacent to a Springhouse", () => {
+    const board = emptyBoard();
+    board[0][0].building = "S";
+    board[0][1].forfeited = true; // adjacent forfeit drags this Springhouse's score negative
+    board[2][2].building = "S";
+    board[4][4].building = "S";
+    const result = computeScore(board, emptyPop());
+    const outcome = CHALLENGES.waterRights.victory(result, { board });
+    expect(result.breakdown.springhouse).toBeLessThan(0);
+    expect(outcome.reasons.find((r) => r.textKey === "challenges.reasons.springhousePenalty").ok).toBe(false);
     expect(outcome.passed).toBe(false);
   });
 });
