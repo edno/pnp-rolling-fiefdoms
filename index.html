@@ -166,15 +166,14 @@
           /></span>
           <span class="menu-text" data-i18n="html.fullscreen">Fullscreen</span>
         </button>
-        <button
-          class="menu-item"
-          id="localeToggle"
-          type="button"
-          data-i18n-attr="title:html.switchLanguageTitle;aria-label:html.switchLanguageTitle"
-        >
-          <span class="menu-icon" id="localeToggleIcon">FR</span>
-          <span class="menu-text" data-i18n="html.switchLanguage">Language</span>
-        </button>
+        <div class="menu-item locale-switcher">
+          <span class="menu-icon" aria-hidden="true">🌐</span>
+          <select
+            id="localeSelect"
+            class="locale-select"
+            data-i18n-attr="aria-label:html.switchLanguageTitle;title:html.switchLanguageTitle"
+          ></select>
+        </div>
       </nav>
     </header>
     <div id="loadingOverlay" class="loading-overlay">

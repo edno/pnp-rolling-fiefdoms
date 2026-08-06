@@ -1,6 +1,7 @@
 export default {
   meta: {
     title: "Rolling Fiefdoms - Online Solo",
+    languageName: "English",
   },
   dice: {
     windrosePrefix: "W",
@@ -28,7 +29,6 @@ export default {
     navBgg: "BGG",
     navGithub: "GitHub",
     fullscreen: "Fullscreen",
-    switchLanguage: "Language",
     switchLanguageTitle: "Switch language",
     loadingBoard: "Loading board…",
     fiefdomNamePlaceholder: "Fiefdom name",

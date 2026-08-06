@@ -20,6 +20,15 @@ export function supportedLocales() {
   return Object.keys(LOCALES);
 }
 
+/**
+ * Human-readable name of a locale, in that locale's own language
+ * (e.g. "Français" even while the UI is displayed in English).
+ * @param {string} code
+ */
+export function localeDisplayName(code) {
+  return LOCALES[code]?.meta?.languageName || code;
+}
+
 function storedLocale() {
   try {
     if (typeof window !== "undefined" && window.localStorage) {

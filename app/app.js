@@ -74,8 +74,7 @@ import {
   sfxToggleBtn,
   sfxToggleLabel,
   sfxToggleIcon,
-  localeToggleBtn,
-  localeToggleIcon,
+  localeSelect,
   turnStatusChip,
   loadingOverlay,
   sheetBaseImage,
@@ -97,7 +96,7 @@ import {
   actionMessage as generateActionMessage,
   updateActionBanner as updateBannerUI,
 } from "./ui-feedback.js";
-import { initI18n, applyStaticDom, setLocale, getLocale, supportedLocales, t } from "./i18n.js";
+import { initI18n, applyStaticDom, setLocale, getLocale, supportedLocales, localeDisplayName, t } from "./i18n.js";
 
 const BOARD_SIZE = 5;
 const POPULATION_GRID_SIZE = 4;
@@ -169,22 +168,22 @@ function updateSfxToggleButton() {
   }
 }
 
-function updateLocaleToggleButton() {
-  if (!localeToggleBtn) return;
-  const locales = supportedLocales();
-  const current = getLocale();
-  const next = locales[(locales.indexOf(current) + 1) % locales.length] || current;
-  if (localeToggleIcon) localeToggleIcon.textContent = next.toUpperCase();
+function populateLocaleSelect() {
+  if (!localeSelect) return;
+  localeSelect.innerHTML = "";
+  supportedLocales().forEach((code) => {
+    const option = document.createElement("option");
+    option.value = code;
+    option.textContent = localeDisplayName(code);
+    localeSelect.appendChild(option);
+  });
+  localeSelect.value = getLocale();
 }
 
-function cycleLocale() {
-  const locales = supportedLocales();
-  if (locales.length < 2) return;
-  const current = getLocale();
-  const next = locales[(locales.indexOf(current) + 1) % locales.length];
-  setLocale(next);
+function applyLocaleChange(locale) {
+  setLocale(locale);
   applyStaticDom();
-  updateLocaleToggleButton();
+  if (localeSelect) localeSelect.value = getLocale();
   updateSfxToggleButton();
   updateRollButton();
   renderBoard();
@@ -603,9 +602,9 @@ async function setupControls() {
     sfxToggleBtn.onclick = () => toggleSfxEnabled();
     updateSfxToggleButton();
   }
-  if (localeToggleBtn) {
-    localeToggleBtn.onclick = () => cycleLocale();
-    updateLocaleToggleButton();
+  if (localeSelect) {
+    populateLocaleSelect();
+    localeSelect.onchange = (e) => applyLocaleChange(e.target.value);
   }
   const fiefdomInput = document.getElementById("fiefdomInput");
   if (fiefdomInput) {

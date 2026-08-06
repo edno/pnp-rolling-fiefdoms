@@ -111,6 +111,26 @@ button.menu-item {
   text-align: center;
 }
 
+.locale-select {
+  appearance: none;
+  border: none;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  text-align-last: center;
+  cursor: pointer;
+  padding: 0;
+  max-width: 48px;
+}
+
+.locale-select:focus-visible {
+  outline: 2px solid var(--border);
+  outline-offset: 2px;
+}
+
 .fiefdom-overlay {
   position: absolute;
   top: 40px;
