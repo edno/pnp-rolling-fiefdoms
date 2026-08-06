@@ -8,7 +8,7 @@ export default {
     navRules: "Rules",
     navDownload: "Download",
     navBgg: "BGG",
-    navGithub: "Github",
+    navGithub: "GitHub",
     fullscreen: "Fullscreen",
     loadingBoard: "Loading board…",
     fiefdomNamePlaceholder: "Fiefdom name",
