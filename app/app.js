@@ -1886,6 +1886,10 @@ function updateTracks() {
   const influenceSpent = (state.influence?.spent || 0) + (state.influence?.pending || 0);
   renderInfluenceTrack({ influenceEarned, influenceSpent });
   renderPopHousingTrack(state.tracks.population, state.tracks.housing, vagrants);
+  // Refresh the live challenge progress badge here too, not just from updateTurnStatusChip():
+  // flows like worker allocation call updateTracks() without touching the turn chip, and the
+  // badge should stay live wherever scoring-affecting board state changes.
+  updateChallengeProgressBadge();
 }
 
 function log(msg) {
@@ -2092,6 +2096,9 @@ function setupChallengePicker() {
     challengeOutcomeOverlay.onclick = (e) => {
       if (e.target === challengeOutcomeOverlay) hideChallengeOutcomeOverlay();
     };
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !challengeOutcomeOverlay.hidden) hideChallengeOutcomeOverlay();
+    });
   }
   if (activeChallengeBadge) {
     activeChallengeBadge.onclick = () => openChallengeInfoModal();
