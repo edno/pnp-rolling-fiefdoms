@@ -824,7 +824,7 @@ function rollDice() {
     return;
   }
   if (state.pestilence) {
-    if (turnHintEl) turnHintEl.innerHTML = t("pestilence.forfeitBanner");
+    if (turnHintEl) turnHintEl.textContent = t("pestilence.forfeitEmptyPlot");
     // Auto-assign the split for pestilence: numbered/windrose stay in location, X dice in build.
     const forcedSplit = splitForcedDice(state.dice || []);
     const locIdx = [];
@@ -1118,7 +1118,7 @@ function renderDice() {
   clearElement(diceView);
   if (turnHintEl) {
     if (state.pestilence) {
-      turnHintEl.innerHTML = t("pestilence.forfeitBanner");
+      turnHintEl.textContent = t("pestilence.forfeitEmptyPlot");
     } else if (state.activeTurn && state.invalidSelection) {
       turnHintEl.textContent =
         state.invalidSelectionMessage || t("location.noValidPlotsForPair");
