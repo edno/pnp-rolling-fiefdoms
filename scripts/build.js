@@ -19,6 +19,14 @@ const PLAYER_SHEET_VARIANTS = [
     relative: path.join("resources", "rolling-fiefdoms-player-sheet@2x.webp"),
     target: { width: 2172, height: 1536 },
   },
+  {
+    relative: path.join("resources", "rolling-fiefdoms-player-sheet-fr.webp"),
+    target: { width: 1086, height: 768 },
+  },
+  {
+    relative: path.join("resources", "rolling-fiefdoms-player-sheet-fr@2x.webp"),
+    target: { width: 2172, height: 1536 },
+  },
 ];
 
 // Parse CLI flags

@@ -23,6 +23,7 @@ import {
   BUILDING_RULES,
   computeActivationMap,
   scoreBuildingAt,
+  guildTargetFromLabel,
 } from "./rules.js";
 import { createState, resetTurnState, lockDiceSnapshot } from "./state-controller.js";
 import {
@@ -73,6 +74,8 @@ import {
   sfxToggleBtn,
   sfxToggleLabel,
   sfxToggleIcon,
+  localeSelect,
+  localeFlagIcon,
   turnStatusChip,
   loadingOverlay,
   sheetBaseImage,
@@ -94,7 +97,7 @@ import {
   actionMessage as generateActionMessage,
   updateActionBanner as updateBannerUI,
 } from "./ui-feedback.js";
-import { initI18n, applyStaticDom, t } from "./i18n.js";
+import { initI18n, applyStaticDom, setLocale, getLocale, supportedLocales, localeDisplayName, localeFlag, t } from "./i18n.js";
 
 const BOARD_SIZE = 5;
 const POPULATION_GRID_SIZE = 4;
@@ -164,6 +167,39 @@ function updateSfxToggleButton() {
     sfxToggleIcon.src = sfxEnabled ? SFX_ICON_ON : SFX_ICON_OFF;
     sfxToggleIcon.alt = sfxEnabled ? t("sfx.onAlt") : t("sfx.offAlt");
   }
+}
+
+function updateLocaleFlagIcon() {
+  if (localeFlagIcon) localeFlagIcon.textContent = localeFlag(getLocale());
+}
+
+function populateLocaleSelect() {
+  if (!localeSelect) return;
+  localeSelect.innerHTML = "";
+  supportedLocales().forEach((code) => {
+    const option = document.createElement("option");
+    option.value = code;
+    option.textContent = localeDisplayName(code);
+    localeSelect.appendChild(option);
+  });
+  localeSelect.value = getLocale();
+  updateLocaleFlagIcon();
+}
+
+function applyLocaleChange(locale) {
+  setLocale(locale);
+  applyStaticDom();
+  if (localeSelect) localeSelect.value = getLocale();
+  updateLocaleFlagIcon();
+  setSheetImageSources(sheetBaseImage);
+  updateSfxToggleButton();
+  updateRollButton();
+  renderBoard();
+  updateTracks();
+  updateDiceAssignments(true);
+  updateTurnStatusChip();
+  refreshDiceVisibility();
+  updateActionBanner();
 }
 
 function stopAllSfx() {
@@ -349,6 +385,9 @@ let swapBtnLastVisible = false;
 
 const SHEET_VERSION = "v2.0";
 const SHEET_BASE_PATH = "resources/rolling-fiefdoms-player-sheet";
+// Locales with dedicated board artwork (baked-in translated text). Any
+// locale not listed here falls back to the English board.
+const LOCALIZED_SHEET_LOCALES = new Set(["fr"]);
 const POP_CAPACITY = 5;
 const POP_LAYOUT = { rows: [3, 3, 3, 3, 3, 3], pipsPerCell: 4 };
 const POP_TRACK_TOTAL_CELLS = POP_LAYOUT.rows.reduce((sum, len) => sum + len, 0);
@@ -510,9 +549,14 @@ function preloadSheet() {
   });
 }
 
+function sheetBasePathForLocale() {
+  const locale = getLocale();
+  return LOCALIZED_SHEET_LOCALES.has(locale) ? `${SHEET_BASE_PATH}-${locale}` : SHEET_BASE_PATH;
+}
+
 function sheetImageUrl(scale = 1) {
   const suffix = scale > 1 ? "@2x" : "";
-  return new URL(`${SHEET_BASE_PATH}${suffix}.webp?v=${SHEET_VERSION}`, window.location.href).toString();
+  return new URL(`${sheetBasePathForLocale()}${suffix}.webp?v=${SHEET_VERSION}`, window.location.href).toString();
 }
 
 registerServiceWorker();
@@ -573,6 +617,10 @@ async function setupControls() {
   if (sfxToggleBtn) {
     sfxToggleBtn.onclick = () => toggleSfxEnabled();
     updateSfxToggleButton();
+  }
+  if (localeSelect) {
+    populateLocaleSelect();
+    localeSelect.onchange = (e) => applyLocaleChange(e.target.value);
   }
   const fiefdomInput = document.getElementById("fiefdomInput");
   if (fiefdomInput) {
@@ -707,10 +755,21 @@ function rollDice() {
   }
 }
 
+function buildingDisplayLetter(code) {
+  const name = t(`buildings.${code}`);
+  return typeof name === "string" && name.length ? name[0].toUpperCase() : code;
+}
+
+function guildDisplayLabel(guildLabel) {
+  const target = guildTargetFromLabel(guildLabel);
+  if (!target) return (guildLabel || "G").toUpperCase();
+  return `${buildingDisplayLetter(target)}G`;
+}
+
 function formatDieLabelForLog(label) {
   if (typeof label !== "string" || !label.length) return label;
-  if (label.startsWith("N")) return `W${label.slice(1)}`;
-  if (label.startsWith("X")) return `E${label.slice(1)}`;
+  if (label.startsWith("N")) return `${t("dice.windrosePrefix")}${label.slice(1)}`;
+  if (label.startsWith("X")) return `${t("dice.eventPrefix")}${label.slice(1)}`;
   return label;
 }
 
@@ -722,7 +781,7 @@ function describeDice(dice) {
         d.face === "X"
           ? "X"
           : d.face === "windrose"
-            ? "windrose"
+            ? t("dice.windroseFace")
             : d.face;
       return `${label}:${face}`;
     })
@@ -732,8 +791,8 @@ function describeDice(dice) {
 function formatDiceLabelsInMessage(message) {
   if (typeof message !== "string") return message;
   return message.replace(/\b([NX])(\d+)\b/g, (_, prefix, digits) => {
-    if (prefix === "N") return `W${digits}`;
-    if (prefix === "X") return `E${digits}`;
+    if (prefix === "N") return `${t("dice.windrosePrefix")}${digits}`;
+    if (prefix === "X") return `${t("dice.eventPrefix")}${digits}`;
     return `${prefix}${digits}`;
   });
 }
@@ -1212,13 +1271,7 @@ function renderBoard() {
         const label = document.createElement("div");
         label.className = "label building";
         label.textContent =
-          data.building === "G"
-            ? (() => {
-                const map = { GF: "FG", GQ: "QG", GW: "WG", GM: "MG" };
-                const raw = (data.buildingLabel || "G").toUpperCase();
-                return map[raw] || raw;
-              })()
-            : data.buildingLabel || data.building;
+          data.building === "G" ? guildDisplayLabel(data.buildingLabel) : buildingDisplayLetter(data.building);
         cell.appendChild(label);
         if (data.activationForfeit) {
           cell.classList.add("forfeit");
@@ -1569,14 +1622,7 @@ function placeBuilding(r, c, code) {
   lockDiceSnapshot(state, { markPendingNextRoll: true, uniqueLocationPairs });
   renderBoard();
   updateTracks();
-  const displayLabel =
-    code === "G"
-      ? (() => {
-          const map = { GF: "FG", GQ: "QG", GW: "WG" };
-          const raw = (buildingLabel || "G").toUpperCase();
-          return map[raw] || raw;
-        })()
-      : code;
+  const displayLabel = code === "G" ? guildDisplayLabel(buildingLabel) : buildingDisplayLetter(code);
   log(t("build.placed", { label: displayLabel, row: r + 1, col: c + 1 }));
   state.splitUsedForBuild = true;
   updateDiceAssignments();
@@ -2316,13 +2362,18 @@ function onDieClick(idx) {
   updateDiceAssignments();
 }
 
-function updateDiceAssignments() {
+// `renderOnly` skips re-evaluating the current location selection (which can mutate turn
+// state and log messages) and just re-renders from the existing state — used when
+// refreshing the UI for a locale switch, which must not alter game state.
+function updateDiceAssignments(renderOnly = false) {
   if (!state.dice || !state.dice.length) {
-    state.forceForfeit = false;
-    state.forceForfeitAdvisory = false;
-    state.invalidSelection = false;
-    state.invalidSelectionMessage = null;
-    state.influenceSelectionKey = null;
+    if (!renderOnly) {
+      state.forceForfeit = false;
+      state.forceForfeitAdvisory = false;
+      state.invalidSelection = false;
+      state.invalidSelectionMessage = null;
+      state.influenceSelectionKey = null;
+    }
     renderSelectionDice([], []);
     fillBuildings([]);
     highlightLocations();
@@ -2331,25 +2382,27 @@ function updateDiceAssignments() {
     updateMultiplayerButtons();
     return;
   }
-  if (!influenceAdjustmentsEmpty()) {
-    const selectionKey = canonicalSelectionKey(state.locationSelection);
-    if (state.influenceSelectionKey && state.influenceSelectionKey !== selectionKey) {
-      const cleared = clearInfluenceAdjustments();
-      if (cleared) {
-        log(t("influence.resetOnSelectionChange"));
-        updateTracks();
+  if (!renderOnly) {
+    if (!influenceAdjustmentsEmpty()) {
+      const selectionKey = canonicalSelectionKey(state.locationSelection);
+      if (state.influenceSelectionKey && state.influenceSelectionKey !== selectionKey) {
+        const cleared = clearInfluenceAdjustments();
+        if (cleared) {
+          log(t("influence.resetOnSelectionChange"));
+          updateTracks();
+        }
       }
+    } else if (state.influenceSelectionKey) {
+      state.influenceSelectionKey = null;
     }
-  } else if (state.influenceSelectionKey) {
-    state.influenceSelectionKey = null;
+
+    const { message } = evaluateLocationSelection(state, {
+      uniqueLocationPairs,
+      filterAvailablePairs,
+      board: state.board,
+    });
+    if (message) log(message);
   }
-  
-  const { message } = evaluateLocationSelection(state, {
-    uniqueLocationPairs,
-    filterAvailablePairs,
-    board: state.board,
-  });
-  if (message) log(message);
 
   // Dice assignments are evaluated after evaluateLocationSelection() in case the
   // selection changed (e.g. auto-swap on non-active turns).

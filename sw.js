@@ -1,8 +1,9 @@
-const CACHE_VERSION = "v1.32";
+const CACHE_VERSION = "v1.33";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
-const APP_VERSION = "v7";
+const APP_VERSION = "v8";
 const SHEET_VERSION = "v2.0";
 const SHEET_BASE_PATH = "/resources/rolling-fiefdoms-player-sheet";
+const SHEET_BASE_PATH_FR = "/resources/rolling-fiefdoms-player-sheet-fr";
 const ASSETS = [
   "/",
   "/index.html",
@@ -27,6 +28,8 @@ const ASSETS = [
   "/assets/img/bgg.webp",
   `${SHEET_BASE_PATH}.webp?v=${SHEET_VERSION}`,
   `${SHEET_BASE_PATH}@2x.webp?v=${SHEET_VERSION}`,
+  `${SHEET_BASE_PATH_FR}.webp?v=${SHEET_VERSION}`,
+  `${SHEET_BASE_PATH_FR}@2x.webp?v=${SHEET_VERSION}`,
   "/robots.txt",
   "/manifest.webmanifest",
 ];

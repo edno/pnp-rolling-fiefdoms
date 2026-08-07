@@ -38,7 +38,7 @@
     <meta name="theme-color" content="#e67e22" />
     <title>Rolling Fiefdoms - Online Solo</title>
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="modulepreload" href="app/app.js?v=v7" />
+    <link rel="modulepreload" href="app/app.js?v=v8" />
     <link rel="icon" type="image/svg+xml" href="assets/img/forfeit.svg" />
     <style>
       /* Critical CSS - hide content until fonts and CSS load */
@@ -70,6 +70,7 @@
           href="resources/rolling-fiefdoms-rulebook.pdf"
           target="_blank"
           rel="noopener"
+          data-i18n-attr="href:html.rulesHref"
         >
           <span class="menu-icon"
             ><img
@@ -133,6 +134,15 @@
           /></span>
           <span class="menu-text" data-i18n="html.navGithub">GitHub</span>
         </a>
+        <div class="menu-item locale-switcher">
+          <span class="menu-icon" id="localeFlagIcon" aria-hidden="true">🌐</span>
+          <span class="menu-text" data-i18n="html.switchLanguage">Language</span>
+          <select
+            id="localeSelect"
+            class="locale-select"
+            data-i18n-attr="aria-label:html.switchLanguageTitle;title:html.switchLanguageTitle"
+          ></select>
+        </div>
         <button
           class="menu-item"
           id="sfxToggle"
@@ -331,6 +341,6 @@
       document.getElementById("currentYear").textContent =
         new Date().getFullYear();
     </script>
-    <script type="module" src="app/app.js?v=v7"></script>
+    <script type="module" src="app/app.js?v=v8"></script>
   </body>
 </html>
