@@ -8,19 +8,21 @@
 
 import { actionBannerEl } from "./dom-manager.js";
 import { BUILDING_RULES } from "./rules.js";
+import { t } from "./i18n.js";
 
 const SCORE_RANKS = [
-  { min: 90, title: "Legendary", description: "Your name will echo through the ages." },
-  { min: 80, title: "Illustrious", description: "Your fief shines as a beacon of order and prosperity." },
-  { min: 70, title: "Distinguished", description: "Your rule is respected across neighboring fiefdoms." },
-  { min: 60, title: "Prosperous", description: "Your lands flourish and your people thrive." },
-  { min: 50, title: "Modest", description: "A small but stable holding, quietly enduring." },
-  { min: 0, title: "Forgotten", description: "Your fief leaves little mark upon the chronicles." },
+  { min: 90, titleKey: "score.rankLegendaryTitle", descriptionKey: "score.rankLegendaryDesc" },
+  { min: 80, titleKey: "score.rankIllustriousTitle", descriptionKey: "score.rankIllustriousDesc" },
+  { min: 70, titleKey: "score.rankDistinguishedTitle", descriptionKey: "score.rankDistinguishedDesc" },
+  { min: 60, titleKey: "score.rankProsperousTitle", descriptionKey: "score.rankProsperousDesc" },
+  { min: 50, titleKey: "score.rankModestTitle", descriptionKey: "score.rankModestDesc" },
+  { min: 0, titleKey: "score.rankForgottenTitle", descriptionKey: "score.rankForgottenDesc" },
 ];
 
 function describeScoreRank(score) {
   const numeric = Number(score) || 0;
-  return SCORE_RANKS.find((entry) => numeric >= entry.min) || SCORE_RANKS[SCORE_RANKS.length - 1];
+  const entry = SCORE_RANKS.find((rank) => numeric >= rank.min) || SCORE_RANKS[SCORE_RANKS.length - 1];
+  return { title: t(entry.titleKey), description: t(entry.descriptionKey) };
 }
 
 /**
@@ -41,8 +43,8 @@ export const TURN_PHASE = {
  * Generate text for non-active turn auto-hint
  */
 export function nonActiveAutoHintText(soloSwapAvailable = false) {
-  const base = "Non-active turn. Dice automatically assigned.";
-  return soloSwapAvailable ? `${base} Use the swap button to swap pairs.` : base;
+  const base = t("turn.nonActive");
+  return soloSwapAvailable ? t("turn.nonActiveWithSwap", { base }) : base;
 }
 
 /**
@@ -60,7 +62,7 @@ export function actionMessage(state, currentPhase, options = {}) {
       ? state.finalScore
       : currentScore?.({ allowPopulationActivation: true }).total || 0;
     const rank = describeScoreRank(score);
-    return `Final score ${score} - ${rank.title} — ${rank.description}`;
+    return t("score.label", { score, title: rank.title, description: rank.description });
   }
 
   if (phase === TURN_PHASE.ACTIVATION) {
@@ -75,14 +77,14 @@ export function actionMessage(state, currentPhase, options = {}) {
     if (state.activationSelection.pop) {
       const [pr, pc] = state.activationSelection.pop;
       const remaining = Math.max(0, state.populationAvailable?.[pr]?.[pc] || 0);
-      return `Activation: population selected (${remaining} remaining). Click a highlighted building to assign 1 worker.`;
+      return t("activation.populationSelected", { remaining });
     }
-    if (anyRemaining) return "Activation: select a population node to allocate workers.";
-    return "Activation: finish allocation when ready.";
+    if (anyRemaining) return t("activation.selectPopulationNode");
+    return t("activation.finishWhenReady");
   }
 
   if (state.pendingSpringhouseTarget) {
-    return "Select an adjacent building for Springhouse to reduce worker requirement by 1.";
+    return t("springhouse.selectAdjacentForBanner");
   }
 
   if (state.activeTurn && state.invalidSelection && state.invalidSelectionMessage) {
@@ -90,37 +92,37 @@ export function actionMessage(state, currentPhase, options = {}) {
   }
 
   if (state.forceForfeitAdvisory) {
-    return "No valid location pairs; spend Influence or forfeit a plot.";
+    return t("location.noValidPairsSpendInfluence");
   }
 
   if (phase === TURN_PHASE.PESTILENCE || phase === TURN_PHASE.FORFEIT) {
-    return "Forfeit an empty plot.";
+    return t("forfeit.emptyPlotBanner");
   }
 
   if (phase === TURN_PHASE.POPULATION) {
-    return `Place ${state.pendingPopulation.remaining} population on an adjacent intersection.`;
+    return t("population.placeOnAdjacentIntersection", { count: state.pendingPopulation.remaining });
   }
 
   if (phase === TURN_PHASE.AWAIT_ROLL) {
-    return "Press Roll Dice to start your turn.";
+    return t("hints.pressRollToStart");
   }
 
   if (phase === TURN_PHASE.SPLITTING) {
     if (state.locationSelection.length < 2 && !(state.diceLocked && state.lockedLocationDice?.length === 2)) {
-      return "Select two location dice in the Turn panel.";
+      return t("location.selectTwoInTurnPanel");
     }
-    return "Lock the split to continue building.";
+    return t("hints.lockSplitToContinue");
   }
 
   if (phase === TURN_PHASE.BUILDING) {
     if (!state.buildChoice) {
-      return "Select a building from the Buildings overlay.";
+      return t("hints.selectBuildingFromOverlay");
     }
-    return "Click a highlighted plot to place the chosen building.";
+    return t("hints.clickHighlightedPlot");
   }
 
-  if (!state.activeTurn) return "Waiting for the active player.";
-  return "Roll dice to begin.";
+  if (!state.activeTurn) return t("hints.waitingForActivePlayer");
+  return t("hints.rollDiceToBegin");
 }
 
 /**

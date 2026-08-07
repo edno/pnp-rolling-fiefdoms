@@ -63,8 +63,8 @@
   </head>
   <body class="loading">
     <header>
-      <h1>Rolling Fiefdoms</h1>
-      <nav class="top-menu" aria-label="Quick links">
+      <h1 data-i18n="html.siteTitle">Rolling Fiefdoms</h1>
+      <nav class="top-menu" aria-label="Quick links" data-i18n-attr="aria-label:html.quickLinksLabel">
         <a
           class="menu-item"
           href="resources/rolling-fiefdoms-rulebook.pdf"
@@ -80,7 +80,7 @@
               width="32"
               height="32"
           /></span>
-          <span class="menu-text">Rules</span>
+          <span class="menu-text" data-i18n="html.navRules">Rules</span>
         </a>
         <a
           class="menu-item"
@@ -97,7 +97,7 @@
               width="32"
               height="32"
           /></span>
-          <span class="menu-text">Download</span>
+          <span class="menu-text" data-i18n="html.navDownload">Download</span>
         </a>
         <a
           class="menu-item"
@@ -114,7 +114,7 @@
               width="32"
               height="32"
           /></span>
-          <span class="menu-text">BGG</span>
+          <span class="menu-text" data-i18n="html.navBgg">BGG</span>
         </a>
         <a
           class="menu-item"
@@ -131,7 +131,7 @@
               width="32"
               height="32"
           /></span>
-          <span class="menu-text">Github</span>
+          <span class="menu-text" data-i18n="html.navGithub">GitHub</span>
         </a>
         <button
           class="menu-item"
@@ -163,13 +163,13 @@
               width="32"
               height="32"
           /></span>
-          <span class="menu-text">Fullscreen</span>
+          <span class="menu-text" data-i18n="html.fullscreen">Fullscreen</span>
         </button>
       </nav>
     </header>
     <div id="loadingOverlay" class="loading-overlay">
       <div class="spinner" aria-hidden="true"></div>
-      <div class="loading-text">Loading board…</div>
+      <div class="loading-text" data-i18n="html.loadingBoard">Loading board…</div>
     </div>
     <div id="actionBanner" class="action-banner" aria-live="polite"></div>
 
@@ -186,6 +186,7 @@
             "
             sizes="(max-width: 1100px) 100vw, 1100px"
             alt="Rolling Fiefdoms player sheet showing the 5x5 board, tracks, and overlays."
+            data-i18n-attr="alt:html.sheetAlt"
             loading="lazy"
             decoding="async"
             width="1086"
@@ -197,6 +198,7 @@
               type="text"
               maxlength="20"
               placeholder="Fiefdom name"
+              data-i18n-attr="placeholder:html.fiefdomNamePlaceholder"
             />
           </div>
           <div class="board" id="board"></div>
@@ -223,11 +225,13 @@
             id="buildingsOverlay"
             class="buildings-overlay"
             aria-label="Select building"
+            data-i18n-attr="aria-label:html.selectBuilding"
           ></div>
           <div
             id="guildsOverlay"
             class="guilds-overlay"
             aria-label="Select guild"
+            data-i18n-attr="aria-label:html.selectGuild"
           ></div>
         </div>
       </section>
@@ -235,48 +239,49 @@
       <section class="controls">
         <div class="panel">
           <h2>
-            Turn
+            <span data-i18n="html.turnTitle">Turn</span>
             <span
               id="turnStatusChip"
               class="status-chip"
               aria-live="polite"
             ></span>
           </h2>
-          <button id="rollBtn">Roll Dice</button>
+          <button id="rollBtn" data-i18n="html.rollDice">Roll Dice</button>
           <div id="diceView"></div>
           <div id="turnHint" class="hint"></div>
-          <button id="finishActivation" style="display: none">
+          <button id="finishActivation" style="display: none" data-i18n="html.finishActivation">
             Finish Activation
           </button>
-          <button id="newGameBtn" style="display: none">Play again</button>
+          <button id="newGameBtn" style="display: none" data-i18n="html.playAgain">Play again</button>
         </div>
 
         <div class="panel">
           <h2 class="panel-title-with-action">
-            <span>Split &amp; Build</span>
+            <span data-i18n="html.splitAndBuild">Split &amp; Build</span>
             <button
               id="swapPairBtn"
               class="icon-btn"
               type="button"
               title="Click to swap dice pairs allocation"
               aria-label="Swap location/build dice pairs"
+              data-i18n-attr="title:html.swapTitle;aria-label:html.swapAriaLabel"
               style="display: none"
             >
               <img src="assets/img/swap.svg" alt="" class="swap-icon" />
             </button>
           </h2>
           <div class="field">
-            <label>Location Dice</label>
+            <label data-i18n="html.locationDiceLabel">Location Dice</label>
             <div class="dice-row" id="locDicePreview"></div>
           </div>
           <div class="field">
-            <label>Build Dice</label>
+            <label data-i18n="html.buildDiceLabel">Build Dice</label>
             <div class="dice-row" id="buildDicePreview"></div>
           </div>
         </div>
 
         <div class="panel log-panel">
-          <h2>Log</h2>
+          <h2 data-i18n="html.logTitle">Log</h2>
           <div class="log-body">
             <ul id="log"></ul>
           </div>
@@ -291,12 +296,13 @@
             href="https://boardgamegeek.com/boardgame/465867"
             target="_blank"
             rel="noopener"
+            data-i18n="html.footerTitle"
             >Rolling&nbsp;Fiefdoms</a
           ></span
         >
         <span class="footer-sep">·</span>
         <span
-          >Code:
+          ><span data-i18n="html.footerCode">Code:</span>
           <a
             href="https://github.com/edno/pnp-rolling-fiefdoms/blob/main/LICENSE"
             target="_blank"
@@ -306,7 +312,7 @@
         >
         <span class="footer-sep">·</span>
         <span
-          >Assets:
+          ><span data-i18n="html.footerAssets">Assets:</span>
           <a
             href="https://github.com/edno/pnp-rolling-fiefdoms/blob/main/LICENSE-ASSETS"
             target="_blank"
