@@ -139,8 +139,11 @@ function applyUnrestForCompletedTurn(state, board) {
   const advancedBuilt = state.turnFlags?.advancedBuiltThisTurn ? 1 : 0;
   const vagrantUnrest = calcVagrantsFromState(state, board) > 8 ? 1 : 0;
   const gain = Math.min(4, advancedBuilt + influenceUsed + vagrantUnrest);
-  if (gain <= 0) return null;
   const prevProgress = state.unrest?.progress || 0;
+  // A turn with no gain still needs re-evaluating when the counter is already pinned at
+  // the cap from a prior blocked turn, so a postponed Barricade keeps re-attempting every
+  // completed turn (per the design above) rather than only on turns with fresh gain.
+  if (gain <= 0 && prevProgress < 4) return null;
   let progress = prevProgress + gain;
   let triggered = false;
   let blocked = false;

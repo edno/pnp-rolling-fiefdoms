@@ -214,6 +214,23 @@ describe("tallyUnrestAndCheckBarricade (challenge VI)", () => {
     expect(state.pendingBarricade).toBeNull();
     expect(messages.some((m) => /postponed/i.test(m.text))).toBe(true);
   });
+
+  it("keeps re-checking a pinned Barricade on a later turn with zero Unrest gain", () => {
+    const state = createState();
+    state.unrestTracking = true;
+    state.turnIndex = 2;
+    // Already pinned at the cap from a prior blocked turn.
+    state.unrest = { progress: 4 };
+    // No Advanced building, no Influence spent, Vagrants within limits: this turn earns 0
+    // Unrest on its own, but the pinned Barricade should still be re-evaluated rather than
+    // silently skipped.
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(1));
+    state.barricadedNodes = Array.from({ length: 4 }, () => Array(4).fill(false));
+    const { triggered, messages } = tallyUnrestAndCheckBarricade(state, emptyBoard());
+    expect(state.unrest.progress).toBe(4);
+    expect(triggered).toBe(false);
+    expect(messages.some((m) => /postponed/i.test(m.text))).toBe(true);
+  });
 });
 
 describe("activation worker assignment", () => {
