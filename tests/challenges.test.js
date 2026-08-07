@@ -16,6 +16,35 @@ describe("CHALLENGE_ORDER", () => {
   });
 });
 
+describe("requiredRP", () => {
+  it("matches the reputation reason's need value for every challenge", () => {
+    CHALLENGE_ORDER.forEach((id) => {
+      const challenge = CHALLENGES[id];
+      const board = emptyBoard();
+      const result = computeScore(board, emptyPop());
+      const outcome = challenge.victory(result, { board });
+      const repReason = outcome.reasons.find((r) => r.textKey === "challenges.reasons.reputation");
+      expect(repReason.params.need).toBe(challenge.requiredRP);
+    });
+  });
+});
+
+describe("liveProgress", () => {
+  it("reports raw counts without clamping past the target", () => {
+    const board = emptyBoard();
+    for (let i = 0; i < 5; i++) board[Math.floor(i / 5)][i % 5].building = "S"; // 5 Springhouses, need 3
+    const result = computeScore(board, emptyPop());
+    const progress = CHALLENGES.waterRights.liveProgress(result, { board });
+    expect(progress).toEqual({ have: 5, need: 3, labelKey: "challenges.badgeLabels.springhouses" });
+  });
+
+  it("is defined for all non-embersOfRevolt challenges", () => {
+    CHALLENGE_ORDER.filter((id) => id !== "embersOfRevolt").forEach((id) => {
+      expect(typeof CHALLENGES[id].liveProgress).toBe("function");
+    });
+  });
+});
+
 describe("foundations victory", () => {
   it("fails when reputation and cottages are both short", () => {
     const board = emptyBoard();
@@ -84,13 +113,15 @@ describe("socialContract victory", () => {
     expect(CHALLENGES.socialContract.setup.forcedCenterBuilding.choices).toEqual(["T", "GF", "GQ", "GW", "GM"]);
   });
 
-  it("fails when the vagrant penalty is negative", () => {
+  it("fails when the vagrant penalty is negative, reporting its magnitude as have/need", () => {
     const board = emptyBoard();
     const pop = emptyPop();
     pop[0][0] = 14; // population with no housing -> vagrant penalty
     const result = computeScore(board, pop);
     const outcome = CHALLENGES.socialContract.victory(result, { board });
-    expect(outcome.reasons.find((r) => r.textKey === "challenges.reasons.vagrantPenalty").ok).toBe(false);
+    const reason = outcome.reasons.find((r) => r.textKey === "challenges.reasons.vagrantPenalty");
+    expect(reason.ok).toBe(false);
+    expect(reason.params).toEqual({ have: 14, need: 0 });
     expect(outcome.passed).toBe(false);
   });
 });

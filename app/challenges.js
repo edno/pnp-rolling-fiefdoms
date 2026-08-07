@@ -25,17 +25,21 @@ export const CHALLENGES = {
     setup: {},
     rules: { disabledBuildings: ["T", "U", "A", "G"], forceSplitOnAdvancedSum: true },
     turnLimit: null,
+    requiredRP: 40,
     victory(scoreResult, state) {
       const cottages = countBuilding(state.board, "C");
-      const repOk = scoreResult.total >= 40;
+      const repOk = scoreResult.total >= this.requiredRP;
       const cottagesOk = cottages >= 6 && scoreResult.breakdown.cottages >= 12;
       return {
         passed: repOk && cottagesOk,
         reasons: [
-          { ok: repOk, textKey: "challenges.reasons.reputation", params: { have: scoreResult.total, need: 40 } },
+          { ok: repOk, textKey: "challenges.reasons.reputation", params: { have: scoreResult.total, need: this.requiredRP } },
           { ok: cottagesOk, textKey: "challenges.reasons.cottages", params: { have: cottages, need: 6 } },
         ],
       };
+    },
+    liveProgress(scoreResult, state) {
+      return { have: countBuilding(state.board, "C"), need: 6, labelKey: "challenges.badgeLabels.cottages" };
     },
   },
 
@@ -50,19 +54,23 @@ export const CHALLENGES = {
     setup: {},
     rules: {},
     turnLimit: null,
+    requiredRP: 60,
     victory(scoreResult, state) {
       const springhouses = countBuilding(state.board, "S");
-      const repOk = scoreResult.total >= 60;
+      const repOk = scoreResult.total >= this.requiredRP;
       const springhousesOk = springhouses >= 3;
       const penaltyOk = scoreResult.breakdown.springhouse === 0;
       return {
         passed: repOk && springhousesOk && penaltyOk,
         reasons: [
-          { ok: repOk, textKey: "challenges.reasons.reputation", params: { have: scoreResult.total, need: 60 } },
+          { ok: repOk, textKey: "challenges.reasons.reputation", params: { have: scoreResult.total, need: this.requiredRP } },
           { ok: springhousesOk, textKey: "challenges.reasons.springhouses", params: { have: springhouses, need: 3 } },
           { ok: penaltyOk, textKey: "challenges.reasons.springhousePenalty", params: {} },
         ],
       };
+    },
+    liveProgress(scoreResult, state) {
+      return { have: countBuilding(state.board, "S"), need: 3, labelKey: "challenges.badgeLabels.springhouses" };
     },
   },
 
@@ -77,16 +85,20 @@ export const CHALLENGES = {
     setup: { startingInfluence: 1 },
     rules: {},
     turnLimit: null,
+    requiredRP: 60,
     victory(scoreResult) {
-      const repOk = scoreResult.total >= 60;
+      const repOk = scoreResult.total >= this.requiredRP;
       const guildsOk = scoreResult.breakdown.guilds >= 30;
       return {
         passed: repOk && guildsOk,
         reasons: [
-          { ok: repOk, textKey: "challenges.reasons.reputation", params: { have: scoreResult.total, need: 60 } },
+          { ok: repOk, textKey: "challenges.reasons.reputation", params: { have: scoreResult.total, need: this.requiredRP } },
           { ok: guildsOk, textKey: "challenges.reasons.guilds", params: { have: scoreResult.breakdown.guilds, need: 30 } },
         ],
       };
+    },
+    liveProgress(scoreResult) {
+      return { have: scoreResult.breakdown.guilds, need: 30, labelKey: "challenges.badgeLabels.guilds" };
     },
   },
 
@@ -101,15 +113,24 @@ export const CHALLENGES = {
     setup: { forcedCenterBuilding: { choices: ["T", "GF", "GQ", "GW", "GM"] } },
     rules: {},
     turnLimit: 24,
+    requiredRP: 70,
     victory(scoreResult) {
-      const repOk = scoreResult.total >= 70;
-      const vagrantsOk = scoreResult.breakdown.vagrants === 0;
+      const vagrantPenalty = Math.abs(scoreResult.breakdown.vagrants);
+      const repOk = scoreResult.total >= this.requiredRP;
+      const vagrantsOk = vagrantPenalty === 0;
       return {
         passed: repOk && vagrantsOk,
         reasons: [
-          { ok: repOk, textKey: "challenges.reasons.reputation", params: { have: scoreResult.total, need: 70 } },
-          { ok: vagrantsOk, textKey: "challenges.reasons.vagrantPenalty", params: {} },
+          { ok: repOk, textKey: "challenges.reasons.reputation", params: { have: scoreResult.total, need: this.requiredRP } },
+          { ok: vagrantsOk, textKey: "challenges.reasons.vagrantPenalty", params: { have: vagrantPenalty, need: 0 } },
         ],
+      };
+    },
+    liveProgress(scoreResult) {
+      return {
+        have: Math.abs(scoreResult.breakdown.vagrants),
+        need: 0,
+        labelKey: "challenges.badgeLabels.vagrantPenalty",
       };
     },
   },
@@ -125,16 +146,20 @@ export const CHALLENGES = {
     setup: {},
     rules: {},
     turnLimit: null,
+    requiredRP: 80,
     victory(scoreResult) {
-      const repOk = scoreResult.total >= 80;
+      const repOk = scoreResult.total >= this.requiredRP;
       const universityOk = scoreResult.breakdown.university >= 15;
       return {
         passed: repOk && universityOk,
         reasons: [
-          { ok: repOk, textKey: "challenges.reasons.reputation", params: { have: scoreResult.total, need: 80 } },
+          { ok: repOk, textKey: "challenges.reasons.reputation", params: { have: scoreResult.total, need: this.requiredRP } },
           { ok: universityOk, textKey: "challenges.reasons.university", params: { have: scoreResult.breakdown.university, need: 15 } },
         ],
       };
+    },
+    liveProgress(scoreResult) {
+      return { have: scoreResult.breakdown.university, need: 15, labelKey: "challenges.badgeLabels.university" };
     },
   },
 
@@ -153,11 +178,12 @@ export const CHALLENGES = {
     setup: {},
     rules: { unrestTracking: true },
     turnLimit: null,
+    requiredRP: 80,
     victory(scoreResult) {
-      const repOk = scoreResult.total >= 80;
+      const repOk = scoreResult.total >= this.requiredRP;
       return {
         passed: repOk,
-        reasons: [{ ok: repOk, textKey: "challenges.reasons.reputation", params: { have: scoreResult.total, need: 80 } }],
+        reasons: [{ ok: repOk, textKey: "challenges.reasons.reputation", params: { have: scoreResult.total, need: this.requiredRP } }],
       };
     },
   },

@@ -233,8 +233,15 @@ export default {
       springhouses: "Springhouses built: {have}/{need}",
       springhousePenalty: "Springhouse penalty must be 0 RP",
       guilds: "Guilds scored: {have}/{need} RP",
-      vagrantPenalty: "Final Vagrant penalty must be 0 RP",
+      vagrantPenalty: "Final Vagrant penalty: {have}/{need} RP",
       university: "University score: {have}/{need} RP",
+    },
+    badgeLabels: {
+      cottages: "Cottages",
+      springhouses: "Springhouses",
+      guilds: "Guild RP",
+      vagrantPenalty: "Vagrant Penalty",
+      university: "University RP",
     },
     foundations: {
       name: "I. Foundations",

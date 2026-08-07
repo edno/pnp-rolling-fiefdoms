@@ -233,8 +233,15 @@ export default {
       springhouses: "Sources construites : {have}/{need}",
       springhousePenalty: "La pénalité de Source doit être de 0 PR",
       guilds: "Guildes marquées : {have}/{need} PR",
-      vagrantPenalty: "La pénalité de Vagabonds finale doit être de 0 PR",
+      vagrantPenalty: "Pénalité de Vagabonds finale : {have}/{need} PR",
       university: "Score de l'Université : {have}/{need} PR",
+    },
+    badgeLabels: {
+      cottages: "Logis",
+      springhouses: "Sources",
+      guilds: "PR de Guilde",
+      vagrantPenalty: "Pénalité de Vagabonds",
+      university: "PR d'Université",
     },
     foundations: {
       name: "I. Fondations",
