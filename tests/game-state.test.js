@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { t } from "../app/i18n.js";
 import {
   beginTurn,
   evaluateLocationSelection,
@@ -907,6 +908,7 @@ describe("auto advance and tracks", () => {
     );
     const result = autoAdvanceState(state, state.board);
     expect(result.action).toBe("activate");
+    expect(result.message).toBe(t("game.boardFull"));
   });
 
   it("requests activation early when a challenge turn limit is reached, even with an open board", () => {
@@ -917,6 +919,7 @@ describe("auto advance and tracks", () => {
     expect(turnLimitReached(state)).toBe(true);
     const result = autoAdvanceState(state, state.board);
     expect(result.action).toBe("activate");
+    expect(result.message).toBe(t("game.turnLimitReached"));
   });
 
   it("does not force activation before the turn limit is reached", () => {

@@ -205,7 +205,7 @@ export function calcVagrants(pop, housing) {
 export function restrictBuildOptionsForBoard(options, board, disabledCodes = []) {
   if (!Array.isArray(options) || !Array.isArray(board)) return options || [];
   const advancedLimit = new Set(["T", "U", "A"]);
-  const disabled = new Set(disabledCodes);
+  const disabled = new Set(Array.isArray(disabledCodes) ? disabledCodes : []);
   const builtAdvanced = new Set();
   const builtGuildTypes = new Set();
   let guildCount = 0;

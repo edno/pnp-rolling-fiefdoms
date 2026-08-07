@@ -498,7 +498,10 @@ export function evaluateAutoAdvance(state, board) {
 
 export function autoAdvanceState(state, board) {
   const action = evaluateAutoAdvance(state, board);
-  if (action === "activate") return { action, message: t("game.boardFull") };
+  if (action === "activate") {
+    const message = boardFull(board) ? t("game.boardFull") : t("game.turnLimitReached");
+    return { action, message };
+  }
   return { action, message: null };
 }
 

@@ -79,6 +79,7 @@ export default {
     started: "Partie commencée.",
     loadFailed: "Échec du chargement de la partie. Veuillez actualiser.",
     boardFull: "Plateau complet.",
+    turnLimitReached: "Limite de tours atteinte.",
     endScore: "Fin de partie. Score final {score}.",
   },
   pestilence: {

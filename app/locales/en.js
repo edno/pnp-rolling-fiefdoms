@@ -79,6 +79,7 @@ export default {
     started: "Game started.",
     loadFailed: "Failed to load game. Please refresh.",
     boardFull: "Board full.",
+    turnLimitReached: "Turn limit reached.",
     endScore: "Game end. Final score {score}.",
   },
   pestilence: {
