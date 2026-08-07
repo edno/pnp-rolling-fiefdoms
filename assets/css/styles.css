@@ -426,8 +426,23 @@ main {
 }
 
 .population-node.barricaded {
-  background: var(--background) url("../img/hatch.webp") center/cover no-repeat;
-  cursor: default;
+  overflow: hidden;
+  cursor: not-allowed;
+}
+
+/* The node itself is a square rotated 45deg to read as a diamond; painting the hatch
+   pattern directly on it would rotate the pattern too. Instead, overlay an upright
+   (counter-rotated) square sized to fully cover the diamond after the counter-rotation. */
+.population-node.barricaded::after {
+  content: "";
+  position: absolute;
+  top: -21%;
+  left: -21%;
+  width: 142%;
+  height: 142%;
+  background: url("../img/hatch.webp") center/cover no-repeat;
+  transform: rotate(-45deg);
+  pointer-events: none;
 }
 
 .worker-pips {
@@ -565,6 +580,36 @@ main {
   padding: 16px 48px;
   text-align: center;
   background: rgba(255, 255, 255, 0.85);
+}
+
+.barricade-alert-overlay {
+  /* Non-blocking: the player must still click a population node underneath while
+     this brief, auto-dismissing notification is shown. */
+  pointer-events: none;
+}
+
+.barricade-alert-box {
+  animation: barricade-alert-pulse 1s ease-out forwards;
+}
+
+@keyframes barricade-alert-pulse {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  15% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+  30% {
+    transform: scale(1);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
 .challenge-outcome-box span {

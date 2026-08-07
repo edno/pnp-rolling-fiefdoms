@@ -104,6 +104,8 @@ import {
   challengeOutcomeText,
   challengeOutcomeComparison,
   challengeOutcomeReasons,
+  barricadeAlertOverlay,
+  barricadeAlertText,
   forEachCell,
   createOctagon,
   clearElement,
@@ -783,6 +785,7 @@ function rollDice() {
   state.pendingActiveTurn = null;
   if (state.pendingBarricade?.active) {
     renderPopulationNodes();
+    showBarricadeAlert();
   }
   const rollMsg = t("turn.rolled", { dice: describeDice(dice) });
   if (Array.isArray(messages) && messages.length) {
@@ -1956,6 +1959,21 @@ function showChallengeOutcomeOverlay(challenge, scoreResult, outcome, outcomeTex
 function hideChallengeOutcomeOverlay() {
   if (!challengeOutcomeOverlay) return;
   challengeOutcomeOverlay.hidden = true;
+}
+
+let barricadeAlertTimeout = null;
+
+// Briefly flashes a "Barricades raised!" banner (styled like the challenge outcome
+// summary) when Barricades trigger, auto-dismissing after ~1s. Distinct from the
+// permanent log line, which stays in the log for reference.
+function showBarricadeAlert() {
+  if (!barricadeAlertOverlay || !barricadeAlertText) return;
+  barricadeAlertText.textContent = t("challenges.barricadesRaised");
+  barricadeAlertOverlay.hidden = false;
+  clearTimeout(barricadeAlertTimeout);
+  barricadeAlertTimeout = setTimeout(() => {
+    barricadeAlertOverlay.hidden = true;
+  }, 1000);
 }
 
 // Places the Social Contract forced center-plot building once chosen live on the board
