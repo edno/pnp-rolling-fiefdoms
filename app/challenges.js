@@ -97,8 +97,8 @@ export const CHALLENGES = {
         ],
       };
     },
-    liveProgress(scoreResult) {
-      return { have: scoreResult.breakdown.guilds, need: 30, labelKey: "challenges.badgeLabels.guilds" };
+    liveProgress(scoreResult, state) {
+      return { have: countBuilding(state.board, "G"), need: 2, labelKey: "challenges.badgeLabels.guilds" };
     },
   },
 

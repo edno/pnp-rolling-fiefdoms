@@ -240,7 +240,7 @@ export default {
     badgeLabels: {
       cottages: "Logis",
       springhouses: "Sources",
-      guilds: "PR de Guildes",
+      guilds: "Guildes",
       vagrantPenalty: "Pénalité de Vagabonds",
       university: "PR d'Université",
     },

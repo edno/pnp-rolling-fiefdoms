@@ -43,6 +43,15 @@ describe("liveProgress", () => {
       expect(typeof CHALLENGES[id].liveProgress).toBe("function");
     });
   });
+
+  it("tracks Charters' Guild count, not Guild RP", () => {
+    const board = emptyBoard();
+    board[0][0].building = "G";
+    board[0][1].building = "G";
+    const result = computeScore(board, emptyPop());
+    const progress = CHALLENGES.charters.liveProgress(result, { board });
+    expect(progress).toEqual({ have: 2, need: 2, labelKey: "challenges.badgeLabels.guilds" });
+  });
 });
 
 describe("foundations victory", () => {
