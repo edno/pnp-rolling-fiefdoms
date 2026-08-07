@@ -197,7 +197,7 @@ export default {
     clickHighlightedPlot: "Click a highlighted plot to place the chosen building.",
     waitingForActivePlayer: "Waiting for the active player.",
     rollDiceToBegin: "{rollBtn} to begin.",
-    pressRollAfterPestilence: "Press Roll Dice to continue after pestilence.",
+    pressRollAfterPestilence: "Press {rollBtn} to continue after pestilence.",
   },
   market: {
     tooltipRow: "Row {row}, Col {col}: {points}pts",

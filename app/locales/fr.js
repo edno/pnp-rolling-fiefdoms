@@ -197,7 +197,7 @@ export default {
     clickHighlightedPlot: "Cliquez sur une parcelle en surbrillance pour placer le bâtiment choisi.",
     waitingForActivePlayer: "En attente du joueur actif.",
     rollDiceToBegin: "{rollBtn} pour commencer.",
-    pressRollAfterPestilence: "Appuyez sur Lancer les dés pour continuer après la Pestilence.",
+    pressRollAfterPestilence: "Appuyez sur {rollBtn} pour continuer après la Pestilence.",
   },
   market: {
     tooltipRow: "Ligne {row}, Colonne {col} : {points}pts",

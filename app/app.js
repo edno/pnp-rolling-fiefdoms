@@ -96,6 +96,7 @@ import {
   nonActiveAutoHintText as generateNonActiveHint,
   actionMessage as generateActionMessage,
   updateActionBanner as updateBannerUI,
+  formatButtonLabelHtml,
 } from "./ui-feedback.js";
 import { initI18n, applyStaticDom, setLocale, getLocale, supportedLocales, localeDisplayName, localeFlag, t } from "./i18n.js";
 
@@ -1771,7 +1772,9 @@ function autoAdvance() {
   }
   if (action === "roll") {
     prepareNextRoll();
-    state.bannerOverride = state.pestilence ? t("hints.pressRollAfterPestilence") : null;
+    state.bannerOverride = state.pestilence
+      ? t("hints.pressRollAfterPestilence", { rollBtn: formatButtonLabelHtml(t("html.rollDice")) })
+      : null;
     updateActionBanner();
   }
 }

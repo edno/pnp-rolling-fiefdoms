@@ -14,7 +14,7 @@ import { t, escapeHtml } from "./i18n.js";
  * Wrap a button's label so it renders inline styled like the real button
  * (see .btn-label-inline in styles.css), for use inside t()-interpolated hints.
  */
-function formatButtonLabelHtml(label) {
+export function formatButtonLabelHtml(label) {
   return `<span class="btn-label-inline">${escapeHtml(label)}</span>`;
 }
 

@@ -165,9 +165,9 @@ export function beginTurn(
     const advisory = allPairs.length === 0 && (canRescue || generalRescue);
     state.forceForfeit = allPairs.length === 0 && !advisory;
     state.forceForfeitAdvisory = advisory;
-    // A Pestilence roll (2 unresolved X dice) forces a forfeit regardless of location
-    // pairs; skip the generic "no valid pairs" message so it doesn't precede (and get
-    // superseded by) the Pestilence message pushed below.
+    // A Pestilence roll (double-X: both X dice show the X face) forces a forfeit
+    // regardless of location pairs; skip the generic "no valid pairs" message so it
+    // doesn't precede (and get superseded by) the Pestilence message pushed below.
     if (allPairs.length === 0 && !isPestilence) {
       messages.push({
         kind: "location",
