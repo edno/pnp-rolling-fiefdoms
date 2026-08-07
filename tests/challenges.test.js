@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { CHALLENGES, CHALLENGE_ORDER } from "../app/challenges.js";
-import { computeScore } from "../app/rules.js";
+import { computeScore, buildingOptionsFromDice, restrictBuildOptionsForBoard } from "../app/rules.js";
 
 const emptyBoard = () =>
   Array.from({ length: 5 }, () =>
@@ -152,8 +152,19 @@ describe("embersOfRevolt", () => {
 });
 
 describe("foundations rule flags", () => {
-  it("disables advanced buildings and forces split on 7-10 sums", () => {
+  it("disables advanced buildings", () => {
     expect(CHALLENGES.foundations.rules.disabledBuildings).toEqual(["T", "U", "A", "G"]);
-    expect(CHALLENGES.foundations.rules.forceSplitOnAdvancedSum).toBe(true);
+  });
+
+  it("forces Split on a 7-10 build-pair sum by disabling the resulting Advanced building", () => {
+    // Sum 9 -> Almshouse (A), one of Foundations' disabled codes. Excluding it from the
+    // sum-based option is how "you must use Split instead" is satisfied without any
+    // dedicated enforcement code (a single die can only reach 1-6, so the 7-10 range is
+    // reachable only via this sum option).
+    const dice = [{ resolved: 4 }, { resolved: 5 }];
+    const rawOptions = buildingOptionsFromDice(dice);
+    expect(rawOptions.some((o) => o.code === "A")).toBe(true);
+    const restricted = restrictBuildOptionsForBoard(rawOptions, emptyBoard(), CHALLENGES.foundations.rules.disabledBuildings);
+    expect(restricted.some((o) => o.code === "A")).toBe(false);
   });
 });

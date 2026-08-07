@@ -23,7 +23,10 @@ export const CHALLENGES = {
     ruleKeys: ["challenges.foundations.rule1", "challenges.foundations.rule2"],
     victoryKeys: ["challenges.foundations.victory1", "challenges.foundations.victory2"],
     setup: {},
-    rules: { disabledBuildings: ["T", "U", "A", "G"], forceSplitOnAdvancedSum: true },
+    // "If your Build pair sum would be 7-10, you must use Split instead" is satisfied
+    // emergently by disabledBuildings alone (see restrictBuildOptionsForBoard in rules.js):
+    // sums 7-10 only ever map to an Advanced building, and those are all disabled here.
+    rules: { disabledBuildings: ["T", "U", "A", "G"] },
     turnLimit: null,
     requiredRP: 40,
     victory(scoreResult, state) {

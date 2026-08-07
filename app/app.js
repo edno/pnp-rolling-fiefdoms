@@ -125,6 +125,7 @@ import {
   actionMessage as generateActionMessage,
   updateActionBanner as updateBannerUI,
   formatButtonLabelHtml,
+  TURN_PHASE,
 } from "./ui-feedback.js";
 import {
   initI18n,
@@ -137,6 +138,7 @@ import {
   t,
   hasOwnTranslation,
   tEnglish,
+  escapeHtml,
 } from "./i18n.js";
 import { CHALLENGES, CHALLENGE_ORDER } from "./challenges.js";
 
@@ -390,7 +392,8 @@ function updateRollButton() {
   const awaitingRoll = !allowDebugBypass && state.rollAvailable;
   const showButton = !hidden && (awaitingRoll || allowDebugBypass);
   rollBtn.style.display = showButton ? "inline-block" : "none";
-  const enabled = allowDebugBypass || (state.rollAvailable && !state.pendingCenterBuilding?.active);
+  const enabled =
+    allowDebugBypass || (state.rollAvailable && !state.pendingCenterBuilding?.active && !state.pendingBarricade?.active);
   rollBtn.disabled = !enabled;
   rollBtn.classList.toggle("dice-locked", !enabled && !debugMode);
   rollBtn.title = enabled ? t("turn.rollIdleTitle") : t("turn.rollUsedTitle");
@@ -438,18 +441,6 @@ const POP_LAYOUT = { rows: [3, 3, 3, 3, 3, 3], pipsPerCell: 4 };
 const POP_TRACK_TOTAL_CELLS = POP_LAYOUT.rows.reduce((sum, len) => sum + len, 0);
 const POP_TRACK_TOTAL_PIPS = POP_TRACK_TOTAL_CELLS * POP_LAYOUT.pipsPerCell;
 const INFLUENCE_TRACK_SLOTS = Math.max(1, earnedInfluenceFromPopulation(POP_TRACK_TOTAL_PIPS));
-const TURN_PHASE = {
-  AWAIT_ROLL: "awaiting-roll",
-  SPLITTING: "splitting",
-  BUILDING: "building",
-  POPULATION: "population",
-  BARRICADE: "barricade",
-  CENTER_BUILDING: "center-building",
-  FORFEIT: "forfeit",
-  PESTILENCE: "pestilence",
-  ACTIVATION: "activation",
-  ACTIVATION_DONE: "activation-complete",
-};
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
   const isLocalhost = location.hostname === "localhost" || location.hostname === "127.0.0.1";
@@ -520,10 +511,6 @@ function activeChallenge() {
   return state.challengeId ? CHALLENGES[state.challengeId] || null : null;
 }
 
-function escapeHtml(str) {
-  return str.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-
 // Challenge display names all start with a roman numeral ("I. Foundations", "VI. Embers
 // of Revolt", ...); wrap just the numeral in a dedicated font (Roboto) distinct from the
 // display font used for the rest of the name, for every render site that shows it.
@@ -572,6 +559,7 @@ function resetState(challengeId = null) {
   state.influenceBonus = challenge?.setup?.startingInfluence || 0;
   state.unrestTracking = Boolean(challenge?.rules?.unrestTracking);
   state.unrest = { progress: 0 };
+  state.unrestCheckedTurnIndex = null;
   state.pendingBarricade = null;
   state.pendingCenterBuilding = challenge?.setup?.forcedCenterBuilding
     ? { active: true, awaitingGuildType: false }
@@ -1892,30 +1880,37 @@ function log(msg) {
 
 function autoAdvance() {
   const { action, message } = autoAdvanceState(state, state.board);
+  if (action === "wait") return;
+
+  // Tally Unrest for the just-completed turn here, the moment the turn is actually
+  // done - whether the game continues to the next roll or moves into the final
+  // activation phase - rather than deferring it to the next Roll Dice click (which
+  // wouldn't run at all on the game's final turn). A raised Barricade must be resolved
+  // before the game moves on; onPopulationNodeClick() re-calls autoAdvance() once it's
+  // resolved, at which point this block is skipped (same turnIndex already checked) and
+  // the actual action (roll/activate) proceeds.
+  if (state.unrestTracking && state.turnIndex > 0 && state.unrestCheckedTurnIndex !== state.turnIndex) {
+    state.unrestCheckedTurnIndex = state.turnIndex;
+    const unrestOutcome = tallyUnrestAndCheckBarricade(state, state.board);
+    unrestOutcome.messages.forEach((m) => log(m.text));
+    if (unrestOutcome.messages.length) {
+      updateTracks();
+      updateUnrestBadge();
+    }
+    if (unrestOutcome.triggered) {
+      renderPopulationNodes();
+      showBarricadeAlert();
+      updateActionBanner();
+      return;
+    }
+  }
+
   if (action === "activate") {
     if (message) log(message);
     enterActivationMode();
     return;
   }
   if (action === "roll") {
-    // Tally Unrest for the just-completed turn here, the moment the turn is actually
-    // done, rather than deferring it to the next Roll Dice click - so a raised Barricade
-    // must be resolved before the player is even prompted to roll again.
-    if (state.unrestTracking && state.turnIndex > 0 && state.unrestCheckedTurnIndex !== state.turnIndex) {
-      state.unrestCheckedTurnIndex = state.turnIndex;
-      const unrestOutcome = tallyUnrestAndCheckBarricade(state, state.board);
-      unrestOutcome.messages.forEach((m) => log(m.text));
-      if (unrestOutcome.messages.length) {
-        updateTracks();
-        updateUnrestBadge();
-      }
-      if (unrestOutcome.triggered) {
-        renderPopulationNodes();
-        showBarricadeAlert();
-        updateActionBanner();
-        return;
-      }
-    }
     prepareNextRoll();
     state.bannerOverride = state.pestilence
       ? t("hints.pressRollAfterPestilence", { rollBtn: formatButtonLabelHtml(t("html.rollDice")) })
@@ -2021,6 +2016,9 @@ function placeCenterBuilding(code, guildType) {
   const centerRow = Math.floor(BOARD_SIZE / 2);
   const centerCol = Math.floor(BOARD_SIZE / 2);
   state.board[centerRow][centerCol] = { building: code, buildingLabel: guildType, forfeited: false, springBoost: 0 };
+  if (BUILDING_RULES[code]?.category === "advanced") {
+    state.turnFlags.advancedBuiltThisTurn = true;
+  }
   log(t("challenges.socialContract.centerBuildingLog", { building: centerBuildingLabel(code === "T" ? "T" : guildType) }));
   state.pendingCenterBuilding = null;
   renderBuildingOverlay([], true);
@@ -2047,6 +2045,8 @@ function handleCenterBuildingChoice(code) {
 function newGame(challengeId = null) {
   hasStartedAnyGame = true;
   hideChallengeOutcomeOverlay();
+  clearTimeout(barricadeAlertTimeout);
+  if (barricadeAlertOverlay) barricadeAlertOverlay.hidden = true;
   resetState(challengeId);
   renderBoard();
   prepareNextRoll();
