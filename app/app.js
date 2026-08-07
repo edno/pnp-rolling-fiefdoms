@@ -196,7 +196,7 @@ function applyLocaleChange(locale) {
   updateRollButton();
   renderBoard();
   updateTracks();
-  updateDiceAssignments();
+  updateDiceAssignments(true);
   updateTurnStatusChip();
   refreshDiceVisibility();
   updateActionBanner();
@@ -2362,13 +2362,18 @@ function onDieClick(idx) {
   updateDiceAssignments();
 }
 
-function updateDiceAssignments() {
+// `renderOnly` skips re-evaluating the current location selection (which can mutate turn
+// state and log messages) and just re-renders from the existing state — used when
+// refreshing the UI for a locale switch, which must not alter game state.
+function updateDiceAssignments(renderOnly = false) {
   if (!state.dice || !state.dice.length) {
-    state.forceForfeit = false;
-    state.forceForfeitAdvisory = false;
-    state.invalidSelection = false;
-    state.invalidSelectionMessage = null;
-    state.influenceSelectionKey = null;
+    if (!renderOnly) {
+      state.forceForfeit = false;
+      state.forceForfeitAdvisory = false;
+      state.invalidSelection = false;
+      state.invalidSelectionMessage = null;
+      state.influenceSelectionKey = null;
+    }
     renderSelectionDice([], []);
     fillBuildings([]);
     highlightLocations();
@@ -2377,25 +2382,27 @@ function updateDiceAssignments() {
     updateMultiplayerButtons();
     return;
   }
-  if (!influenceAdjustmentsEmpty()) {
-    const selectionKey = canonicalSelectionKey(state.locationSelection);
-    if (state.influenceSelectionKey && state.influenceSelectionKey !== selectionKey) {
-      const cleared = clearInfluenceAdjustments();
-      if (cleared) {
-        log(t("influence.resetOnSelectionChange"));
-        updateTracks();
+  if (!renderOnly) {
+    if (!influenceAdjustmentsEmpty()) {
+      const selectionKey = canonicalSelectionKey(state.locationSelection);
+      if (state.influenceSelectionKey && state.influenceSelectionKey !== selectionKey) {
+        const cleared = clearInfluenceAdjustments();
+        if (cleared) {
+          log(t("influence.resetOnSelectionChange"));
+          updateTracks();
+        }
       }
+    } else if (state.influenceSelectionKey) {
+      state.influenceSelectionKey = null;
     }
-  } else if (state.influenceSelectionKey) {
-    state.influenceSelectionKey = null;
+
+    const { message } = evaluateLocationSelection(state, {
+      uniqueLocationPairs,
+      filterAvailablePairs,
+      board: state.board,
+    });
+    if (message) log(message);
   }
-  
-  const { message } = evaluateLocationSelection(state, {
-    uniqueLocationPairs,
-    filterAvailablePairs,
-    board: state.board,
-  });
-  if (message) log(message);
 
   // Dice assignments are evaluated after evaluateLocationSelection() in case the
   // selection changed (e.g. auto-swap on non-active turns).
