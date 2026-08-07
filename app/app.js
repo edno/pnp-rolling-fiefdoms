@@ -519,6 +519,20 @@ function activeChallenge() {
   return state.challengeId ? CHALLENGES[state.challengeId] || null : null;
 }
 
+function escapeHtml(str) {
+  return str.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// Challenge display names all start with a roman numeral ("I. Foundations", "VI. Embers
+// of Revolt", ...); wrap just the numeral in a dedicated font (Roboto) distinct from the
+// display font used for the rest of the name, for every render site that shows it.
+function formatChallengeNameHtml(name) {
+  const match = /^([IVXLCDM]+)(\.\s*)(.*)$/.exec(name);
+  if (!match) return escapeHtml(name);
+  const [, numeral, separator, rest] = match;
+  return `<span class="challenge-roman-numeral">${escapeHtml(numeral)}</span>${escapeHtml(separator)}${escapeHtml(rest)}`;
+}
+
 // Labels a Social Contract center-building choice ("T" or a guild code like "GF") for
 // display in the picker chooser and the setup log line.
 function centerBuildingLabel(choice) {
@@ -570,7 +584,7 @@ function resetState(challengeId = null) {
   updateTurnStatusChip();
   log(t("game.started"));
   if (challenge) {
-    log(t(challenge.nameKey));
+    log(formatChallengeNameHtml(t(challenge.nameKey)));
   }
   if (state.influenceBonus > 0) {
     log(
@@ -1925,7 +1939,7 @@ function logChallengeOutcome(scoreResult) {
   const challenge = activeChallenge();
   if (!challenge) return;
   const outcome = challenge.victory(scoreResult, state);
-  const name = t(challenge.nameKey);
+  const name = formatChallengeNameHtml(t(challenge.nameKey));
   const outcomeText = t(outcome.passed ? "challenges.result.passed" : "challenges.result.failed", { name });
   log(outcomeText);
   outcome.reasons.forEach((reason) => {
@@ -1936,7 +1950,7 @@ function logChallengeOutcome(scoreResult) {
 
 function showChallengeOutcomeOverlay(challenge, scoreResult, outcome, outcomeText) {
   if (!challengeOutcomeOverlay || !challengeOutcomeText) return;
-  challengeOutcomeText.textContent = outcomeText;
+  challengeOutcomeText.innerHTML = outcomeText;
   if (challengeOutcomeComparison) {
     challengeOutcomeComparison.textContent = t("challenges.result.scoreComparison", {
       score: scoreResult.total,
@@ -2082,7 +2096,7 @@ function setupChallengePicker() {
 function openChallengeInfoModal() {
   const challenge = activeChallenge();
   if (!challenge || !challengeInfoModal) return;
-  if (challengeInfoTitle) challengeInfoTitle.textContent = t(challenge.nameKey);
+  if (challengeInfoTitle) challengeInfoTitle.innerHTML = formatChallengeNameHtml(t(challenge.nameKey));
   if (challengeInfoDifficulty) {
     clearElement(challengeInfoDifficulty);
     appendDifficultyDots(challengeInfoDifficulty, challenge.difficulty);
@@ -2117,7 +2131,7 @@ function updateActiveChallengeBadge() {
   }
   const label = t(challenge.nameKey);
   const tooltip = t("challenges.picker.badgeTooltip");
-  activeChallengeBadge.textContent = label;
+  activeChallengeBadge.innerHTML = formatChallengeNameHtml(label);
   activeChallengeBadge.setAttribute("aria-label", `${label} — ${tooltip}`);
   activeChallengeBadge.title = tooltip;
   activeChallengeBadge.classList.remove("hidden");
@@ -2220,7 +2234,7 @@ function appendChallengePlaceholderCard(titleText, descText = null, difficulty =
   badge.className = "challenge-card-badge";
   badge.textContent = t("challenges.comingSoon");
   const title = document.createElement("h3");
-  title.textContent = titleText;
+  title.innerHTML = formatChallengeNameHtml(titleText);
   card.appendChild(badge);
   card.appendChild(title);
   appendDifficultyDots(card, difficulty);
@@ -2264,7 +2278,7 @@ function renderChallengeCards() {
     if (entry.id === null) card.classList.add("challenge-card-normal");
     card.classList.toggle("selected", pickedChallengeId === entry.id);
     const title = document.createElement("h3");
-    title.textContent = t(entry.nameKey);
+    title.innerHTML = formatChallengeNameHtml(t(entry.nameKey));
     card.appendChild(title);
     appendDifficultyDots(card, entry.difficulty);
     const desc = document.createElement("p");

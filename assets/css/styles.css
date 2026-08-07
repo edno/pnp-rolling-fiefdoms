@@ -1753,6 +1753,13 @@ select {
   font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
+/* Wherever a challenge display name is shown (cards, badges, modal titles, log lines,
+   outcome banner), the leading roman numeral uses Roboto while the rest keeps the
+   surrounding element's display font. */
+.challenge-roman-numeral {
+  font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
 .challenge-card p {
   margin: 0 0 8px 0;
   font-size: 12px;
