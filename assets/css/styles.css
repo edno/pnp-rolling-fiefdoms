@@ -575,6 +575,34 @@ main {
   color: var(--text);
 }
 
+.challenge-outcome-comparison {
+  margin: 8px 0 0 0;
+  font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.challenge-outcome-reasons {
+  list-style: none;
+  margin: 12px 0 0 0;
+  padding: 0;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+  font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+}
+
+.challenge-outcome-reason-ok {
+  color: #1e8449;
+}
+
+.challenge-outcome-reason-fail {
+  color: var(--danger);
+}
+
 .challenge-outcome-close-btn {
   position: absolute;
   top: 8px;

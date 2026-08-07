@@ -65,7 +65,8 @@ export const challengeCarouselNext = document.getElementById("challengeCarouselN
 export const challengeCarouselDots = document.getElementById("challengeCarouselDots");
 export const challengeOutcomeOverlay = document.getElementById("challengeOutcomeOverlay");
 export const challengeOutcomeText = document.getElementById("challengeOutcomeText");
-export const challengeOutcomeCloseBtn = document.getElementById("challengeOutcomeCloseBtn");
+export const challengeOutcomeComparison = document.getElementById("challengeOutcomeComparison");
+export const challengeOutcomeReasons = document.getElementById("challengeOutcomeReasons");
 
 // P2P Multiplayer Elements
 // ============================================================================

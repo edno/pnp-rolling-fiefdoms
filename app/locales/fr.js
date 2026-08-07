@@ -225,7 +225,8 @@ export default {
     },
     result: {
       passed: "Défi « {name} » réussi !",
-      failed: "Défi « {name} » non réussi.",
+      failed: "Défi « {name} » échoué.",
+      scoreComparison: "Score final : {score} PR (requis : {required} PR)",
     },
     reasons: {
       reputation: "Réputation : {have}/{need} PR",

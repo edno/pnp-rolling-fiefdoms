@@ -224,8 +224,9 @@ export default {
       badgeTooltip: "Click to open the challenge details",
     },
     result: {
-      passed: "Challenge \"{name}\" complete!",
-      failed: "Challenge \"{name}\" not completed.",
+      passed: "Challenge \"{name}\" succeeded!",
+      failed: "Challenge \"{name}\" failed.",
+      scoreComparison: "Final Score: {score} RP (required: {required} RP)",
     },
     reasons: {
       reputation: "Reputation: {have}/{need} RP",
