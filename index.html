@@ -63,7 +63,15 @@
   </head>
   <body class="loading">
     <header>
-      <h1 data-i18n="html.siteTitle">Rolling Fiefdoms</h1>
+      <div class="site-title-group">
+        <h1 data-i18n="html.siteTitle">Rolling Fiefdoms</h1>
+        <button
+          type="button"
+          id="activeChallengeBadge"
+          class="status-chip challenge-badge hidden"
+          aria-hidden="true"
+        ></button>
+      </div>
       <nav class="top-menu" aria-label="Quick links" data-i18n-attr="aria-label:html.quickLinksLabel">
         <a
           class="menu-item"
@@ -182,6 +190,56 @@
       <div class="loading-text" data-i18n="html.loadingBoard">Loading board…</div>
     </div>
     <div id="actionBanner" class="action-banner" aria-live="polite"></div>
+
+    <div id="challengePicker" class="modal-overlay" hidden>
+      <div
+        class="modal-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="challengePickerTitle"
+      >
+        <div class="modal-header">
+          <h2 id="challengePickerTitle" data-i18n="challenges.picker.title">Choose a game</h2>
+          <div class="locale-switcher modal-locale-switcher">
+            <span class="menu-icon" id="challengePickerLocaleFlagIcon" aria-hidden="true">🌐</span>
+            <select
+              id="challengePickerLocaleSelect"
+              class="locale-select"
+              data-i18n-attr="aria-label:html.switchLanguageTitle;title:html.switchLanguageTitle"
+            ></select>
+          </div>
+        </div>
+        <p data-i18n="challenges.picker.description">
+          Play a normal game, or step into a chapter of the solo campaign.
+        </p>
+        <div class="challenge-carousel-wrapper">
+          <button
+            id="challengeCarouselPrev"
+            type="button"
+            class="carousel-nav carousel-nav-prev"
+            aria-label="Previous"
+          >
+            &#10094;
+          </button>
+          <div id="challengeCards" class="challenge-carousel"></div>
+          <button
+            id="challengeCarouselNext"
+            type="button"
+            class="carousel-nav carousel-nav-next"
+            aria-label="Next"
+          >
+            &#10095;
+          </button>
+        </div>
+        <div id="challengeCarouselDots" class="carousel-dots"></div>
+        <div class="modal-actions">
+          <button id="challengeCancelBtn" type="button" class="secondary" data-i18n="challenges.picker.cancel">
+            Cancel
+          </button>
+          <button id="challengeConfirmBtn" type="button" data-i18n="challenges.picker.confirm">Start</button>
+        </div>
+      </div>
+    </div>
 
     <main>
       <section class="board-panel">
@@ -341,6 +399,50 @@
         >
       </div>
     </footer>
+
+    <div id="challengeInfoModal" class="modal-overlay" hidden>
+      <div
+        class="modal-dialog challenge-info-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="challengeInfoTitle"
+      >
+        <div class="modal-header">
+          <h2 class="challenge-info-title-row">
+            <span id="challengeInfoTitle"></span>
+            <div id="challengeInfoDifficulty" class="challenge-info-difficulty"></div>
+          </h2>
+          <button
+            id="challengeInfoCloseBtn"
+            type="button"
+            class="challenge-outcome-close-btn modal-close-btn"
+            aria-label="Close"
+            data-i18n-attr="aria-label:html.close"
+          >
+            &times;
+          </button>
+        </div>
+        <p id="challengeInfoDescription"></p>
+        <div id="challengeInfoVictory"></div>
+        <div id="challengeInfoRules"></div>
+        <div id="challengeInfoSetup"></div>
+      </div>
+    </div>
+
+    <div id="challengeOutcomeOverlay" class="challenge-outcome-overlay" hidden>
+      <div class="challenge-outcome-box">
+        <button
+          id="challengeOutcomeCloseBtn"
+          type="button"
+          class="challenge-outcome-close-btn"
+          aria-label="Close"
+          data-i18n-attr="aria-label:html.close"
+        >
+          &times;
+        </button>
+        <span id="challengeOutcomeText"></span>
+      </div>
+    </div>
 
     <script>
       document.getElementById("currentYear").textContent =

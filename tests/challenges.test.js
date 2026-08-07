@@ -79,9 +79,9 @@ describe("charters victory", () => {
 });
 
 describe("socialContract victory", () => {
-  it("has a 24-turn limit and a forced center Guild setup", () => {
+  it("has a 24-turn limit and offers a center-building choice", () => {
     expect(CHALLENGES.socialContract.turnLimit).toBe(24);
-    expect(CHALLENGES.socialContract.setup.forcedCenterBuilding.code).toBe("G");
+    expect(CHALLENGES.socialContract.setup.forcedCenterBuilding.choices).toEqual(["T", "GF", "GQ", "GW", "GM"]);
   });
 
   it("fails when the vagrant penalty is negative", () => {

@@ -8,6 +8,7 @@ import {
   finishActivation,
   startPopulationPlacement,
   placePopulationNode,
+  chooseBarricadeNode,
   allocateWorker,
   autoForfeitUnfillableState,
   autoAdvanceState,
@@ -111,7 +112,7 @@ describe("beginTurn Unrest tracking (challenge VI)", () => {
   it("does not accrue Unrest when unrestTracking is off", () => {
     const state = createState();
     beginTurn(state, dice(), emptyBoard(), helpers);
-    expect(state.unrest.total).toBe(0);
+    expect(state.unrest.progress).toBe(0);
   });
 
   it("does not accrue Unrest on the very first turn (no prior turn to score)", () => {
@@ -119,7 +120,7 @@ describe("beginTurn Unrest tracking (challenge VI)", () => {
     state.unrestTracking = true;
     state.turnFlags = { advancedBuiltThisTurn: true };
     beginTurn(state, dice(), emptyBoard(), helpers);
-    expect(state.unrest.total).toBe(0);
+    expect(state.unrest.progress).toBe(0);
   });
 
   it("gains 1 Unrest for an Advanced building built during the completed turn", () => {
@@ -128,7 +129,7 @@ describe("beginTurn Unrest tracking (challenge VI)", () => {
     state.turnIndex = 1;
     state.turnFlags = { advancedBuiltThisTurn: true };
     beginTurn(state, dice(), emptyBoard(), helpers);
-    expect(state.unrest.total).toBe(1);
+    expect(state.unrest.progress).toBe(1);
   });
 
   it("gains 1 Unrest per Influence spent during the completed turn", () => {
@@ -137,7 +138,7 @@ describe("beginTurn Unrest tracking (challenge VI)", () => {
     state.turnIndex = 1;
     state.influenceAdjustments = { N1: { delta: 2 }, N2: { delta: -1 } };
     beginTurn(state, dice(), emptyBoard(), helpers);
-    expect(state.unrest.total).toBe(3);
+    expect(state.unrest.progress).toBe(3);
   });
 
   it("caps Unrest gain at 4 per turn", () => {
@@ -146,41 +147,42 @@ describe("beginTurn Unrest tracking (challenge VI)", () => {
     state.turnIndex = 1;
     state.turnFlags = { advancedBuiltThisTurn: true };
     state.influenceAdjustments = { N1: { delta: 5 } };
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    state.barricadedNodes = Array.from({ length: 4 }, () => Array(4).fill(false));
     beginTurn(state, dice(), emptyBoard(), helpers);
-    expect(state.unrest.total).toBe(4);
+    expect(state.unrest.progress).toBe(0);
+    expect(state.pendingBarricade?.active).toBe(true);
   });
 
-  it("raises Barricades and hatches an empty population square on crossing a multiple of 4", () => {
+  it("raises Barricades and requires the player to choose a square on crossing a multiple of 4", () => {
     const state = createState();
     state.unrestTracking = true;
     state.turnIndex = 1;
-    state.unrest = { total: 3 };
+    state.unrest = { progress: 3 };
     state.turnFlags = { advancedBuiltThisTurn: true };
     state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
-    const { messages } = beginTurn(state, dice(), emptyBoard(), {
-      ...helpers,
-      allocatePopulationToNode,
-      popCapacity: 5,
-    });
-    expect(state.unrest.total).toBe(4);
-    expect(state.populationNodes[0][0]).toBe(1);
+    state.barricadedNodes = Array.from({ length: 4 }, () => Array(4).fill(false));
+    const { messages } = beginTurn(state, dice(), emptyBoard(), helpers);
+    expect(state.unrest.progress).toBe(0);
+    expect(state.pendingBarricade?.active).toBe(true);
     expect(messages.some((m) => m.kind === "unrest")).toBe(true);
+
+    const result = chooseBarricadeNode(state, 0, 0);
+    expect(result.barricaded).toBe(true);
+    expect(state.barricadedNodes[0][0]).toBe(true);
+    expect(state.pendingBarricade).toBeNull();
   });
 
   it("does not raise Barricades when Unrest does not cross a multiple of 4", () => {
     const state = createState();
     state.unrestTracking = true;
     state.turnIndex = 1;
-    state.unrest = { total: 1 };
+    state.unrest = { progress: 1 };
     state.turnFlags = { advancedBuiltThisTurn: true };
     state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
-    const { messages } = beginTurn(state, dice(), emptyBoard(), {
-      ...helpers,
-      allocatePopulationToNode,
-      popCapacity: 5,
-    });
-    expect(state.unrest.total).toBe(2);
-    expect(state.populationNodes[0][0]).toBe(0);
+    const { messages } = beginTurn(state, dice(), emptyBoard(), helpers);
+    expect(state.unrest.progress).toBe(2);
+    expect(state.pendingBarricade?.active).toBeFalsy();
     expect(messages.some((m) => m.kind === "unrest")).toBe(false);
   });
 
@@ -191,7 +193,7 @@ describe("beginTurn Unrest tracking (challenge VI)", () => {
     state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
     state.populationNodes[0][0] = 9; // 9 population, no Cottages -> 9 Vagrants
     beginTurn(state, dice(), emptyBoard(), helpers);
-    expect(state.unrest.total).toBe(1);
+    expect(state.unrest.progress).toBe(1);
   });
 
   it("does not double-count Unrest on a same-turn double-windrose reroll", () => {
@@ -200,11 +202,26 @@ describe("beginTurn Unrest tracking (challenge VI)", () => {
     state.turnIndex = 1;
     state.turnFlags = { advancedBuiltThisTurn: true };
     beginTurn(state, dice(), emptyBoard(), { ...helpers, turnIndexOverride: null });
-    expect(state.unrest.total).toBe(1);
+    expect(state.unrest.progress).toBe(1);
     // A double-windrose reroll calls beginTurn again with turnIndexOverride pinned to the
     // turnIndex just set above, rather than advancing it further.
     beginTurn(state, dice(), emptyBoard(), { ...helpers, turnIndexOverride: state.turnIndex });
-    expect(state.unrest.total).toBe(1);
+    expect(state.unrest.progress).toBe(1);
+  });
+
+  it("does not raise Barricades when no Population square is available to barricade", () => {
+    const state = createState();
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.unrest = { progress: 3 };
+    // Every node holds 1 pip (board is full, so nothing is barricadeable); population sums to
+    // 16 against 0 Cottage housing, which itself pushes Unrest gain to 1 via the Vagrant clause.
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(1));
+    state.barricadedNodes = Array.from({ length: 4 }, () => Array(4).fill(false));
+    const { messages } = beginTurn(state, dice(), emptyBoard(), helpers);
+    expect(state.unrest.progress).toBe(0);
+    expect(state.pendingBarricade).toBeNull();
+    expect(messages.some((m) => m.kind === "unrest")).toBe(false);
   });
 });
 

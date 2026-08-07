@@ -34,6 +34,7 @@ import {
   finishActivation as finishActivationState,
   startPopulationPlacement,
   placePopulationNode,
+  chooseBarricadeNode,
   allocateWorker,
   autoForfeitUnfillableState,
   autoAdvanceState,
@@ -78,8 +79,29 @@ import {
   localeFlagIcon,
   turnStatusChip,
   unrestBadge,
+  activeChallengeBadge,
+  challengeInfoModal,
+  challengeInfoTitle,
+  challengeInfoDifficulty,
+  challengeInfoDescription,
+  challengeInfoVictory,
+  challengeInfoRules,
+  challengeInfoSetup,
+  challengeInfoCloseBtn,
   loadingOverlay,
   sheetBaseImage,
+  challengePickerEl,
+  challengeCardsEl,
+  challengeConfirmBtn,
+  challengeCancelBtn,
+  challengePickerLocaleSelect,
+  challengePickerLocaleFlagIcon,
+  challengeCarouselPrev,
+  challengeCarouselNext,
+  challengeCarouselDots,
+  challengeOutcomeOverlay,
+  challengeOutcomeText,
+  challengeOutcomeCloseBtn,
   forEachCell,
   createOctagon,
   clearElement,
@@ -99,8 +121,19 @@ import {
   updateActionBanner as updateBannerUI,
   formatButtonLabelHtml,
 } from "./ui-feedback.js";
-import { initI18n, applyStaticDom, setLocale, getLocale, supportedLocales, localeDisplayName, localeFlag, t } from "./i18n.js";
-import { CHALLENGES } from "./challenges.js";
+import {
+  initI18n,
+  applyStaticDom,
+  setLocale,
+  getLocale,
+  supportedLocales,
+  localeDisplayName,
+  localeFlag,
+  t,
+  hasOwnTranslation,
+  tEnglish,
+} from "./i18n.js";
+import { CHALLENGES, CHALLENGE_ORDER } from "./challenges.js";
 
 const BOARD_SIZE = 5;
 const POPULATION_GRID_SIZE = 4;
@@ -174,18 +207,19 @@ function updateSfxToggleButton() {
 
 function updateLocaleFlagIcon() {
   if (localeFlagIcon) localeFlagIcon.textContent = localeFlag(getLocale());
+  if (challengePickerLocaleFlagIcon) challengePickerLocaleFlagIcon.textContent = localeFlag(getLocale());
 }
 
-function populateLocaleSelect() {
-  if (!localeSelect) return;
-  localeSelect.innerHTML = "";
+function populateLocaleSelect(selectEl = localeSelect) {
+  if (!selectEl) return;
+  selectEl.innerHTML = "";
   supportedLocales().forEach((code) => {
     const option = document.createElement("option");
     option.value = code;
     option.textContent = localeDisplayName(code);
-    localeSelect.appendChild(option);
+    selectEl.appendChild(option);
   });
-  localeSelect.value = getLocale();
+  selectEl.value = getLocale();
   updateLocaleFlagIcon();
 }
 
@@ -203,6 +237,7 @@ function applyLocaleChange(locale) {
   updateTurnStatusChip();
   refreshDiceVisibility();
   updateActionBanner();
+  if (challengePickerEl && !challengePickerEl.hidden) renderChallengeCards();
 }
 
 function stopAllSfx() {
@@ -291,6 +326,8 @@ function diceAnimationDuration(offsetMs = 0, tailMs = 0) {
 function currentTurnPhase() {
   if (state.activationComplete) return TURN_PHASE.ACTIVATION_DONE;
   if (state.activationMode) return TURN_PHASE.ACTIVATION;
+  if (state.pendingCenterBuilding?.active) return TURN_PHASE.CENTER_BUILDING;
+  if (state.pendingBarricade?.active) return TURN_PHASE.BARRICADE;
   if (state.pendingPopulation?.remaining > 0) return TURN_PHASE.POPULATION;
   if (state.pestilence) return TURN_PHASE.PESTILENCE;
   if (forceForfeitActive()) return TURN_PHASE.FORFEIT;
@@ -348,7 +385,7 @@ function updateRollButton() {
   const awaitingRoll = !allowDebugBypass && state.rollAvailable;
   const showButton = !hidden && (awaitingRoll || allowDebugBypass);
   rollBtn.style.display = showButton ? "inline-block" : "none";
-  const enabled = allowDebugBypass || state.rollAvailable;
+  const enabled = allowDebugBypass || (state.rollAvailable && !state.pendingCenterBuilding?.active);
   rollBtn.disabled = !enabled;
   rollBtn.classList.toggle("dice-locked", !enabled && !debugMode);
   rollBtn.title = enabled ? t("turn.rollIdleTitle") : t("turn.rollUsedTitle");
@@ -401,6 +438,8 @@ const TURN_PHASE = {
   SPLITTING: "splitting",
   BUILDING: "building",
   POPULATION: "population",
+  BARRICADE: "barricade",
+  CENTER_BUILDING: "center-building",
   FORFEIT: "forfeit",
   PESTILENCE: "pestilence",
   ACTIVATION: "activation",
@@ -463,20 +502,25 @@ function registerServiceWorker() {
 }
 
 async function init() {
-  resetState();
-  renderBoard();
-  updateTracks();
   updateTurnStatusChip();
   updateActionBanner();
-  refreshDiceVisibility();
   if (!controlsReady) {
     await setupControls();
     controlsReady = true;
   }
+  openChallengePicker();
 }
 
 function activeChallenge() {
   return state.challengeId ? CHALLENGES[state.challengeId] || null : null;
+}
+
+// Labels a Social Contract center-building choice ("T" or a guild code like "GF") for
+// display in the picker chooser and the setup log line.
+function centerBuildingLabel(choice) {
+  if (choice === "T") return t("buildings.T");
+  const target = { GF: "F", GQ: "Q", GW: "W", GM: "M" }[choice];
+  return `${t("buildings.G")} · ${t(`buildings.${target}`)}`;
 }
 
 function resetState(challengeId = null) {
@@ -485,6 +529,7 @@ function resetState(challengeId = null) {
     Array.from({ length: BOARD_SIZE }, () => ({ building: null, buildingLabel: null, forfeited: false, springBoost: 0 })),
   );
   state.populationNodes = Array.from({ length: POPULATION_GRID_SIZE }, () => Array(POPULATION_GRID_SIZE).fill(0));
+  state.barricadedNodes = Array.from({ length: POPULATION_GRID_SIZE }, () => Array(POPULATION_GRID_SIZE).fill(false));
   state.populationAvailable = null;
   state.workerAllocations = null;
   state.activationMode = false;
@@ -507,18 +552,11 @@ function resetState(challengeId = null) {
   state.turnLimit = challenge?.turnLimit ?? null;
   state.influenceBonus = challenge?.setup?.startingInfluence || 0;
   state.unrestTracking = Boolean(challenge?.rules?.unrestTracking);
-  state.unrest = { total: 0 };
-  if (challenge?.setup?.forcedCenterBuilding) {
-    const { code, guildType } = challenge.setup.forcedCenterBuilding;
-    const centerRow = Math.floor(BOARD_SIZE / 2);
-    const centerCol = Math.floor(BOARD_SIZE / 2);
-    state.board[centerRow][centerCol] = {
-      building: code,
-      buildingLabel: code === "G" ? guildType : null,
-      forfeited: false,
-      springBoost: 0,
-    };
-  }
+  state.unrest = { progress: 0 };
+  state.pendingBarricade = null;
+  state.pendingCenterBuilding = challenge?.setup?.forcedCenterBuilding
+    ? { active: true, awaitingGuildType: false }
+    : null;
   resetTurnState(state);
   clearElement(logEl);
   if (finishActivationBtn) finishActivationBtn.style.display = "none";
@@ -642,9 +680,10 @@ async function setupControls() {
     updateRollButton();
   }
   if (newGameBtn) {
-    newGameBtn.onclick = () => newGame();
+    newGameBtn.onclick = () => openChallengePicker();
     newGameBtn.style.display = "none";
   }
+  setupChallengePicker();
   if (fullscreenBtn) {
     fullscreenBtn.onclick = () => toggleFullscreen();
   }
@@ -655,6 +694,10 @@ async function setupControls() {
   if (localeSelect) {
     populateLocaleSelect();
     localeSelect.onchange = (e) => applyLocaleChange(e.target.value);
+  }
+  if (challengePickerLocaleSelect) {
+    populateLocaleSelect(challengePickerLocaleSelect);
+    challengePickerLocaleSelect.onchange = (e) => applyLocaleChange(e.target.value);
   }
   const fiefdomInput = document.getElementById("fiefdomInput");
   if (fiefdomInput) {
@@ -705,6 +748,7 @@ function rollDice() {
   
   try {
     if (state.activationMode) return;
+    if (state.pendingCenterBuilding?.active) return;
     if (!debugMode && !state.rollAvailable) {
       log(t("turn.rollAlreadyUsed"));
       return;
@@ -732,11 +776,12 @@ function rollDice() {
     filterAvailablePairs,
     turnIndexOverride,
     activeTurnOverride,
-    allocatePopulationToNode,
-    popCapacity: POP_CAPACITY,
   });
   state.pendingTurnIndex = null;
   state.pendingActiveTurn = null;
+  if (state.pendingBarricade?.active) {
+    renderPopulationNodes();
+  }
   const rollMsg = t("turn.rolled", { dice: describeDice(dice) });
   if (Array.isArray(messages) && messages.length) {
     const status = messages[0]?.kind === "status" ? messages[0].text : null;
@@ -1205,16 +1250,22 @@ function enforceBuildingSelection(options = []) {
 function renderBuildingOverlay(options = [], disabled = false) {
   const overlay = document.getElementById("buildingsOverlay");
   if (!overlay) return;
+  const centerBuildingActive = state.pendingCenterBuilding?.active && !state.pendingCenterBuilding?.awaitingGuildType;
+  if (centerBuildingActive) {
+    options = [{ code: "T" }, { code: "G" }];
+  }
   const hasLockedLocation = Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
   const diceLockedForBuild = state.diceLocked;
   const forceDisabled =
-    disabled ||
-    (!hasLockedLocation && state.locationSelection.length !== 2) ||
-    diceLockedForBuild ||
-    state.activationMode ||
-    forceForfeitActive() ||
-    state.forceForfeitAdvisory ||
-    state.pestilence;
+    !centerBuildingActive &&
+    (disabled ||
+      state.pendingBarricade?.active ||
+      (!hasLockedLocation && state.locationSelection.length !== 2) ||
+      diceLockedForBuild ||
+      state.activationMode ||
+      forceForfeitActive() ||
+      state.forceForfeitAdvisory ||
+      state.pestilence);
   const buildDice =
     hasLockedLocation && state.lockedBuildDice?.length === 2
       ? (lockedPairChoice().buildDice || state.lockedBuildDice)
@@ -1251,6 +1302,10 @@ function renderBuildingOverlay(options = [], disabled = false) {
     div.addEventListener("click", (e) => {
       e.stopPropagation();
       if (div.classList.contains("disabled")) return;
+      if (state.pendingCenterBuilding?.active) {
+        handleCenterBuildingChoice(hit.code);
+        return;
+      }
       const hasLockedLocation = Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
       const diceLockedForBuild = state.diceLocked;
       if ((!hasLockedLocation && state.locationSelection.length !== 2) || diceLockedForBuild) return;
@@ -1845,7 +1900,8 @@ function finishActivation() {
   if (!state.activationMode) return;
   autoForfeitUnfillable(true);
   finishActivationState(state);
-  state.finalScore = currentScore({ allowPopulationActivation: true }).total;
+  const scoreResult = currentScore({ allowPopulationActivation: true });
+  state.finalScore = scoreResult.total;
   state.activationSelection = { pop: null };
   if (finishActivationBtn) finishActivationBtn.style.display = "none";
   if (newGameBtn) newGameBtn.style.display = "inline-block";
@@ -1855,16 +1911,74 @@ function finishActivation() {
   updateTracks();
   log(t("activation.finished"));
   log(t("game.endScore", { score: state.finalScore }));
+  logChallengeOutcome(scoreResult);
   updateActionBanner();
   updateTurnStatusChip();
 }
 
+function logChallengeOutcome(scoreResult) {
+  const challenge = activeChallenge();
+  if (!challenge) return;
+  const outcome = challenge.victory(scoreResult, state);
+  const name = t(challenge.nameKey);
+  const outcomeText = t(outcome.passed ? "challenges.result.passed" : "challenges.result.failed", { name });
+  log(outcomeText);
+  outcome.reasons.forEach((reason) => {
+    if (!reason.ok) log(t(reason.textKey, reason.params));
+  });
+  showChallengeOutcomeOverlay(outcomeText);
+}
+
+function showChallengeOutcomeOverlay(text) {
+  if (!challengeOutcomeOverlay || !challengeOutcomeText) return;
+  challengeOutcomeText.textContent = text;
+  challengeOutcomeOverlay.hidden = false;
+}
+
+function hideChallengeOutcomeOverlay() {
+  if (!challengeOutcomeOverlay) return;
+  challengeOutcomeOverlay.hidden = true;
+}
+
+// Places the Social Contract forced center-plot building once chosen live on the board
+// (Townhall, or a Guild of the chosen subtype), clears the pending-choice gate, and logs it.
+function placeCenterBuilding(code, guildType) {
+  const centerRow = Math.floor(BOARD_SIZE / 2);
+  const centerCol = Math.floor(BOARD_SIZE / 2);
+  state.board[centerRow][centerCol] = { building: code, buildingLabel: guildType, forfeited: false, springBoost: 0 };
+  log(t("challenges.socialContract.centerBuildingLog", { building: centerBuildingLabel(code === "T" ? "T" : guildType) }));
+  state.pendingCenterBuilding = null;
+  renderBuildingOverlay([], true);
+  renderGuildOverlay([]);
+  renderBoard();
+  updateTracks();
+  refreshDiceVisibility();
+  updateActionBanner();
+}
+
+function handleCenterBuildingChoice(code) {
+  if (code === "T") {
+    placeCenterBuilding("T", null);
+    return;
+  }
+  if (code === "G") {
+    state.pendingCenterBuilding.awaitingGuildType = true;
+    renderBuildingOverlay([], true);
+    renderGuildOverlay(guildTypes);
+    updateActionBanner();
+  }
+}
+
 function newGame(challengeId = null) {
+  hasStartedAnyGame = true;
+  hideChallengeOutcomeOverlay();
   resetState(challengeId);
   renderBoard();
   prepareNextRoll();
   renderSelectionDice([], []);
   updateTracks();
+  renderBuildingOverlay();
+  renderGuildOverlay([]);
   state.pendingTurnIndex = null;
   state.pendingActiveTurn = null;
   state.deferStatusAppend = false;
@@ -1873,6 +1987,271 @@ function newGame(challengeId = null) {
   updateActionBanner();
   if (newGameBtn) newGameBtn.style.display = "none";
   refreshDiceVisibility();
+  updateActiveChallengeBadge();
+}
+
+let pickedChallengeId = null;
+let hasStartedAnyGame = false;
+
+function setupChallengePicker() {
+  if (challengeConfirmBtn) {
+    challengeConfirmBtn.onclick = () => {
+      closeChallengePicker();
+      newGame(pickedChallengeId);
+    };
+  }
+  if (challengeCancelBtn) {
+    challengeCancelBtn.onclick = () => closeChallengePicker();
+  }
+  if (challengeCarouselPrev) {
+    challengeCarouselPrev.onclick = () => scrollChallengeCarousel(-1);
+  }
+  if (challengeCarouselNext) {
+    challengeCarouselNext.onclick = () => scrollChallengeCarousel(1);
+  }
+  if (challengeCardsEl) {
+    let scrollRaf = null;
+    challengeCardsEl.addEventListener("scroll", () => {
+      if (scrollRaf) return;
+      scrollRaf = requestAnimationFrame(() => {
+        scrollRaf = null;
+        updateChallengeCarouselDots();
+      });
+    });
+  }
+  document.addEventListener("keydown", (e) => {
+    if (!challengePickerEl || challengePickerEl.hidden) return;
+    if (e.key === "ArrowRight") scrollChallengeCarousel(1);
+    else if (e.key === "ArrowLeft") scrollChallengeCarousel(-1);
+    else if (e.key === "Escape" && hasStartedAnyGame) closeChallengePicker();
+  });
+  if (challengeOutcomeCloseBtn) {
+    challengeOutcomeCloseBtn.onclick = () => hideChallengeOutcomeOverlay();
+  }
+  if (challengeOutcomeOverlay) {
+    challengeOutcomeOverlay.onclick = (e) => {
+      if (e.target === challengeOutcomeOverlay) hideChallengeOutcomeOverlay();
+    };
+  }
+  if (activeChallengeBadge) {
+    activeChallengeBadge.onclick = () => openChallengeInfoModal();
+  }
+  if (challengeInfoCloseBtn) {
+    challengeInfoCloseBtn.onclick = () => closeChallengeInfoModal();
+  }
+  if (challengeInfoModal) {
+    challengeInfoModal.onclick = (e) => {
+      if (e.target === challengeInfoModal) closeChallengeInfoModal();
+    };
+  }
+}
+
+function openChallengeInfoModal() {
+  const challenge = activeChallenge();
+  if (!challenge || !challengeInfoModal) return;
+  if (challengeInfoTitle) challengeInfoTitle.textContent = t(challenge.nameKey);
+  if (challengeInfoDifficulty) {
+    clearElement(challengeInfoDifficulty);
+    appendDifficultyDots(challengeInfoDifficulty, challenge.difficulty);
+  }
+  if (challengeInfoDescription) challengeInfoDescription.textContent = t(challenge.descKey);
+  if (challengeInfoVictory) {
+    clearElement(challengeInfoVictory);
+    appendChallengeCardSection(challengeInfoVictory, "challenges.picker.victoryLabel", challenge.victoryKeys);
+  }
+  if (challengeInfoRules) {
+    clearElement(challengeInfoRules);
+    appendChallengeCardSection(challengeInfoRules, "challenges.picker.rulesLabel", challenge.ruleKeys);
+  }
+  if (challengeInfoSetup) {
+    clearElement(challengeInfoSetup);
+    appendChallengeCardSection(challengeInfoSetup, "challenges.picker.setupLabel", challenge.setupKeys);
+  }
+  challengeInfoModal.hidden = false;
+}
+
+function closeChallengeInfoModal() {
+  if (challengeInfoModal) challengeInfoModal.hidden = true;
+}
+
+function updateActiveChallengeBadge() {
+  if (!activeChallengeBadge) return;
+  const challenge = activeChallenge();
+  if (!challenge) {
+    activeChallengeBadge.classList.add("hidden");
+    activeChallengeBadge.setAttribute("aria-hidden", "true");
+    return;
+  }
+  const label = t(challenge.nameKey);
+  const tooltip = t("challenges.picker.badgeTooltip");
+  activeChallengeBadge.textContent = label;
+  activeChallengeBadge.setAttribute("aria-label", `${label} — ${tooltip}`);
+  activeChallengeBadge.title = tooltip;
+  activeChallengeBadge.classList.remove("hidden");
+  activeChallengeBadge.removeAttribute("aria-hidden");
+}
+
+function carouselCardStep() {
+  const card = challengeCardsEl?.querySelector(".challenge-card");
+  return card ? card.getBoundingClientRect().width + 14 : 264;
+}
+
+function scrollChallengeCarousel(direction) {
+  if (!challengeCardsEl) return;
+  challengeCardsEl.scrollBy({ left: direction * carouselCardStep(), behavior: "smooth" });
+}
+
+function updateChallengeCarouselDots() {
+  if (!challengeCarouselDots || !challengeCardsEl) return;
+  const dots = challengeCarouselDots.querySelectorAll(".carousel-dot");
+  const step = carouselCardStep();
+  const maxScrollLeft = challengeCardsEl.scrollWidth - challengeCardsEl.clientWidth;
+  let activeIndex = step ? Math.round(challengeCardsEl.scrollLeft / step) : 0;
+  // Near-max scroll may fall short of the last dot's nominal step position (no trailing
+  // gap after the final card), so snap to the last dot once we're effectively at the end.
+  if (maxScrollLeft > 0 && challengeCardsEl.scrollLeft >= maxScrollLeft - 4) {
+    activeIndex = dots.length - 1;
+  }
+  dots.forEach((dot, idx) => dot.classList.toggle("active", idx === activeIndex));
+}
+
+function openChallengePicker() {
+  if (!challengePickerEl || !challengeCardsEl) {
+    newGame();
+    return;
+  }
+  pickedChallengeId = null;
+  renderChallengeCards();
+  if (challengePickerLocaleSelect) challengePickerLocaleSelect.value = getLocale();
+  if (challengeCancelBtn) challengeCancelBtn.style.display = hasStartedAnyGame ? "inline-block" : "none";
+  challengePickerEl.hidden = false;
+}
+
+function closeChallengePicker() {
+  if (challengePickerEl) challengePickerEl.hidden = true;
+}
+
+const UPCOMING_CHALLENGES = [
+  { nameKey: "challenges.drumsOfWar.name", descKey: "challenges.drumsOfWar.description", difficulty: 3 },
+  { nameKey: "challenges.edgeOfTheWorld.name", descKey: "challenges.edgeOfTheWorld.description", difficulty: 3 },
+];
+
+// Appends a labeled bullet list (Setup / Rules / Victory) to a challenge card, skipped
+// entirely when the challenge has no keys for that section (e.g. "no changes" challenges).
+function appendChallengeCardSection(card, labelKey, keys) {
+  if (!keys?.length) return;
+  const label = document.createElement("p");
+  label.className = "challenge-card-section-label";
+  label.textContent = t(labelKey);
+  card.appendChild(label);
+  const list = document.createElement("ul");
+  keys.forEach((key) => {
+    const li = document.createElement("li");
+    li.textContent = t(key);
+    list.appendChild(li);
+  });
+  card.appendChild(list);
+}
+
+const DIFFICULTY_LABEL_KEYS = {
+  1: "challenges.picker.difficultyEasy",
+  2: "challenges.picker.difficultyMedium",
+  3: "challenges.picker.difficultyHard",
+};
+
+// Small crown-icon row (1-3) matching the rulebook's difficulty rating per challenge.
+function appendDifficultyDots(card, level) {
+  if (!level) return;
+  const wrap = document.createElement("div");
+  wrap.className = "difficulty-dots";
+  const label = `${t("challenges.picker.difficultyLabel")}: ${t(DIFFICULTY_LABEL_KEYS[level] || DIFFICULTY_LABEL_KEYS[3])}`;
+  wrap.setAttribute("aria-label", label);
+  wrap.title = label;
+  for (let i = 1; i <= 3; i++) {
+    const icon = document.createElement("img");
+    icon.src = "assets/img/crown.webp";
+    icon.alt = "";
+    icon.className = "difficulty-crown" + (i <= level ? " filled" : "");
+    wrap.appendChild(icon);
+  }
+  card.appendChild(wrap);
+}
+
+// Renders a non-selectable card for content that either isn't implemented yet (VII/VIII)
+// or isn't translated into the active locale. `titleText`/`descText` are already-resolved
+// strings (not i18n keys) so callers can force the English fallback when a locale is missing.
+function appendChallengePlaceholderCard(titleText, descText = null, difficulty = null) {
+  const card = document.createElement("div");
+  card.className = "challenge-card challenge-card-disabled";
+  const badge = document.createElement("span");
+  badge.className = "challenge-card-badge";
+  badge.textContent = t("challenges.comingSoon");
+  const title = document.createElement("h3");
+  title.textContent = titleText;
+  card.appendChild(badge);
+  card.appendChild(title);
+  appendDifficultyDots(card, difficulty);
+  if (descText) {
+    const desc = document.createElement("p");
+    desc.textContent = descText;
+    card.appendChild(desc);
+  }
+  challengeCardsEl.appendChild(card);
+}
+
+function renderChallengeCarouselDots(count) {
+  if (!challengeCarouselDots) return;
+  clearElement(challengeCarouselDots);
+  for (let i = 0; i < count; i++) {
+    const dot = document.createElement("button");
+    dot.type = "button";
+    dot.className = "carousel-dot" + (i === 0 ? " active" : "");
+    dot.setAttribute("aria-label", `${i + 1}/${count}`);
+    dot.onclick = () => {
+      challengeCardsEl.scrollTo({ left: i * carouselCardStep(), behavior: "smooth" });
+    };
+    challengeCarouselDots.appendChild(dot);
+  }
+}
+
+function renderChallengeCards() {
+  clearElement(challengeCardsEl);
+  const entries = [
+    { id: null, nameKey: "challenges.picker.normalGameName", descKey: "challenges.picker.normalGameDescription" },
+    ...CHALLENGE_ORDER.map((id) => CHALLENGES[id]),
+  ];
+  entries.forEach((entry) => {
+    if (!hasOwnTranslation(entry.nameKey)) {
+      appendChallengePlaceholderCard(tEnglish(entry.nameKey), null, entry.difficulty);
+      return;
+    }
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "challenge-card";
+    if (entry.id === null) card.classList.add("challenge-card-normal");
+    card.classList.toggle("selected", pickedChallengeId === entry.id);
+    const title = document.createElement("h3");
+    title.textContent = t(entry.nameKey);
+    card.appendChild(title);
+    appendDifficultyDots(card, entry.difficulty);
+    const desc = document.createElement("p");
+    desc.textContent = t(entry.descKey);
+    card.appendChild(desc);
+    appendChallengeCardSection(card, "challenges.picker.victoryLabel", entry.victoryKeys);
+    appendChallengeCardSection(card, "challenges.picker.rulesLabel", entry.ruleKeys);
+    appendChallengeCardSection(card, "challenges.picker.setupLabel", entry.setupKeys);
+    card.onclick = () => {
+      pickedChallengeId = entry.id;
+      challengeCardsEl.querySelectorAll(".challenge-card").forEach((el) => el.classList.remove("selected"));
+      card.classList.add("selected");
+      card.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    };
+    challengeCardsEl.appendChild(card);
+  });
+  UPCOMING_CHALLENGES.forEach((entry) => {
+    appendChallengePlaceholderCard(t(entry.nameKey), t(entry.descKey), entry.difficulty);
+  });
+  renderChallengeCarouselDots(challengeCardsEl.children.length);
 }
 
 function handleBuildingChoice() {
@@ -1917,14 +2296,20 @@ function handleBuildingChoice() {
 function renderGuildOverlay(available = []) {
   const overlay = document.getElementById("guildsOverlay");
   if (!overlay) return;
+  const centerBuildingActive = Boolean(state.pendingCenterBuilding?.awaitingGuildType);
+  if (centerBuildingActive) {
+    available = guildTypes;
+  }
   const hasLockedLocation = Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
   const locationReady = hasLockedLocation || state.locationSelection.length === 2;
   const locked =
-    !locationReady ||
-    (state.diceLocked) ||
-    state.activationMode ||
-    forceForfeitActive() ||
-    state.pestilence;
+    !centerBuildingActive &&
+    (state.pendingBarricade?.active ||
+      !locationReady ||
+      state.diceLocked ||
+      state.activationMode ||
+      forceForfeitActive() ||
+      state.pestilence);
   overlay.style.pointerEvents = available.length && !locked ? "auto" : "none";
   clearElement(overlay);
   const availableSet = new Set(available);
@@ -1934,7 +2319,7 @@ function renderGuildOverlay(available = []) {
     div.dataset.code = hit.code;
     div.style.gridColumn = hit.col;
     div.style.gridRow = hit.row;
-    if (!locked && availableSet.has(hit.code) && !builtGuildTypes(state.board).has(hit.code)) {
+    if (!locked && availableSet.has(hit.code) && (centerBuildingActive || !builtGuildTypes(state.board).has(hit.code))) {
       div.classList.add("available");
     } else {
       div.classList.add("disabled");
@@ -1944,6 +2329,10 @@ function renderGuildOverlay(available = []) {
     }
     div.onclick = () => {
       if (locked || !div.classList.contains("available")) return;
+      if (centerBuildingActive) {
+        placeCenterBuilding("G", hit.code);
+        return;
+      }
       document.querySelectorAll(".guild-hit.selected").forEach((el) => el.classList.remove("selected"));
       div.classList.add("selected");
       state.selectedGuildType = hit.code;
@@ -1990,6 +2379,15 @@ function beginPopulationPlacement(r, c, count) {
 }
 
 function onPopulationNodeClick(nr, nc) {
+  if (state.pendingBarricade?.active) {
+    const result = chooseBarricadeNode(state, nr, nc);
+    if (result.message) log(result.message);
+    if (!result.barricaded) return;
+    playSfx();
+    renderBoard();
+    updateActionBanner();
+    return;
+  }
   if (state.activationMode) {
     const availablePop = state.populationAvailable?.[nr]?.[nc] || 0;
     if (availablePop <= 0) {
@@ -2087,6 +2485,7 @@ function updateTurnStatusChip() {
     turnStatusChip.classList.toggle("status-inactive", !active);
   }
   updateUnrestBadge();
+  updateActiveChallengeBadge();
 }
 
 function updateUnrestBadge() {
@@ -2096,8 +2495,8 @@ function updateUnrestBadge() {
     unrestBadge.setAttribute("aria-hidden", "true");
     return;
   }
-  const total = state.unrest?.total || 0;
-  const label = `${t("challenges.unrestLabel")}: ${total}`;
+  const progress = state.unrest?.progress || 0;
+  const label = `${t("challenges.unrestLabel")}: ${progress}/4`;
   unrestBadge.textContent = label;
   unrestBadge.setAttribute("aria-label", label);
   unrestBadge.title = label;
@@ -2131,9 +2530,19 @@ function renderPopulationNodes() {
       const originalVal = state.populationNodes?.[r]?.[c] || 0;
       const availableVal = state.populationAvailable?.[r]?.[c];
       const val = state.activationMode ? availableVal || 0 : originalVal;
+      const isBarricaded = Boolean(state.barricadedNodes?.[r]?.[c]);
       node.dataset.nodeRow = r;
       node.dataset.nodeCol = c;
-      if (state.activationMode) {
+      if (isBarricaded) {
+        node.classList.add("barricaded");
+      }
+      if (state.pendingBarricade?.active) {
+        if (!isBarricaded && val === 0) {
+          node.classList.add("highlight");
+        } else {
+          node.classList.add("disabled");
+        }
+      } else if (state.activationMode) {
         if (val > 0) node.classList.add("has-pop");
         if (val > 0) {
           node.classList.add("highlight");
@@ -2145,7 +2554,7 @@ function renderPopulationNodes() {
           node.classList.add("selected-pop");
         }
       } else {
-        const isEligible = eligibleNodes.some(([nr, nc]) => nr === r && nc === c) && val === 0;
+        const isEligible = eligibleNodes.some(([nr, nc]) => nr === r && nc === c) && val === 0 && !isBarricaded;
         if (state.pendingPopulation) {
           if (isEligible) {
             node.classList.add("highlight");

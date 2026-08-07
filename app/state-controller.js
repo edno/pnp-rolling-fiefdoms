@@ -56,7 +56,10 @@ const baseState = {
   challengeId: null,
   turnLimit: null,
   unrestTracking: false,
-  unrest: { total: 0 },
+  unrest: { progress: 0 },
+  pendingBarricade: null,
+  barricadedNodes: null,
+  pendingCenterBuilding: null,
   turnFlags: { advancedBuiltThisTurn: false },
 };
 

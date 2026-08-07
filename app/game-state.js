@@ -129,39 +129,26 @@ function calcVagrantsFromState(state, board) {
   return Math.max(0, pop - cottages * 4);
 }
 
-function firstEmptyPopulationNode(grid) {
-  if (!Array.isArray(grid)) return null;
-  for (let r = 0; r < grid.length; r++) {
-    for (let c = 0; c < (grid[r]?.length || 0); c++) {
-      if (!grid[r][c]) return [r, c];
-    }
-  }
-  return null;
-}
-
 // Unrest (challenge VI, "Embers of Revolt") is tallied at the end of each completed turn:
 // +1 if an Advanced building was built that turn, +1 per Influence spent that turn, +1 if
-// Vagrants exceed 8, capped at +4/turn. Every 4th Unrest reached raises Barricades, hatching
-// one empty Population square.
-function applyUnrestForCompletedTurn(state, board, { allocatePopulationToNode, popCapacity = 5 } = {}) {
+// Vagrants exceed 8, capped at +4/turn. Every 4th Unrest reached raises Barricades: the player
+// must choose an empty Population square to permanently barricade. The Unrest counter wraps
+// back to 0 (mod 4) once a Barricade is raised, so `progress` always reads as x/4.
+function applyUnrestForCompletedTurn(state, board) {
   const influenceUsed = totalInfluenceSpent(state.influenceAdjustments);
   const advancedBuilt = state.turnFlags?.advancedBuiltThisTurn ? 1 : 0;
   const vagrantUnrest = calcVagrantsFromState(state, board) > 8 ? 1 : 0;
   const gain = Math.min(4, advancedBuilt + influenceUsed + vagrantUnrest);
   if (gain <= 0) return null;
-  const prevTotal = state.unrest?.total || 0;
-  const nextTotal = prevTotal + gain;
-  state.unrest = { total: nextTotal };
-  const barricadesRaised = Math.floor(nextTotal / 4) > Math.floor(prevTotal / 4);
-  if (barricadesRaised && typeof allocatePopulationToNode === "function") {
-    const empty = firstEmptyPopulationNode(state.populationNodes);
-    if (empty) {
-      const { grid } = allocatePopulationToNode(state.populationNodes, empty[0], empty[1], 1, popCapacity);
-      state.populationNodes = grid;
-      return { gain, total: nextTotal, barricades: true };
-    }
+  const prevProgress = state.unrest?.progress || 0;
+  let progress = prevProgress + gain;
+  let triggered = false;
+  if (progress >= 4) {
+    progress -= 4;
+    triggered = true;
   }
-  return { gain, total: nextTotal, barricades: false };
+  state.unrest = { progress };
+  return { gain, progress, triggered };
 }
 
 export function beginTurn(
@@ -174,8 +161,6 @@ export function beginTurn(
     computePestilenceInfo,
     turnIndexOverride = null,
     activeTurnOverride = null,
-    allocatePopulationToNode,
-    popCapacity,
   },
 ) {
   const messages = [];
@@ -185,7 +170,7 @@ export function beginTurn(
   const isSameTurnReroll = turnIndexOverride === state.turnIndex;
   let unrestResult = null;
   if (state.unrestTracking && state.turnIndex > 0 && !isSameTurnReroll) {
-    unrestResult = applyUnrestForCompletedTurn(state, board, { allocatePopulationToNode, popCapacity });
+    unrestResult = applyUnrestForCompletedTurn(state, board);
   }
   resetTurnState(state);
   const newTurnIndex = typeof turnIndexOverride === "number" ? turnIndexOverride : state.turnIndex + 1;
@@ -198,7 +183,8 @@ export function beginTurn(
     messages.push({ kind: "status", text: state.activeTurn ? t("turn.active") : t("turn.nonActive") });
     state.lastStatusTurnIndex = newTurnIndex;
   }
-  if (unrestResult?.barricades) {
+  if (unrestResult?.triggered && hasBarricadeableNode(state)) {
+    state.pendingBarricade = { active: true };
     messages.push({ kind: "unrest", text: t("challenges.barricadesRaised") });
   }
   state.dice = dice;
@@ -614,7 +600,9 @@ export function maybeRollAfterLockState(state) {
 
 export function startPopulationPlacement(state, cellCoord, count, { nodesForCell }) {
   const nodes = nodesForCell(cellCoord[0], cellCoord[1]);
-  const availableNodes = nodes.filter(([nr, nc]) => (state.populationNodes?.[nr]?.[nc] || 0) === 0);
+  const availableNodes = nodes.filter(
+    ([nr, nc]) => (state.populationNodes?.[nr]?.[nc] || 0) === 0 && !state.barricadedNodes?.[nr]?.[nc],
+  );
   if (!availableNodes.length) {
     state.pendingPopulation = null;
     return { started: false, message: t("population.noAvailableSpotsSkipped") };
@@ -637,6 +625,8 @@ export function placePopulationNode(state, nr, nc, { nodesForCell, allocatePopul
     return { placed: 0, message: t("population.mustTouchBuiltPlot") };
   if ((state.populationNodes[nr]?.[nc] || 0) > 0)
     return { placed: 0, message: t("population.spotAlreadyUsed") };
+  if (state.barricadedNodes?.[nr]?.[nc])
+    return { placed: 0, message: t("population.spotAlreadyUsed") };
 
   const { placed, grid } = allocatePopulationToNode(
     state.populationNodes,
@@ -657,6 +647,28 @@ export function placePopulationNode(state, nr, nc, { nodesForCell, allocatePopul
         ? t("population.placedPartial", { placed, unplaced })
         : t("population.placedOnCell", { placed, row: nr + 1, col: nc + 1 }),
   };
+}
+
+// Whether at least one Population square is still empty and not already barricaded, i.e.
+// whether raising Barricades is actually resolvable. Guards against gating the turn on an
+// impossible choice if the board has filled up.
+function hasBarricadeableNode(state) {
+  const nodes = state.populationNodes || [];
+  return nodes.some((row, r) => row.some((count, c) => count === 0 && !state.barricadedNodes?.[r]?.[c]));
+}
+
+export function chooseBarricadeNode(state, nr, nc) {
+  if (!state.pendingBarricade?.active) return { barricaded: false, message: null };
+  if (!state.barricadedNodes?.[nr] || nc < 0 || nc >= state.barricadedNodes[nr].length) {
+    return { barricaded: false, message: null };
+  }
+  if ((state.populationNodes?.[nr]?.[nc] || 0) > 0)
+    return { barricaded: false, message: t("population.spotAlreadyUsed") };
+  if (state.barricadedNodes[nr][nc])
+    return { barricaded: false, message: t("population.spotAlreadyUsed") };
+  state.barricadedNodes[nr][nc] = true;
+  state.pendingBarricade = null;
+  return { barricaded: true, message: t("challenges.barricadePlaced", { row: nr + 1, col: nc + 1 }) };
 }
 
 export function allocateWorker(state, popSel, buildingSel, { nodesForCell, buildingRules }) {

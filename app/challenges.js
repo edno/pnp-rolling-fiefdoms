@@ -16,8 +16,11 @@ function countBuilding(board, code) {
 export const CHALLENGES = {
   foundations: {
     id: "foundations",
+    difficulty: 1,
     nameKey: "challenges.foundations.name",
     descKey: "challenges.foundations.description",
+    setupKeys: [],
+    ruleKeys: ["challenges.foundations.rule1", "challenges.foundations.rule2"],
     victoryKeys: ["challenges.foundations.victory1", "challenges.foundations.victory2"],
     setup: {},
     rules: { disabledBuildings: ["T", "U", "A", "G"], forceSplitOnAdvancedSum: true },
@@ -38,8 +41,11 @@ export const CHALLENGES = {
 
   waterRights: {
     id: "waterRights",
+    difficulty: 1,
     nameKey: "challenges.waterRights.name",
     descKey: "challenges.waterRights.description",
+    setupKeys: [],
+    ruleKeys: [],
     victoryKeys: ["challenges.waterRights.victory1", "challenges.waterRights.victory2", "challenges.waterRights.victory3"],
     setup: {},
     rules: {},
@@ -62,8 +68,11 @@ export const CHALLENGES = {
 
   charters: {
     id: "charters",
+    difficulty: 2,
     nameKey: "challenges.charters.name",
     descKey: "challenges.charters.description",
+    setupKeys: ["challenges.charters.setup1"],
+    ruleKeys: [],
     victoryKeys: ["challenges.charters.victory1", "challenges.charters.victory2"],
     setup: { startingInfluence: 1 },
     rules: {},
@@ -83,10 +92,13 @@ export const CHALLENGES = {
 
   socialContract: {
     id: "socialContract",
+    difficulty: 2,
     nameKey: "challenges.socialContract.name",
     descKey: "challenges.socialContract.description",
+    setupKeys: ["challenges.socialContract.setup1", "challenges.socialContract.setup2"],
+    ruleKeys: ["challenges.socialContract.rule1"],
     victoryKeys: ["challenges.socialContract.victory1", "challenges.socialContract.victory2"],
-    setup: { forcedCenterBuilding: { code: "G", guildType: "GF" } },
+    setup: { forcedCenterBuilding: { choices: ["T", "GF", "GQ", "GW", "GM"] } },
     rules: {},
     turnLimit: 24,
     victory(scoreResult) {
@@ -104,8 +116,11 @@ export const CHALLENGES = {
 
   enlightenment: {
     id: "enlightenment",
+    difficulty: 2,
     nameKey: "challenges.enlightenment.name",
     descKey: "challenges.enlightenment.description",
+    setupKeys: [],
+    ruleKeys: [],
     victoryKeys: ["challenges.enlightenment.victory1", "challenges.enlightenment.victory2"],
     setup: {},
     rules: {},
@@ -125,8 +140,15 @@ export const CHALLENGES = {
 
   embersOfRevolt: {
     id: "embersOfRevolt",
+    difficulty: 3,
     nameKey: "challenges.embersOfRevolt.name",
     descKey: "challenges.embersOfRevolt.description",
+    setupKeys: [],
+    ruleKeys: [
+      "challenges.embersOfRevolt.rule1",
+      "challenges.embersOfRevolt.rule2",
+      "challenges.embersOfRevolt.rule3",
+    ],
     victoryKeys: ["challenges.embersOfRevolt.victory1"],
     setup: {},
     rules: { unrestTracking: true },
