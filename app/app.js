@@ -773,21 +773,6 @@ function rollDice() {
       log(t("turn.rollAlreadyUsed"));
       return;
     }
-    // Tally Unrest for the just-completed turn before rolling the next turn's dice, so a
-    // raised Barricade must be resolved before the Fate roll happens at all. Guarded so a
-    // double-windrose reroll (which re-enters rollDice() for the same turnIndex) doesn't
-    // re-tally the same completed turn twice.
-    if (state.unrestTracking && state.turnIndex > 0 && state.unrestCheckedTurnIndex !== state.turnIndex) {
-      state.unrestCheckedTurnIndex = state.turnIndex;
-      const unrestOutcome = tallyUnrestAndCheckBarricade(state, state.board);
-      unrestOutcome.messages.forEach((m) => log(m.text));
-      if (unrestOutcome.triggered) {
-        renderPopulationNodes();
-        showBarricadeAlert();
-        updateActionBanner();
-        return;
-      }
-    }
   const n1 = rollNumberedDie("N1");
   const n2 = rollNumberedDie("N2");
   const x1 = rollXDie("X1");
@@ -839,7 +824,7 @@ function rollDice() {
     return;
   }
   if (state.pestilence) {
-    if (turnHintEl) turnHintEl.textContent = t("pestilence.forfeitEmptyPlot");
+    if (turnHintEl) turnHintEl.innerHTML = t("pestilence.forfeitBanner");
     // Auto-assign the split for pestilence: numbered/windrose stay in location, X dice in build.
     const forcedSplit = splitForcedDice(state.dice || []);
     const locIdx = [];
@@ -916,12 +901,17 @@ function triggerDiceAnimation() {
   const isTest = typeof window !== "undefined" && window.__RF_ENABLE_TEST_HOOKS__;
   const startDelay = isTest ? 0 : 500;
 
+  // Set the "Rolling the dice" banner override immediately so it's already in place by
+  // the time rollDice() calls updateActionBanner() at the end - otherwise the banner
+  // briefly shows the next phase's hint (e.g. "Select a building...") until the delayed
+  // animation start below catches up.
+  const rollingMsg = t("turn.rollingDice");
+  state.bannerOverride = rollingMsg;
+  updateActionBanner();
+
   const startAnimation = () => {
     state.diceRolling = true;
     diceView.classList.add("dice-rolling");
-    const rollingMsg = t("turn.rollingDice");
-    state.bannerOverride = rollingMsg;
-    updateActionBanner();
     const animDuration = isTest ? 0 : diceAnimationDuration(startDelay, 200);
     const animTimeout = setTimeout(() => {
       state.diceRolling = false;
@@ -1128,7 +1118,7 @@ function renderDice() {
   clearElement(diceView);
   if (turnHintEl) {
     if (state.pestilence) {
-      turnHintEl.textContent = t("pestilence.forfeitEmptyPlot");
+      turnHintEl.innerHTML = t("pestilence.forfeitBanner");
     } else if (state.activeTurn && state.invalidSelection) {
       turnHintEl.textContent =
         state.invalidSelectionMessage || t("location.noValidPlotsForPair");
@@ -1908,6 +1898,24 @@ function autoAdvance() {
     return;
   }
   if (action === "roll") {
+    // Tally Unrest for the just-completed turn here, the moment the turn is actually
+    // done, rather than deferring it to the next Roll Dice click - so a raised Barricade
+    // must be resolved before the player is even prompted to roll again.
+    if (state.unrestTracking && state.turnIndex > 0 && state.unrestCheckedTurnIndex !== state.turnIndex) {
+      state.unrestCheckedTurnIndex = state.turnIndex;
+      const unrestOutcome = tallyUnrestAndCheckBarricade(state, state.board);
+      unrestOutcome.messages.forEach((m) => log(m.text));
+      if (unrestOutcome.messages.length) {
+        updateTracks();
+        updateUnrestBadge();
+      }
+      if (unrestOutcome.triggered) {
+        renderPopulationNodes();
+        showBarricadeAlert();
+        updateActionBanner();
+        return;
+      }
+    }
     prepareNextRoll();
     state.bannerOverride = state.pestilence
       ? t("hints.pressRollAfterPestilence", { rollBtn: formatButtonLabelHtml(t("html.rollDice")) })
@@ -1995,7 +2003,7 @@ function hideChallengeOutcomeOverlay() {
 let barricadeAlertTimeout = null;
 
 // Briefly flashes a "Barricades raised!" banner (styled like the challenge outcome
-// summary) when Barricades trigger, auto-dismissing after ~1s. Distinct from the
+// summary) when Barricades trigger, auto-dismissing after ~4s. Distinct from the
 // permanent log line, which stays in the log for reference.
 function showBarricadeAlert() {
   if (!barricadeAlertOverlay || !barricadeAlertText) return;
@@ -2004,7 +2012,7 @@ function showBarricadeAlert() {
   clearTimeout(barricadeAlertTimeout);
   barricadeAlertTimeout = setTimeout(() => {
     barricadeAlertOverlay.hidden = true;
-  }, 2000);
+  }, 4000);
 }
 
 // Places the Social Contract forced center-plot building once chosen live on the board
@@ -2452,7 +2460,7 @@ function onPopulationNodeClick(nr, nc) {
     if (!result.barricaded) return;
     playSfx();
     renderBoard();
-    updateActionBanner();
+    autoAdvance();
     return;
   }
   if (state.activationMode) {
@@ -2942,7 +2950,10 @@ function updateDiceAssignments(renderOnly = false) {
     updateMultiplayerButtons();
     return;
   }
-  if (!renderOnly) {
+  // A Pestilence roll locks the location/build split directly (see rollDice()) and
+  // forces a forfeit regardless of pairs; re-evaluating the selection here would
+  // overwrite that locked state and log a stray "no valid pairs" message.
+  if (!renderOnly && !state.pestilence) {
     if (!influenceAdjustmentsEmpty()) {
       const selectionKey = canonicalSelectionKey(state.locationSelection);
       if (state.influenceSelectionKey && state.influenceSelectionKey !== selectionKey) {

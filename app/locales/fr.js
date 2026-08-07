@@ -84,7 +84,7 @@ export default {
     endScore: "Fin de partie. Score final {score}.",
   },
   pestilence: {
-    forfeitEmptyPlot: "Pestilence ! Renoncez à une parcelle vide.",
+    forfeitEmptyPlot: "Double X obtenu ; vous devez renoncer à une parcelle.",
     forfeitBanner: 'Double <img src="assets/img/die-event.svg" alt="événement" class="inline-icon"> obtenu — renoncez à une parcelle vide.',
   },
   influence: {

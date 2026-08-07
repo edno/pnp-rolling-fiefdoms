@@ -589,7 +589,7 @@ main {
 }
 
 .barricade-alert-box {
-  animation: barricade-alert-pulse 2s ease-out forwards;
+  animation: barricade-alert-pulse 4s ease-out forwards;
 }
 
 @keyframes barricade-alert-pulse {

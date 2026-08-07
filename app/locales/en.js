@@ -84,7 +84,7 @@ export default {
     endScore: "Game end. Final score {score}.",
   },
   pestilence: {
-    forfeitEmptyPlot: "Pestilence! Forfeit any empty plot.",
+    forfeitEmptyPlot: "Double X rolled; you must forfeit a plot.",
     forfeitBanner: 'Double <img src="assets/img/die-event.svg" alt="event" class="inline-icon"> rolled — forfeit an empty plot.',
   },
   influence: {
