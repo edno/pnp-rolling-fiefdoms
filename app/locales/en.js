@@ -85,7 +85,7 @@ export default {
   },
   pestilence: {
     forfeitEmptyPlot: "Double X rolled; you must forfeit a plot.",
-    forfeitBanner: 'Double <img src="assets/img/die-event.svg" alt="event" class="inline-icon"> rolled — forfeit an empty plot.',
+    forfeitBanner: 'Double <img src="assets/img/forfeit.svg" alt="forfeit" class="inline-icon"> rolled — forfeit an empty plot.',
   },
   influence: {
     numberedOnly: "Influence can only adjust numbered dice.",

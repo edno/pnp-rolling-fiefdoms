@@ -85,7 +85,7 @@ export default {
   },
   pestilence: {
     forfeitEmptyPlot: "Double X obtenu ; vous devez renoncer à une parcelle.",
-    forfeitBanner: 'Double <img src="assets/img/die-event.svg" alt="événement" class="inline-icon"> obtenu — renoncez à une parcelle vide.',
+    forfeitBanner: 'Double <img src="assets/img/forfeit.svg" alt="renoncer" class="inline-icon"> obtenu — renoncez à une parcelle vide.',
   },
   influence: {
     numberedOnly: "L'Influence ne peut ajuster que les dés numérotés.",

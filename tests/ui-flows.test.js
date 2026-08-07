@@ -245,7 +245,7 @@ describe("pestilence UI flow (jsdom)", () => {
     });
     clickRoll();
     const turnHint = document.getElementById("turnHint");
-    expect(turnHint.innerHTML).toContain("die-event.svg");
+    expect(turnHint.innerHTML).toContain("forfeit.svg");
     const targetCell = document.querySelector('.cell[data-row="0"][data-col="0"]');
     expect(targetCell).toBeTruthy();
     targetCell.click();
@@ -257,7 +257,7 @@ describe("pestilence UI flow (jsdom)", () => {
     const logs = latestLogs();
     expect(logs.some((m) => m.includes("Forfeited row 1, col 1"))).toBe(true);
     expect(logs.some((m) => /Rolled W1:1, W2:2/i.test(m))).toBe(true);
-    expect(document.getElementById("turnHint").innerHTML).not.toContain("die-event.svg");
+    expect(document.getElementById("turnHint").innerHTML).not.toContain("forfeit.svg");
   });
 
   it("clears dice lock and enables next roll after pestilence forfeit", async () => {
@@ -319,7 +319,7 @@ describe("pestilence windrose reroll (jsdom)", () => {
     clickRoll();
     logs = latestLogs();
     expect(logs.some((m) => m.toLowerCase().includes("windrose") && m.toLowerCase().includes("reroll"))).toBe(true);
-    expect(document.getElementById("turnHint").innerHTML).toContain("die-event.svg");
+    expect(document.getElementById("turnHint").innerHTML).toContain("forfeit.svg");
     expect(logs.some((m) => m.includes("Rolled W1:2") && m.includes("W2:3"))).toBe(true);
   });
 
