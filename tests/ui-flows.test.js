@@ -156,7 +156,7 @@ describe("activation prompts (jsdom)", () => {
     hooks.state.bannerOverride = null;
     hooks.state.activationSelection = { pop: null, building: null };
     const initialMsg = hooks.actionMessage(hooks.state, null, hooks.TURN_PHASE.ACTIVATION);
-    expect(initialMsg.toLowerCase()).toContain("select a population node");
+    expect(initialMsg.toLowerCase()).toContain("select a population square");
     hooks.state.activationSelection.pop = [0, 0];
     const selectedMsg = hooks.actionMessage(hooks.state, null, hooks.TURN_PHASE.ACTIVATION);
     expect(selectedMsg.toLowerCase()).toContain("3");

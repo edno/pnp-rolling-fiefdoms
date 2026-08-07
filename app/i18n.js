@@ -121,6 +121,16 @@ export function t(key, params) {
   );
 }
 
+const HTML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+
+/**
+ * Escape a string for safe interpolation into an innerHTML-rendered translation.
+ * @param {string} str
+ */
+export function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
+}
+
 /**
  * Apply translations to static markup: [data-i18n] sets textContent,
  * [data-i18n-attr]="attr1:key1;attr2:key2" sets attributes.

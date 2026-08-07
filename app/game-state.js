@@ -149,6 +149,7 @@ export function beginTurn(
   state.autoLocationSelection = [];
   state.nonActiveSwap = false;
 
+  const isPestilence = dice.filter((d) => d.face === "X").length === 2;
   const adjustedDice = applyInfluenceToDice(state, state.dice);
   if (!state.activeTurn) {
     state.locationSelection = autoAssignLocationDice(state.dice, state.forcedLocationDice);
@@ -164,7 +165,10 @@ export function beginTurn(
     const advisory = allPairs.length === 0 && (canRescue || generalRescue);
     state.forceForfeit = allPairs.length === 0 && !advisory;
     state.forceForfeitAdvisory = advisory;
-    if (allPairs.length === 0) {
+    // A Pestilence roll (double-X: both X dice show the X face) forces a forfeit
+    // regardless of location pairs; skip the generic "no valid pairs" message so it
+    // doesn't precede (and get superseded by) the Pestilence message pushed below.
+    if (allPairs.length === 0 && !isPestilence) {
       messages.push({
         kind: "location",
         text: state.forceForfeit ? t("location.noValidPairsForfeit") : t("location.noValidPairsSpendInfluence"),
@@ -176,7 +180,7 @@ export function beginTurn(
     state.forceForfeitAdvisory = false;
   }
 
-  state.pestilence = dice.filter((d) => d.face === "X").length === 2;
+  state.pestilence = isPestilence;
   state.pestilenceInfo = state.pestilence ? computePestilenceInfo(state.dice, board) : null;
   if (state.pestilence) {
     messages.push({ kind: "pestilence", text: t("pestilence.forfeitEmptyPlot") });

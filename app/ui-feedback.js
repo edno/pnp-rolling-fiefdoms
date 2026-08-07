@@ -8,7 +8,15 @@
 
 import { actionBannerEl } from "./dom-manager.js";
 import { BUILDING_RULES } from "./rules.js";
-import { t } from "./i18n.js";
+import { t, escapeHtml } from "./i18n.js";
+
+/**
+ * Wrap a button's label so it renders inline styled like the real button
+ * (see .btn-label-inline in styles.css), for use inside t()-interpolated hints.
+ */
+export function formatButtonLabelHtml(label) {
+  return `<span class="btn-label-inline">${escapeHtml(label)}</span>`;
+}
 
 const SCORE_RANKS = [
   { min: 90, titleKey: "score.rankLegendaryTitle", descriptionKey: "score.rankLegendaryDesc" },
@@ -95,7 +103,11 @@ export function actionMessage(state, currentPhase, options = {}) {
     return t("location.noValidPairsSpendInfluence");
   }
 
-  if (phase === TURN_PHASE.PESTILENCE || phase === TURN_PHASE.FORFEIT) {
+  if (phase === TURN_PHASE.PESTILENCE) {
+    return t("pestilence.forfeitBanner");
+  }
+
+  if (phase === TURN_PHASE.FORFEIT) {
     return t("forfeit.emptyPlotBanner");
   }
 
@@ -104,7 +116,7 @@ export function actionMessage(state, currentPhase, options = {}) {
   }
 
   if (phase === TURN_PHASE.AWAIT_ROLL) {
-    return t("hints.pressRollToStart");
+    return t("hints.pressRollToStart", { rollBtn: formatButtonLabelHtml(t("html.rollDice")) });
   }
 
   if (phase === TURN_PHASE.SPLITTING) {
@@ -122,7 +134,7 @@ export function actionMessage(state, currentPhase, options = {}) {
   }
 
   if (!state.activeTurn) return t("hints.waitingForActivePlayer");
-  return t("hints.rollDiceToBegin");
+  return t("hints.rollDiceToBegin", { rollBtn: formatButtonLabelHtml(t("html.rollDice")) });
 }
 
 /**
