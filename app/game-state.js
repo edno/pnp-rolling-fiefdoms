@@ -133,7 +133,7 @@ function calcVagrantsFromState(state, board) {
 // +1 if an Advanced building was built that turn, +1 per Influence spent that turn, +1 if
 // Vagrants exceed 8, capped at +4/turn. Every 4th Unrest reached raises Barricades: the player
 // must choose an empty Population square to permanently barricade. The Unrest counter wraps
-// back to 0 (mod 4) once a Barricade is raised, so `progress` always reads as x/4.
+// back to 0 (mod 4) once a Barricade is actually raised, so `progress` always reads as x/4.
 function applyUnrestForCompletedTurn(state, board) {
   const influenceUsed = totalInfluenceSpent(state.influenceAdjustments);
   const advancedBuilt = state.turnFlags?.advancedBuiltThisTurn ? 1 : 0;
@@ -143,12 +143,53 @@ function applyUnrestForCompletedTurn(state, board) {
   const prevProgress = state.unrest?.progress || 0;
   let progress = prevProgress + gain;
   let triggered = false;
+  let blocked = false;
   if (progress >= 4) {
-    progress -= 4;
-    triggered = true;
+    if (hasBarricadeableNode(state)) {
+      progress -= 4;
+      triggered = true;
+    } else {
+      // Every Population square is occupied: pin the counter at the cap instead of
+      // wrapping it, so the event isn't silently lost — it re-attempts on every
+      // subsequent completed turn until a square frees up.
+      progress = 4;
+      blocked = true;
+    }
   }
   state.unrest = { progress };
-  return { gain, progress, triggered };
+  return { gain, progress, triggered, blocked, advancedBuilt, influenceUsed, vagrantUnrest };
+}
+
+// Called once per completed turn, before the next turn's dice are rolled (see rollDice()
+// in app.js), so a raised Barricade must be resolved before the Fate roll happens at all.
+export function tallyUnrestAndCheckBarricade(state, board) {
+  if (!state.unrestTracking || !(state.turnIndex > 0)) return { triggered: false, messages: [] };
+  const result = applyUnrestForCompletedTurn(state, board);
+  if (!result) return { triggered: false, messages: [] };
+  const messages = [];
+  if (result.gain > 0) {
+    const reasons = [];
+    if (result.advancedBuilt) reasons.push(t("challenges.unrestReasonAdvanced"));
+    if (result.influenceUsed > 0) {
+      reasons.push(
+        result.influenceUsed > 1
+          ? t("challenges.unrestReasonInfluenceCount", { count: result.influenceUsed })
+          : t("challenges.unrestReasonInfluence"),
+      );
+    }
+    if (result.vagrantUnrest) reasons.push(t("challenges.unrestReasonVagrants"));
+    messages.push({
+      kind: "unrest",
+      text: t("challenges.unrestGained", { gain: result.gain, reasons: reasons.join(", "), progress: result.progress }),
+    });
+  }
+  if (result.triggered) {
+    state.pendingBarricade = { active: true };
+    messages.push({ kind: "unrest", text: t("challenges.barricadesRaised") });
+  } else if (result.blocked) {
+    messages.push({ kind: "unrest", text: t("challenges.barricadesPostponed") });
+  }
+  return { triggered: result.triggered, messages };
 }
 
 export function beginTurn(
@@ -164,14 +205,6 @@ export function beginTurn(
   },
 ) {
   const messages = [];
-  // A double-windrose reroll calls beginTurn again with turnIndexOverride pinned to the
-  // same turnIndex (see rollDice() in app.js) rather than advancing it. Unrest must only
-  // be tallied once per completed turn, so skip it on that reroll pass.
-  const isSameTurnReroll = turnIndexOverride === state.turnIndex;
-  let unrestResult = null;
-  if (state.unrestTracking && state.turnIndex > 0 && !isSameTurnReroll) {
-    unrestResult = applyUnrestForCompletedTurn(state, board);
-  }
   resetTurnState(state);
   const newTurnIndex = typeof turnIndexOverride === "number" ? turnIndexOverride : state.turnIndex + 1;
   state.turnIndex = newTurnIndex;
@@ -182,10 +215,6 @@ export function beginTurn(
   if (!statusLogged) {
     messages.push({ kind: "status", text: state.activeTurn ? t("turn.active") : t("turn.nonActive") });
     state.lastStatusTurnIndex = newTurnIndex;
-  }
-  if (unrestResult?.triggered && hasBarricadeableNode(state)) {
-    state.pendingBarricade = { active: true };
-    messages.push({ kind: "unrest", text: t("challenges.barricadesRaised") });
   }
   state.dice = dice;
   state.forcedLocationDice = forcedLocationDiceIndices(state.dice);

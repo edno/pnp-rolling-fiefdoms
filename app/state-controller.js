@@ -56,6 +56,7 @@ const baseState = {
   challengeId: null,
   turnLimit: null,
   unrestTracking: false,
+  unrestCheckedTurnIndex: null,
   unrest: { progress: 0 },
   pendingBarricade: null,
   barricadedNodes: null,

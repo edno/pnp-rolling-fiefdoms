@@ -28,6 +28,7 @@ import {
 import { createState, resetTurnState, lockDiceSnapshot } from "./state-controller.js";
 import {
   beginTurn,
+  tallyUnrestAndCheckBarricade,
   selectLocationDie,
   evaluateLocationSelection,
   startActivation as startActivationState,
@@ -767,9 +768,25 @@ function rollDice() {
   try {
     if (state.activationMode) return;
     if (state.pendingCenterBuilding?.active) return;
+    if (state.pendingBarricade?.active) return;
     if (!debugMode && !state.rollAvailable) {
       log(t("turn.rollAlreadyUsed"));
       return;
+    }
+    // Tally Unrest for the just-completed turn before rolling the next turn's dice, so a
+    // raised Barricade must be resolved before the Fate roll happens at all. Guarded so a
+    // double-windrose reroll (which re-enters rollDice() for the same turnIndex) doesn't
+    // re-tally the same completed turn twice.
+    if (state.unrestTracking && state.turnIndex > 0 && state.unrestCheckedTurnIndex !== state.turnIndex) {
+      state.unrestCheckedTurnIndex = state.turnIndex;
+      const unrestOutcome = tallyUnrestAndCheckBarricade(state, state.board);
+      unrestOutcome.messages.forEach((m) => log(m.text));
+      if (unrestOutcome.triggered) {
+        renderPopulationNodes();
+        showBarricadeAlert();
+        updateActionBanner();
+        return;
+      }
     }
   const n1 = rollNumberedDie("N1");
   const n2 = rollNumberedDie("N2");
@@ -797,10 +814,6 @@ function rollDice() {
   });
   state.pendingTurnIndex = null;
   state.pendingActiveTurn = null;
-  if (state.pendingBarricade?.active) {
-    renderPopulationNodes();
-    showBarricadeAlert();
-  }
   const rollMsg = t("turn.rolled", { dice: describeDice(dice) });
   if (Array.isArray(messages) && messages.length) {
     const status = messages[0]?.kind === "status" ? messages[0].text : null;
@@ -1987,7 +2000,7 @@ function showBarricadeAlert() {
   clearTimeout(barricadeAlertTimeout);
   barricadeAlertTimeout = setTimeout(() => {
     barricadeAlertOverlay.hidden = true;
-  }, 1000);
+  }, 2000);
 }
 
 // Places the Social Contract forced center-plot building once chosen live on the board

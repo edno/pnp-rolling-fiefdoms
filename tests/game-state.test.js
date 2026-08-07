@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { t } from "../app/i18n.js";
 import {
   beginTurn,
+  tallyUnrestAndCheckBarricade,
   evaluateLocationSelection,
   selectLocationDie,
   startActivation,
@@ -101,25 +102,23 @@ describe("beginTurn", () => {
   });
 });
 
-describe("beginTurn Unrest tracking (challenge VI)", () => {
-  const dice = () => [
-    { face: 1, resolved: 1 },
-    { face: 2, resolved: 2 },
-    { face: 3, resolved: 3 },
-    { face: 4, resolved: 4 },
-  ];
-
+// Unrest is now tallied via tallyUnrestAndCheckBarricade(), called once per completed turn
+// from rollDice() in app.js *before* the next turn's dice are rolled (so a raised Barricade
+// must be resolved before the Fate roll happens) rather than from inside beginTurn().
+describe("tallyUnrestAndCheckBarricade (challenge VI)", () => {
   it("does not accrue Unrest when unrestTracking is off", () => {
     const state = createState();
-    beginTurn(state, dice(), emptyBoard(), helpers);
+    const { triggered, messages } = tallyUnrestAndCheckBarricade(state, emptyBoard());
     expect(state.unrest.progress).toBe(0);
+    expect(triggered).toBe(false);
+    expect(messages).toEqual([]);
   });
 
   it("does not accrue Unrest on the very first turn (no prior turn to score)", () => {
     const state = createState();
     state.unrestTracking = true;
     state.turnFlags = { advancedBuiltThisTurn: true };
-    beginTurn(state, dice(), emptyBoard(), helpers);
+    tallyUnrestAndCheckBarricade(state, emptyBoard());
     expect(state.unrest.progress).toBe(0);
   });
 
@@ -128,8 +127,9 @@ describe("beginTurn Unrest tracking (challenge VI)", () => {
     state.unrestTracking = true;
     state.turnIndex = 1;
     state.turnFlags = { advancedBuiltThisTurn: true };
-    beginTurn(state, dice(), emptyBoard(), helpers);
+    const { messages } = tallyUnrestAndCheckBarricade(state, emptyBoard());
     expect(state.unrest.progress).toBe(1);
+    expect(messages.some((m) => m.kind === "unrest")).toBe(true);
   });
 
   it("gains 1 Unrest per Influence spent during the completed turn", () => {
@@ -137,7 +137,7 @@ describe("beginTurn Unrest tracking (challenge VI)", () => {
     state.unrestTracking = true;
     state.turnIndex = 1;
     state.influenceAdjustments = { N1: { delta: 2 }, N2: { delta: -1 } };
-    beginTurn(state, dice(), emptyBoard(), helpers);
+    tallyUnrestAndCheckBarricade(state, emptyBoard());
     expect(state.unrest.progress).toBe(3);
   });
 
@@ -149,7 +149,7 @@ describe("beginTurn Unrest tracking (challenge VI)", () => {
     state.influenceAdjustments = { N1: { delta: 5 } };
     state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
     state.barricadedNodes = Array.from({ length: 4 }, () => Array(4).fill(false));
-    beginTurn(state, dice(), emptyBoard(), helpers);
+    tallyUnrestAndCheckBarricade(state, emptyBoard());
     expect(state.unrest.progress).toBe(0);
     expect(state.pendingBarricade?.active).toBe(true);
   });
@@ -162,8 +162,9 @@ describe("beginTurn Unrest tracking (challenge VI)", () => {
     state.turnFlags = { advancedBuiltThisTurn: true };
     state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
     state.barricadedNodes = Array.from({ length: 4 }, () => Array(4).fill(false));
-    const { messages } = beginTurn(state, dice(), emptyBoard(), helpers);
+    const { triggered, messages } = tallyUnrestAndCheckBarricade(state, emptyBoard());
     expect(state.unrest.progress).toBe(0);
+    expect(triggered).toBe(true);
     expect(state.pendingBarricade?.active).toBe(true);
     expect(messages.some((m) => m.kind === "unrest")).toBe(true);
 
@@ -180,10 +181,10 @@ describe("beginTurn Unrest tracking (challenge VI)", () => {
     state.unrest = { progress: 1 };
     state.turnFlags = { advancedBuiltThisTurn: true };
     state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
-    const { messages } = beginTurn(state, dice(), emptyBoard(), helpers);
+    const { triggered } = tallyUnrestAndCheckBarricade(state, emptyBoard());
     expect(state.unrest.progress).toBe(2);
+    expect(triggered).toBe(false);
     expect(state.pendingBarricade?.active).toBeFalsy();
-    expect(messages.some((m) => m.kind === "unrest")).toBe(false);
   });
 
   it("gains 1 Unrest when Vagrants exceed 8", () => {
@@ -192,24 +193,11 @@ describe("beginTurn Unrest tracking (challenge VI)", () => {
     state.turnIndex = 1;
     state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
     state.populationNodes[0][0] = 9; // 9 population, no Cottages -> 9 Vagrants
-    beginTurn(state, dice(), emptyBoard(), helpers);
+    tallyUnrestAndCheckBarricade(state, emptyBoard());
     expect(state.unrest.progress).toBe(1);
   });
 
-  it("does not double-count Unrest on a same-turn double-windrose reroll", () => {
-    const state = createState();
-    state.unrestTracking = true;
-    state.turnIndex = 1;
-    state.turnFlags = { advancedBuiltThisTurn: true };
-    beginTurn(state, dice(), emptyBoard(), { ...helpers, turnIndexOverride: null });
-    expect(state.unrest.progress).toBe(1);
-    // A double-windrose reroll calls beginTurn again with turnIndexOverride pinned to the
-    // turnIndex just set above, rather than advancing it further.
-    beginTurn(state, dice(), emptyBoard(), { ...helpers, turnIndexOverride: state.turnIndex });
-    expect(state.unrest.progress).toBe(1);
-  });
-
-  it("does not raise Barricades when no Population square is available to barricade", () => {
+  it("pins Unrest at the cap (does not raise Barricades) when no Population square is available", () => {
     const state = createState();
     state.unrestTracking = true;
     state.turnIndex = 1;
@@ -218,10 +206,13 @@ describe("beginTurn Unrest tracking (challenge VI)", () => {
     // 16 against 0 Cottage housing, which itself pushes Unrest gain to 1 via the Vagrant clause.
     state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(1));
     state.barricadedNodes = Array.from({ length: 4 }, () => Array(4).fill(false));
-    const { messages } = beginTurn(state, dice(), emptyBoard(), helpers);
-    expect(state.unrest.progress).toBe(0);
+    const { triggered, messages } = tallyUnrestAndCheckBarricade(state, emptyBoard());
+    // Pinned at the cap rather than wrapped to 0, so the event re-attempts next turn instead
+    // of being silently lost.
+    expect(state.unrest.progress).toBe(4);
+    expect(triggered).toBe(false);
     expect(state.pendingBarricade).toBeNull();
-    expect(messages.some((m) => m.kind === "unrest")).toBe(false);
+    expect(messages.some((m) => /postponed/i.test(m.text))).toBe(true);
   });
 });
 
