@@ -105,7 +105,7 @@ export default {
     noValidPairsSpendInfluence: "Aucune paire de coordonnées valide ; dépensez de l'Influence ou renoncez à une parcelle.",
     noValidPairsForfeit: "Aucune paire de coordonnées valide ; renoncez à une parcelle.",
     selectTwoInTurnPanel: "Sélectionnez deux dés de coordonnées dans le panneau Tour.",
-    selectTwoDice: "Sélectionnez d'abord deux dés pour les Coordonnées.",
+    selectTwoDice: "Sélectionnez d'abord deux dés pour les coordonnées.",
     cellMismatch: "La case ne correspond pas à la paire de coordonnées.",
     selectTwoPreview: "Sélectionnez 2 dés pour les coordonnées",
     remainingUsedForBuild: "Dés restants utilisés pour la construction",
