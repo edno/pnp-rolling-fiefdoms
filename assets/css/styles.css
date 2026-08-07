@@ -1266,24 +1266,8 @@ select {
   stroke: ivory;
 }
 
-.die-windrose .windrose-outer {
-  fill: #f0ebd8;
-  opacity: 0.3;
-}
-
-.die-windrose .windrose-inner {
-  fill: #f0ebd8;
-  opacity: 0.7;
-}
-
 .die-icon {
   filter: drop-shadow(0 0 0 #f0ebd8);
-}
-
-.die-icon-windrose {
-  /* Recolor windrose SVG to ivory (#f0ebd8) */
-  filter: brightness(0) saturate(100%) invert(92%) sepia(7%) saturate(320%)
-    hue-rotate(5deg) brightness(97%) contrast(93%);
 }
 
 .die-icon-forfeit {
@@ -1296,11 +1280,6 @@ select {
 
 .die-special .die-icon {
   filter: none;
-}
-
-.die-special .die-icon-windrose {
-  filter: brightness(0) saturate(100%) invert(92%) sepia(7%) saturate(320%)
-    hue-rotate(5deg) brightness(97%) contrast(93%);
 }
 
 .die-fallback {
