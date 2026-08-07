@@ -42,6 +42,7 @@ export const localeFlagIcon = document.getElementById("localeFlagIcon");
 export const actionBannerEl = document.getElementById("actionBanner");
 export const turnStatusChip = document.getElementById("turnStatusChip");
 export const unrestBadge = document.getElementById("unrestBadge");
+export const challengeProgressBadge = document.getElementById("challengeProgressBadge");
 export const activeChallengeBadge = document.getElementById("activeChallengeBadge");
 export const challengeInfoModal = document.getElementById("challengeInfoModal");
 export const challengeInfoTitle = document.getElementById("challengeInfoTitle");

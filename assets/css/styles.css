@@ -918,6 +918,12 @@ main {
   border-color: rgba(192, 57, 43, 0.4);
 }
 
+.status-chip.challenge-progress-badge {
+  background: rgba(46, 134, 193, 0.12);
+  color: #1b5f8c;
+  border-color: rgba(46, 134, 193, 0.4);
+}
+
 .field label {
   font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
 }

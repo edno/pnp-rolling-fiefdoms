@@ -79,6 +79,7 @@ import {
   localeFlagIcon,
   turnStatusChip,
   unrestBadge,
+  challengeProgressBadge,
   activeChallengeBadge,
   challengeInfoModal,
   challengeInfoTitle,
@@ -2486,6 +2487,7 @@ function updateTurnStatusChip() {
   }
   updateUnrestBadge();
   updateActiveChallengeBadge();
+  updateChallengeProgressBadge();
 }
 
 function updateUnrestBadge() {
@@ -2502,6 +2504,23 @@ function updateUnrestBadge() {
   unrestBadge.title = label;
   unrestBadge.classList.remove("hidden");
   unrestBadge.removeAttribute("aria-hidden");
+}
+
+function updateChallengeProgressBadge() {
+  if (!challengeProgressBadge) return;
+  const challenge = activeChallenge();
+  if (!challenge?.liveProgress) {
+    challengeProgressBadge.classList.add("hidden");
+    challengeProgressBadge.setAttribute("aria-hidden", "true");
+    return;
+  }
+  const { have, need, labelKey } = challenge.liveProgress(currentScore(), state);
+  const label = `${t(labelKey)}: ${have}/${need}`;
+  challengeProgressBadge.textContent = label;
+  challengeProgressBadge.setAttribute("aria-label", label);
+  challengeProgressBadge.title = label;
+  challengeProgressBadge.classList.remove("hidden");
+  challengeProgressBadge.removeAttribute("aria-hidden");
 }
 
 function maybeRollAfterLock() {
