@@ -200,7 +200,7 @@ export default {
   hints: {
     pressRollToStart: "Appuyez sur {rollBtn} pour commencer votre tour.",
     lockSplitToContinue: "Verrouillez la répartition pour continuer à construire.",
-    selectBuildingFromOverlay: "Sélectionnez un bâtiment dans le panneau des bâtiments.",
+    selectBuildingFromOverlay: 'Sélectionnez un bâtiment dans le panneau <span class="panel-title-font">Bâtiments</span>.',
     clickHighlightedPlot: "Cliquez sur une parcelle en surbrillance pour placer le bâtiment choisi.",
     waitingForActivePlayer: "En attente du joueur actif.",
     rollDiceToBegin: "{rollBtn} pour commencer.",
@@ -277,8 +277,9 @@ export default {
       rule1: "Jouez 24 tours au lieu de 25.",
       victory1: "Obtenez au moins 70 PR.",
       victory2: "La pénalité de Vagabonds finale est de 0 PR (après application de l'Aumônerie, s'il y en a une).",
-      chooseCenterBuilding: "Choisissez un bâtiment pour la parcelle centrale : Beffroi ou Guilde.",
-      chooseGuildType: "Choisissez le type de Guilde pour la parcelle centrale.",
+      chooseCenterBuilding:
+        'Choisissez un bâtiment pour la parcelle centrale : <span class="panel-title-font">Beffroi</span> ou <span class="panel-title-font">Guilde</span>.',
+      chooseGuildType: 'Choisissez le type de <span class="panel-title-font">Guilde</span> pour la parcelle centrale.',
       centerBuildingLog: "{building} construit sur la parcelle centrale.",
     },
     enlightenment: {

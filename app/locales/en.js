@@ -200,7 +200,7 @@ export default {
   hints: {
     pressRollToStart: "Press {rollBtn} to start your turn.",
     lockSplitToContinue: "Lock the split to continue building.",
-    selectBuildingFromOverlay: "Select a building from the Buildings panel.",
+    selectBuildingFromOverlay: 'Select a building from the <span class="panel-title-font">Buildings</span> panel.',
     clickHighlightedPlot: "Click a highlighted plot to place the chosen building.",
     waitingForActivePlayer: "Waiting for the active player.",
     rollDiceToBegin: "{rollBtn} to begin.",
@@ -277,8 +277,9 @@ export default {
       rule1: "Play 24 turns instead of 25.",
       victory1: "Achieve at least 70 RP.",
       victory2: "Final Vagrant penalty is 0 RP (after applying Almshouse, if any).",
-      chooseCenterBuilding: "Choose a building for the center plot: Townhall or Guild.",
-      chooseGuildType: "Choose the Guild's type for the center plot.",
+      chooseCenterBuilding:
+        'Choose a building for the center plot: <span class="panel-title-font">Townhall</span> or <span class="panel-title-font">Guild</span>.',
+      chooseGuildType: 'Choose the <span class="panel-title-font">Guild</span>\'s type for the center plot.',
       centerBuildingLog: "{building} built on the center plot.",
     },
     enlightenment: {

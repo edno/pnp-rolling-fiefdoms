@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v1.37";
+const CACHE_VERSION = "v1.38";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
 const APP_VERSION = "v11";
 const SHEET_VERSION = "v2.0";
