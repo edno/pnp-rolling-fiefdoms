@@ -113,6 +113,7 @@ export default {
     noValidPairsSpendInfluence: "No valid location pairs; spend Influence or click on any empty plot to forfeit it.",
     noValidPairsForfeit: "No valid location pairs; forfeit a plot.",
     selectTwoInTurnPanel: 'Select two location dice in the <span class="panel-title-font">Turn</span> panel.',
+    windroseSelectSecond: 'Windrose rolled: select the second location die in the <span class="panel-title-font">Turn</span> panel.',
     selectTwoDice: "Select two dice for Location first.",
     cellMismatch: "Cell does not match location pair.",
     selectTwoPreview: "Select 2 dice for location",
