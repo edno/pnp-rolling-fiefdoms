@@ -3480,5 +3480,6 @@ function autoForfeitUnfillable(finalize = false) {
       maybeRollAfterLock,
       placeBuilding,
       onPopulationNodeClick,
+      adjustDieWithInfluence,
     };
   }
