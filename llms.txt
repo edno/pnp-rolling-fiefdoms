@@ -1,0 +1,14 @@
+# Rolling Fiefdoms
+
+> Rolling Fiefdoms is a free browser-based solo roll-and-write game. Each turn, the Regent rolls four dice and groups them into two pairs; players choose where to build cottages, markets, and landmarks on their fief, then activate buildings and score reputation to see whose fief prospers most. Winner of the BGG 2025 Roll & Write Game Design Contest.
+
+## Play
+
+- [Play Rolling Fiefdoms Online Solo](https://rolling-fiefdoms.edno.io/): the free browser implementation, playable instantly with no download or install.
+- [Rulebook (PDF)](https://rolling-fiefdoms.edno.io/resources/rolling-fiefdoms-rulebook.pdf): official rules for the print-and-play tabletop game.
+
+## Learn more
+
+- [Rolling Fiefdoms on BoardGameGeek](https://boardgamegeek.com/boardgame/465867): community page, ratings, and discussion.
+- [Rolling Fiefdoms on PnP Stash](https://pnpstash.com/product/rolling-fiefdoms/): free print-and-play files for the full 1-6 player tabletop game.
+- [Source code on GitHub](https://github.com/edno/pnp-rolling-fiefdoms): the code for this browser implementation, MIT licensed.
