@@ -531,6 +531,11 @@ function formatChallengeNameHtml(name) {
   return `<span class="challenge-roman-numeral">${escapeHtml(numeral)}</span>${escapeHtml(separator)}${escapeHtml(rest)}`;
 }
 
+// A plain circle+"i" glyph (not a text/emoji character) so it renders identically across
+// platforms instead of inheriting whatever font is active; uses currentColor so it always
+// matches the badge's text color.
+const CHALLENGE_INFO_ICON_HTML = `<span class="challenge-badge-info-icon" aria-hidden="true"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="4.6" r="1.05" fill="currentColor"/><rect x="7.15" y="7" width="1.7" height="5.3" rx="0.85" fill="currentColor"/></svg></span>`;
+
 // Labels a Social Contract center-building choice ("T" or a guild code like "GF") for
 // display in the picker chooser and the setup log line.
 function centerBuildingLabel(choice) {
@@ -2182,7 +2187,7 @@ function updateActiveChallengeBadge() {
   }
   const label = t(challenge.nameKey);
   const tooltip = t("challenges.picker.badgeTooltip");
-  activeChallengeBadge.innerHTML = formatChallengeNameHtml(label);
+  activeChallengeBadge.innerHTML = formatChallengeNameHtml(label) + CHALLENGE_INFO_ICON_HTML;
   activeChallengeBadge.setAttribute("aria-label", `${label} — ${tooltip}`);
   activeChallengeBadge.title = tooltip;
   activeChallengeBadge.classList.remove("hidden");

@@ -1586,6 +1586,17 @@ select {
   font-size: 24px;
 }
 
+.challenge-badge-info-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+  opacity: 0.75;
+}
+
+.challenge-badge:hover .challenge-badge-info-icon {
+  opacity: 1;
+}
+
 .modal-locale-switcher {
   flex-shrink: 0;
 }
