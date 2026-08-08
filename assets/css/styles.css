@@ -41,7 +41,7 @@ body {
 }
 
 header {
-  padding: 0px 24px;
+  padding: 10px 24px 5px;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
   display: flex;
@@ -54,6 +54,7 @@ header {
 }
 
 header h1 {
+  margin: 0;
   font-family: "QT Black Forest", "Segoe UI", system-ui, -apple-system,
     sans-serif;
   font-size: 36pt;
@@ -63,28 +64,6 @@ header h1 {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.site-title-stack {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-}
-
-.how-to-play-link {
-  font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
-  font-size: 12px;
-  color: var(--muted);
-  text-decoration: none;
-  white-space: nowrap;
-  margin-left: 4px;
-  margin-top: -30px;
-  margin-bottom: 10px;
-}
-
-.how-to-play-link:hover {
-  color: var(--accent);
 }
 
 .top-menu {
