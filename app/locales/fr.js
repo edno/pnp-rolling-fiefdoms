@@ -113,6 +113,7 @@ export default {
     noValidPairsSpendInfluence: "Aucune paire de coordonnées valide ; dépensez de l'Influence ou cliquez sur une parcelle vide pour y renoncer.",
     noValidPairsForfeit: "Aucune paire de coordonnées valide ; renoncez à une parcelle.",
     selectTwoInTurnPanel: 'Sélectionnez deux dés de coordonnées dans le panneau <span class="panel-title-font">Tour</span>.',
+    windroseSelectSecond: 'Rose des vents obtenue : sélectionnez le second dé de coordonnées dans le panneau <span class="panel-title-font">Tour</span>.',
     selectTwoDice: "Sélectionnez d'abord deux dés pour les coordonnées.",
     cellMismatch: "La case ne correspond pas à la paire de coordonnées.",
     selectTwoPreview: "Sélectionnez 2 dés pour les coordonnées",
