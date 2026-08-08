@@ -221,7 +221,7 @@ describe("dice selection UI (jsdom)", () => {
     hooks.updateDiceAssignments();
     await flushMicrotasks();
 
-    const buildPreviewDice = () => document.querySelectorAll("#buildDicePreview .die-badge");
+    const buildPreviewDice = () => document.querySelectorAll("#buildDicePreview .die-badge:not(.die-placeholder)");
 
     clickDie(0);
     clickDie(1);
@@ -234,6 +234,7 @@ describe("dice selection UI (jsdom)", () => {
     expect(hooks.state.locationSelection.length).toBe(1);
     expect(document.querySelectorAll(".die-badge.build-assigned").length).toBe(0);
     expect(buildPreviewDice().length).toBe(0);
+    expect(document.querySelectorAll("#buildDicePreview .die-placeholder").length).toBe(2);
   });
 });
 
@@ -314,8 +315,8 @@ describe("pestilence windrose reroll (jsdom)", () => {
     clickRoll();
     let logs = latestLogs();
     expect(logs.some((m) => m.toLowerCase().includes("double windrose rolled"))).toBe(true);
-    expect(document.querySelectorAll("#locDicePreview .die-badge").length).toBe(0);
-    expect(document.querySelectorAll("#buildDicePreview .die-badge").length).toBe(0);
+    expect(document.querySelectorAll("#locDicePreview .die-badge:not(.die-placeholder)").length).toBe(0);
+    expect(document.querySelectorAll("#buildDicePreview .die-badge:not(.die-placeholder)").length).toBe(0);
     clickRoll();
     logs = latestLogs();
     expect(logs.some((m) => m.toLowerCase().includes("windrose") && m.toLowerCase().includes("reroll"))).toBe(true);

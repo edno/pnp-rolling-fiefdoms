@@ -2936,9 +2936,20 @@ function renderDicePreview(container, dice, role, emptyText, { allowInfluence = 
   container.classList.add("split-preview");
   clearElement(container);
   if (!dice?.length) {
-    container.innerHTML = `<span class="hint">${emptyText}</span>`;
+    container.title = emptyText;
+    for (let i = 0; i < 2; i += 1) {
+      const placeholder = document.createElement("div");
+      placeholder.className = "die-badge die-placeholder";
+      placeholder.setAttribute("aria-hidden", "true");
+      container.appendChild(placeholder);
+    }
+    const srText = document.createElement("span");
+    srText.className = "visually-hidden";
+    srText.textContent = emptyText;
+    container.appendChild(srText);
     return;
   }
+  container.removeAttribute("title");
   dice.forEach((die, idx) => {
     const sourceIndex = dieSourceIndex(die);
     const badge = makeDieBadge(die, idx, {
