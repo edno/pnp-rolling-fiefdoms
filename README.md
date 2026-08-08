@@ -2,7 +2,7 @@
 
 Rolling Fiefdoms is a roll-and-write game where you grow a small fief through clever dice pairing and careful planning. Each turn, the Regent rolls four dice and groups them into two pairs; players then choose where to build cottages, markets, and landmarks on their fief. When all plots are filled, assign labourers to activate buildings, score reputation, and see whose fief prospers most.
 
-Rolling Fiefdoms won the **BGG 2025 Roll & Write Game Design Contest**.
+Rolling Fiefdoms won the **[BGG 2025 Roll & Write Game Design Contest](https://boardgamegeek.com/thread/3585125/the-2025-roll-and-write-game-design-contest)**.
 
 This repository hosts the solo-friendly browser implementation. It mirrors the printed sheet and provides digital experience while keeping the tactile “split & choose” flow intact.
 
