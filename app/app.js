@@ -375,6 +375,7 @@ function prepareNextRoll() {
   updateActionBanner();
   refreshDiceVisibility();
   highlightLocations();
+  updateSwapButton();
 }
 
 function shouldRerollDoubleWindrose(dice) {
@@ -1765,7 +1766,7 @@ function placeBuilding(r, c, code) {
   log(t("build.placed", { label: displayLabel, row: r + 1, col: c + 1 }));
   state.splitUsedForBuild = true;
   updateDiceAssignments();
-  updateMultiplayerButtons();
+  updateSwapButton();
   // Reset guild selection after placement
   if (code !== "G") {
     state.selectedGuildType = null;
@@ -2531,7 +2532,7 @@ function updateActionBanner() {
   });
 }
 
-function updateMultiplayerButtons() {
+function updateSwapButton() {
   if (swapPairBtn) {
     const reasonKey = soloSwapUnavailableReasonKey();
     const hidden = reasonKey === "hidden";
@@ -2601,7 +2602,7 @@ function updateUnrestBadge() {
   const label = `${t("challenges.unrestLabel")}: ${progress}/4`;
   unrestBadge.textContent = label;
   unrestBadge.setAttribute("aria-label", label);
-  unrestBadge.title = label;
+  unrestBadge.title = t("challenges.unrestBadgeTooltip");
   unrestBadge.classList.remove("hidden");
   unrestBadge.removeAttribute("aria-hidden");
 }
@@ -2976,7 +2977,7 @@ function updateDiceAssignments(renderOnly = false) {
     highlightLocations();
     updateActionBanner();
     renderDice();
-    updateMultiplayerButtons();
+    updateSwapButton();
     return;
   }
   // A Pestilence roll locks the location/build split directly (see rollDice()) and
@@ -3048,7 +3049,7 @@ function updateDiceAssignments(renderOnly = false) {
   highlightLocations();
   updateActionBanner();
   renderDice();
-  updateMultiplayerButtons();
+  updateSwapButton();
 }
 
 function computeSwapChoice(baseLoc = [], baseBuild = [], swapFlag = false) {
@@ -3136,7 +3137,7 @@ function soloPairCanBeRescued(diceList = []) {
 // Returns "hidden" when the swap button doesn't apply to the current turn at all (no dice to
 // swap), a locale key naming the reason it's disabled-but-visible, or null when swap is fully
 // available. Centralizing this lets the button show a grey/disabled state with an explanatory
-// tooltip instead of just disappearing (see updateMultiplayerButtons()).
+// tooltip instead of just disappearing (see updateSwapButton()).
 function soloSwapUnavailableReasonKey() {
   if (state.activeTurn || state.pestilence || state.activationMode) return "hidden";
   const choice = soloPairChoice();
@@ -3180,7 +3181,7 @@ function toggleLockedPairChoice() {
   const toggled = toggleSoloPairChoice();
   if (!toggled) return;
   updateDiceAssignments();
-  updateMultiplayerButtons();
+  updateSwapButton();
 }
 
 function autoMarkBuildDoneIfReady(_options = {}) {

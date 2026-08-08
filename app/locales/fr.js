@@ -305,6 +305,7 @@ export default {
       description: "Vos frontières atteignent désormais la mer. Air salin, bateaux et poissons frais remplissent vos halles, si vous construisez les pêcheries nécessaires.",
     },
     unrestLabel: "Agitation",
+    unrestBadgeTooltip: "4 Agitation = Barricades érigées sur une case Population.",
     unrestGained: "Agitation +{gain} ({reasons}) : {progress}/4.",
     unrestReasonAdvanced: "Bâtiment avancé",
     unrestReasonInfluence: "Influence",

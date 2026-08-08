@@ -305,6 +305,7 @@ export default {
       description: "Your borders now reach the sea. Salty air, boats, and fresh fish fill your markets, if you can build the piscaries to support it and keep the heart of your fief free for commerce and craft.",
     },
     unrestLabel: "Unrest",
+    unrestBadgeTooltip: "4 Unrest = Barricades raised on a Population square.",
     unrestGained: "Unrest +{gain} ({reasons}): {progress}/4.",
     unrestReasonAdvanced: "Advanced building",
     unrestReasonInfluence: "Influence",

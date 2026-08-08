@@ -620,6 +620,10 @@ main {
   color: var(--text);
 }
 
+.challenge-outcome-box .challenge-roman-numeral {
+  font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
 .challenge-outcome-comparison {
   margin: 8px 0 0 0;
   font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
