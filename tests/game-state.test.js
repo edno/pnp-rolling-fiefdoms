@@ -16,6 +16,7 @@ import {
   recalcTracks,
   maybeRollAfterLockState,
   turnLimitReached,
+  canRescueLocationWithInfluence,
 } from "../app/game-state.js";
 import { createState, lockDiceSnapshot, resetTurnState } from "../app/state-controller.js";
 import {
@@ -447,6 +448,70 @@ describe("die selection and location evaluation", () => {
 
     expect(stateA.pestilenceInfo.targetCells).toEqual([]);
     expect(stateB.pestilenceInfo.targetCells).toEqual([]);
+  });
+});
+
+describe("canRescueLocationWithInfluence", () => {
+  const singleOpenCellBoard = (openRow, openCol) => {
+    const board = emptyBoard();
+    board.forEach((row, r) =>
+      row.forEach((cell, c) => {
+        if (!(r === openRow && c === openCol)) cell.building = "X";
+      }),
+    );
+    return board;
+  };
+
+  it("finds a rescue when adjusting one die by a delta within budget reaches the only open cell", () => {
+    const state = createState();
+    state.influence = { earned: 2, spent: 0 };
+    const board = singleOpenCellBoard(2, 3); // needs pair values {3,4}
+    const diceList = [
+      { label: "N1", face: 4, resolved: 4 },
+      { label: "N2", face: 1, resolved: 1 }, // needs +2 to reach 3
+    ];
+    expect(canRescueLocationWithInfluence(state, diceList, board, { uniqueLocationPairs, filterAvailablePairs })).toBe(
+      true,
+    );
+  });
+
+  it("returns false when the required delta exceeds the available budget", () => {
+    const state = createState();
+    state.influence = { earned: 1, spent: 0 }; // only 1 point, need 2
+    const board = singleOpenCellBoard(2, 3);
+    const diceList = [
+      { label: "N1", face: 4, resolved: 4 },
+      { label: "N2", face: 1, resolved: 1 },
+    ];
+    expect(canRescueLocationWithInfluence(state, diceList, board, { uniqueLocationPairs, filterAvailablePairs })).toBe(
+      false,
+    );
+  });
+
+  it("returns false when no Influence is available at all", () => {
+    const state = createState();
+    state.influence = { earned: 0, spent: 0 };
+    const board = singleOpenCellBoard(2, 3);
+    const diceList = [
+      { label: "N1", face: 4, resolved: 4 },
+      { label: "N2", face: 1, resolved: 1 },
+    ];
+    expect(canRescueLocationWithInfluence(state, diceList, board, { uniqueLocationPairs, filterAvailablePairs })).toBe(
+      false,
+    );
+  });
+
+  it("finds a rescue via either die, regardless of which one needs the adjustment", () => {
+    const state = createState();
+    state.influence = { earned: 3, spent: 0 };
+    const board = singleOpenCellBoard(0, 2); // needs pair values {1,3}
+    const diceList = [
+      { label: "N1", face: 1, resolved: 1 },
+      { label: "N2", face: 5, resolved: 5 }, // needs -2 to reach 3
+    ];
+    expect(canRescueLocationWithInfluence(state, diceList, board, { uniqueLocationPairs, filterAvailablePairs })).toBe(
+      true,
+    );
   });
 });
 

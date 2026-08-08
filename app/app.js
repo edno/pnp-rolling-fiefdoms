@@ -3183,11 +3183,16 @@ function soloPairCanBeRescued(diceList = []) {
 // swap), a locale key naming the reason it's disabled-but-visible, or null when swap is fully
 // available. Centralizing this lets the button show a grey/disabled state with an explanatory
 // tooltip instead of just disappearing (see updateSwapButton()).
+let lastSwapDebugFingerprint = null;
+
 function soloSwapUnavailableReasonKey() {
   if (state.activeTurn || state.pestilence || state.activationMode) return "hidden";
   const choice = soloPairChoice();
   if (!choice.baseLocIdx || !choice.baseBuildIdx) return "hidden";
-  if (!choice.swapAllowed) return "html.swapUnavailableOnlyOnePairing";
+  if (!choice.swapAllowed) {
+    logSwapDebugTrace(choice, "html.swapUnavailableOnlyOnePairing", {});
+    return "html.swapUnavailableOnlyOnePairing";
+  }
 
   const baseValid = soloPairHasValidLocations(choice.baseLocDice);
   const altValid = soloPairHasValidLocations(choice.baseBuildDice);
@@ -3196,8 +3201,36 @@ function soloSwapUnavailableReasonKey() {
   const altCanBeRescued = !altValid && soloPairCanBeRescued(choice.baseBuildDice);
   const basePossible = baseValid || baseCanBeRescued;
   const altPossible = altValid || altCanBeRescued;
-  if (!basePossible && !altPossible) return "html.swapUnavailableNoValidPairing";
+  const details = { baseValid, altValid, baseCanBeRescued, altCanBeRescued };
+  if (!basePossible && !altPossible) {
+    logSwapDebugTrace(choice, "html.swapUnavailableNoValidPairing", details);
+    return "html.swapUnavailableNoValidPairing";
+  }
   return null;
+}
+
+// Diagnostic trace for the swap-button availability decision, logged to the console whenever
+// it computes "unavailable" - throttled so it only re-logs when the inputs actually change,
+// since this is re-evaluated on nearly every render. Intended to help track down reports of
+// the button appearing available/orange while this logic believes it's unavailable (or vice
+// versa) without a way to reproduce the exact dice/board state that triggered it.
+function logSwapDebugTrace(choice, reasonKey, details) {
+  const fingerprint = JSON.stringify({
+    loc: choice.baseLocDice?.map((d) => [d.label, d.face, d.resolved]),
+    build: choice.baseBuildDice?.map((d) => [d.label, d.face, d.resolved]),
+    reasonKey,
+    influence: state.influence,
+    adjustments: state.influenceAdjustments,
+  });
+  if (fingerprint === lastSwapDebugFingerprint) return;
+  lastSwapDebugFingerprint = fingerprint;
+  console.debug("[swap-button]", reasonKey, {
+    baseLocDice: choice.baseLocDice,
+    baseBuildDice: choice.baseBuildDice,
+    influence: state.influence,
+    influenceAdjustments: state.influenceAdjustments,
+    ...details,
+  });
 }
 
 function soloSwapAvailable() {
