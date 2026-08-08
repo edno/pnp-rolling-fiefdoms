@@ -1911,32 +1911,38 @@ function log(msg) {
   }
 }
 
+// Tally Unrest for the just-completed turn here, the moment the turn is actually done -
+// whether the game continues to the next roll or moves into the final activation phase -
+// rather than deferring it to the next Roll Dice click (which wouldn't run at all on the
+// game's final turn, and which the solo build flow often skips entirely via
+// maybeRollAfterLock()). Returns true if a Barricade was triggered, meaning the caller must
+// stop and let the player resolve it; onPopulationNodeClick() re-calls the turn-advance path
+// once it's resolved, at which point this is skipped (same turnIndex already checked).
+function tallyUnrestForCompletedTurnIfNeeded() {
+  if (!(state.unrestTracking && state.turnIndex > 0 && state.unrestCheckedTurnIndex !== state.turnIndex)) {
+    return false;
+  }
+  state.unrestCheckedTurnIndex = state.turnIndex;
+  const unrestOutcome = tallyUnrestAndCheckBarricade(state, state.board);
+  unrestOutcome.messages.forEach((m) => log(m.text));
+  if (unrestOutcome.messages.length) {
+    updateTracks();
+    updateUnrestBadge();
+  }
+  if (unrestOutcome.triggered) {
+    renderPopulationNodes();
+    showBarricadeAlert();
+    updateActionBanner();
+    return true;
+  }
+  return false;
+}
+
 function autoAdvance() {
   const { action, message } = autoAdvanceState(state, state.board);
   if (action === "wait") return;
 
-  // Tally Unrest for the just-completed turn here, the moment the turn is actually
-  // done - whether the game continues to the next roll or moves into the final
-  // activation phase - rather than deferring it to the next Roll Dice click (which
-  // wouldn't run at all on the game's final turn). A raised Barricade must be resolved
-  // before the game moves on; onPopulationNodeClick() re-calls autoAdvance() once it's
-  // resolved, at which point this block is skipped (same turnIndex already checked) and
-  // the actual action (roll/activate) proceeds.
-  if (state.unrestTracking && state.turnIndex > 0 && state.unrestCheckedTurnIndex !== state.turnIndex) {
-    state.unrestCheckedTurnIndex = state.turnIndex;
-    const unrestOutcome = tallyUnrestAndCheckBarricade(state, state.board);
-    unrestOutcome.messages.forEach((m) => log(m.text));
-    if (unrestOutcome.messages.length) {
-      updateTracks();
-      updateUnrestBadge();
-    }
-    if (unrestOutcome.triggered) {
-      renderPopulationNodes();
-      showBarricadeAlert();
-      updateActionBanner();
-      return;
-    }
-  }
+  if (tallyUnrestForCompletedTurnIfNeeded()) return;
 
   if (action === "activate") {
     if (message) log(message);
@@ -2488,7 +2494,12 @@ function onPopulationNodeClick(nr, nc) {
     if (!result.barricaded) return;
     playSfx();
     renderBoard();
+    // The Unrest tally that raised this Barricade already ran (from maybeRollAfterLock(),
+    // before diceLocked got a chance to flip false) and is now skipped by its own
+    // once-per-turn guard, so this just needs to actually complete the turn transition that
+    // was deferred while the Barricade was pending.
     autoAdvance();
+    maybeRollAfterLock();
     return;
   }
   if (state.activationMode) {
@@ -2630,6 +2641,21 @@ function updateChallengeProgressBadge() {
 }
 
 function maybeRollAfterLock() {
+  // Mirrors maybeRollAfterLockState()'s own readiness gate (game-state.js), checked here
+  // *before* calling it so the Unrest tally can run - and potentially raise a Barricade that
+  // blocks the transition - before that function's side effect of flipping diceLocked false.
+  // This is the actual turn-completion path for a normal build (autoAdvance() sees diceLocked
+  // still true at that point and defers here), so skipping the tally here was silently
+  // dropping Unrest gains (Advanced building / Influence spent / Vagrants) on every turn that
+  // ended via a build rather than a barricade/forfeit/activation.
+  const readyToRoll =
+    state.diceLocked &&
+    state.pendingNextRoll &&
+    !(state.pendingPopulation?.remaining > 0) &&
+    !state.pestilence &&
+    !state.forceForfeit &&
+    !state.activationMode;
+  if (readyToRoll && tallyUnrestForCompletedTurnIfNeeded()) return;
   const action = maybeRollAfterLockState(state);
   if (action === "roll") {
     advanceTurnTrack();
@@ -3453,5 +3479,6 @@ function autoForfeitUnfillable(finalize = false) {
       renderTurnTrack,
       maybeRollAfterLock,
       placeBuilding,
+      onPopulationNodeClick,
     };
   }

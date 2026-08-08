@@ -140,6 +140,80 @@ describe("influence population handling (jsdom)", () => {
   });
 });
 
+describe("Unrest tally on turn completion (jsdom)", () => {
+  it("tallies Unrest for Influence spent when a build (not a Roll Dice click) completes the turn", async () => {
+    // Regression test: a build completing the turn goes through
+    // autoAdvance()+maybeRollAfterLock(), not autoAdvance() alone - the Unrest tally must run
+    // from maybeRollAfterLock() too, or Influence/Advanced-building/Vagrant Unrest gained on
+    // an ordinary build turn is silently dropped.
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { state, placeBuilding } = hooks;
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.unrestCheckedTurnIndex = null;
+    state.unrest = { progress: 0 };
+    state.dice = [
+      { label: "N1", face: 1, resolved: 1 },
+      { label: "N2", face: 4, resolved: 4 },
+      { label: "X1", face: 2, resolved: 2 },
+      { label: "X2", face: 3, resolved: 3 },
+    ];
+    state.locationSelection = [0, 1];
+    state.buildDice = [state.dice[2], state.dice[3]];
+    state.buildChoice = { code: "F" };
+    state.influenceAdjustments = { X2: { delta: 1 } };
+    state.influenceTarget = "X2";
+    state.influence = { earned: 1, spent: 0, pending: 0 };
+    state.rollAvailable = false;
+
+    placeBuilding(0, 0, "F");
+
+    expect(state.unrestCheckedTurnIndex).toBe(1);
+    expect(state.unrest.progress).toBe(1);
+    expect(latestLogs().some((m) => m.includes("Unrest +1"))).toBe(true);
+  });
+
+  it("lets the player resolve a Barricade triggered by a build and completes the turn afterward", async () => {
+    // Regression test for the fix above: since the tally (and any Barricade it raises) now
+    // runs from maybeRollAfterLock() before diceLocked/pendingNextRoll get cleared, resolving
+    // the Barricade must still actually finish the turn transition afterward.
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { state, placeBuilding, onPopulationNodeClick } = hooks;
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.unrestCheckedTurnIndex = null;
+    state.unrest = { progress: 3 };
+    state.dice = [
+      { label: "N1", face: 1, resolved: 1 },
+      { label: "N2", face: 4, resolved: 4 },
+      { label: "X1", face: 2, resolved: 2 },
+      { label: "X2", face: 3, resolved: 3 },
+    ];
+    state.locationSelection = [0, 1];
+    state.buildDice = [state.dice[2], state.dice[3]];
+    state.buildChoice = { code: "F" };
+    state.influenceAdjustments = { X2: { delta: 1 } };
+    state.influenceTarget = "X2";
+    state.influence = { earned: 1, spent: 0, pending: 0 };
+    state.rollAvailable = false;
+
+    placeBuilding(0, 0, "F");
+
+    expect(state.unrest.progress).toBe(0);
+    expect(state.pendingBarricade?.active).toBe(true);
+    expect(state.diceLocked).toBe(true);
+
+    onPopulationNodeClick(0, 0);
+
+    expect(state.pendingBarricade).toBeNull();
+    expect(state.barricadedNodes[0][0]).toBe(true);
+    expect(state.diceLocked).toBe(false);
+    expect(state.pendingNextRoll).toBe(false);
+  });
+});
+
 describe("activation prompts (jsdom)", () => {
   it("shows population-selection prompt then remaining pips when a node is selected", async () => {
     await setupApp({ enableHooks: true });
