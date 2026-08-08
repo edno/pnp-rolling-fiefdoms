@@ -9,7 +9,7 @@ const { optimize } = require("svgo");
 
 const root = path.resolve(__dirname, "..");
 const outDir = path.join(root, "dist");
-const staticEntries = ["index.html", "assets", "resources", "robots.txt", "sitemap.xml", "manifest.webmanifest"];
+const staticEntries = ["index.html", "assets", "resources", "robots.txt", "sitemap.xml", "llms.txt", "manifest.webmanifest"];
 const PLAYER_SHEET_VARIANTS = [
   {
     relative: path.join("resources", "rolling-fiefdoms-player-sheet.webp"),

@@ -2274,6 +2274,7 @@ function appendDifficultyDots(card, level) {
   const wrap = document.createElement("div");
   wrap.className = "difficulty-dots";
   const label = `${t("challenges.picker.difficultyLabel")}: ${t(DIFFICULTY_LABEL_KEYS[level] || DIFFICULTY_LABEL_KEYS[3])}`;
+  wrap.setAttribute("role", "img");
   wrap.setAttribute("aria-label", label);
   wrap.title = label;
   for (let i = 1; i <= 3; i++) {
