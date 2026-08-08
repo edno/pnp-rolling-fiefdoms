@@ -20,7 +20,7 @@
     />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="798" />
-    <meta property="og:url" content="https://rolling-fiefdoms.edno.io" />
+    <meta property="og:url" content="https://rolling-fiefdoms.edno.io/" />
     <meta
       property="og:see_also"
       content="https://boardgamegeek.com/boardgame/465867"
@@ -37,13 +37,33 @@
     />
     <meta name="theme-color" content="#e67e22" />
     <title>Rolling Fiefdoms - Online Solo</title>
+    <link rel="canonical" href="https://rolling-fiefdoms.edno.io/" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="modulepreload" href="app/app.js?v=v19" />
     <link rel="icon" type="image/png" href="assets/img/ink-splatter.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Rolling Fiefdoms",
+        "url": "https://rolling-fiefdoms.edno.io/",
+        "description": "Play Rolling Fiefdoms solo in your browser: Roll, Split, Build and Populate your Fiefdom.",
+        "image": "https://rolling-fiefdoms.edno.io/resources/rolling-fiefdoms-cover-wide.jpg",
+        "applicationCategory": "GameApplication",
+        "genre": "Strategy",
+        "operatingSystem": "Web Browser",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      }
+    </script>
     <style>
       /* Critical CSS - hide content until fonts and CSS load */
       .loading header,
       .loading main,
+      .loading .landing-info,
       .loading .site-footer {
         visibility: hidden !important;
         pointer-events: none !important;
@@ -367,6 +387,109 @@
       </section>
     </main>
 
+    <div class="landing-info">
+      <button
+        id="backToTopBtn"
+        class="back-to-top"
+        type="button"
+        aria-label="Back to game"
+        data-i18n-attr="aria-label:html.backToTopLabel"
+      >
+        &#8593;
+      </button>
+
+      <section aria-labelledby="howToPlayHeading">
+        <h2 id="howToPlayHeading" data-i18n="html.howToPlayTitle">How to Play</h2>
+        <p data-i18n="html.howToPlayIntro">
+          In Rolling Fiefdoms, you grow a small fief through clever dice pairing and careful planning. Each turn, the Regent rolls four dice and groups them into two pairs; players then choose where to build cottages, markets, and landmarks on their fief. When all plots are filled, assign labourers to activate buildings, score reputation, and see whose fief prospers most.
+        </p>
+        <img
+          class="landing-info-diagram"
+          src="assets/img/how-to-play-diagram.webp"
+          srcset="
+            assets/img/how-to-play-diagram.webp     1x,
+            assets/img/how-to-play-diagram@2x.webp 2x
+          "
+          sizes="(max-width: 450px) 100vw, 450px"
+          alt="Diagram of a Rolling Fiefdoms turn: the Regent rolls all dice, pairs the dice, players choose which pair is the Location, then build with Sum or Split and populate."
+          data-i18n-attr="alt:html.howToPlayDiagramAlt"
+          loading="lazy"
+          decoding="async"
+          width="450"
+          height="450"
+        />
+        <ol>
+          <li>
+            <strong data-i18n="html.howToPlayStep1Label">Roll</strong>: <span data-i18n="html.howToPlayStep1Text">The Regent rolls all four dice.</span>
+          </li>
+          <li>
+            <strong data-i18n="html.howToPlayStep2Label">Pair</strong>: <span data-i18n="html.howToPlayStep2Text">The Regent pairs the dice into two groups.</span>
+          </li>
+          <li>
+            <strong data-i18n="html.howToPlayStep3Label">Choose Location</strong>: <span data-i18n="html.howToPlayStep3Text">Choose which pair to use for the Location (where to build) and which for the Build (what to build).</span>
+          </li>
+          <li>
+            <strong data-i18n="html.howToPlayStep4Label">Build</strong>: <span data-i18n="html.howToPlayStep4Text">Sum both dice for a bigger building, or Split one die to build and the other to add Population to an adjacent square.</span>
+          </li>
+        </ol>
+        <p data-i18n="html.howToPlayOutro">
+          When every plot is filled, assign labourers to activate your buildings and tally Reputation Points to see whose fiefdom prospers most.
+        </p>
+      </section>
+
+      <section aria-labelledby="featuresHeading">
+        <h2 id="featuresHeading" data-i18n="html.featuresTitle">Features</h2>
+        <p data-i18n="html.featuresIntro">
+          A fast-paced, turn-based dice and strategy game that plays in 20-30 minutes, with no download required — play instantly in your browser.
+        </p>
+        <ul>
+          <li data-i18n="html.featuresItem1">Solo-friendly medieval dice and strategy gameplay</li>
+          <li data-i18n="html.featuresItem2">
+            8 solo challenges chronicling your fiefdom's rise from a humble settlement to a thriving center of learning and power
+          </li>
+          <li data-i18n="html.featuresItem3">Free to play, works on desktop and mobile browsers</li>
+          <li data-i18n="html.featuresItem4">Available in English and French</li>
+          <li>
+            <span data-i18n="html.featuresItem5">Winner of the </span>
+            <a
+              href="https://boardgamegeek.com/thread/3585125/the-2025-roll-and-write-game-design-contest"
+              target="_blank"
+              rel="noopener"
+              data-i18n="html.contestLinkText"
+              >BGG 2025 Roll &amp; Write Game Design Contest</a
+            >
+          </li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="faqHeading">
+        <h2 id="faqHeading" data-i18n="html.faqTitle">Frequently Asked Questions</h2>
+        <dl>
+          <dt data-i18n="html.faqQ1">Is Rolling Fiefdoms free to play?</dt>
+          <dd data-i18n="html.faqA1">
+            Yes, Rolling Fiefdoms Online Solo is a free medieval strategy and dice game that runs entirely in your browser — no download or install required.
+          </dd>
+          <dt data-i18n="html.faqQ2">Can I play this turn-based browser game solo?</dt>
+          <dd data-i18n="html.faqA2">
+            Yes, this browser version is solo-only, alternating Regent and Fate turns, with a full solo campaign of challenges in addition to a normal solo game.
+          </dd>
+          <dt data-i18n="html.faqQ3">Can I play Rolling Fiefdoms with friends?</dt>
+          <dd>
+            <span data-i18n="html.faqA3Intro"
+              >The browser version is solo-only. To play the full 1-6 player tabletop game, get the free print-and-play files on</span
+            >
+            <a href="https://pnpstash.com/product/rolling-fiefdoms/" target="_blank" rel="noopener">PnP Stash</a>
+            <span data-i18n="html.faqA3Or">or</span>
+            <a href="https://boardgamegeek.com/boardgame/465867" target="_blank" rel="noopener">BoardGameGeek</a>.
+          </dd>
+          <dt data-i18n="html.faqQ4">Do I need to install anything to play?</dt>
+          <dd data-i18n="html.faqA4">
+            No, the game runs directly in your browser on desktop or mobile — just open the page and start playing.
+          </dd>
+        </dl>
+      </section>
+    </div>
+
     <footer class="site-footer">
       <div class="footer-inner">
         <span class="footer-title"
@@ -379,6 +502,8 @@
             >Rolling&nbsp;Fiefdoms</a
           ></span
         >
+        <span class="footer-sep">·</span>
+        <a href="#howToPlayHeading" data-i18n="html.howToPlayLink">How to play?</a>
         <span class="footer-sep">·</span>
         <span
           ><span data-i18n="html.footerCode">Code:</span>
@@ -452,6 +577,23 @@
     <script>
       document.getElementById("currentYear").textContent =
         new Date().getFullYear();
+
+      const backToTopBtn = document.getElementById("backToTopBtn");
+      const landingInfo = document.querySelector(".landing-info");
+      if (backToTopBtn && landingInfo && "IntersectionObserver" in window) {
+        const observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              backToTopBtn.classList.toggle("visible", entry.isIntersecting);
+            });
+          },
+          { threshold: 0 }
+        );
+        observer.observe(landingInfo);
+        backToTopBtn.addEventListener("click", () => {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        });
+      }
     </script>
     <script type="module" src="app/app.js?v=v19"></script>
   </body>

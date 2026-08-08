@@ -53,6 +53,49 @@ export default {
     footerTitle: "Rolling Fiefdoms",
     footerCode: "Code:",
     footerAssets: "Assets:",
+    howToPlayLink: "How to play?",
+    howToPlayTitle: "How to Play",
+    howToPlayIntro:
+      "In Rolling Fiefdoms, you grow a small fief through clever dice pairing and careful planning. Each turn, the Regent rolls four dice and groups them into two pairs; players then choose where to build cottages, markets, and landmarks on their fief. When all plots are filled, assign labourers to activate buildings, score reputation, and see whose fief prospers most.",
+    howToPlayStep1Label: "Roll",
+    howToPlayStep1Text: "The Regent rolls all four dice.",
+    howToPlayStep2Label: "Pair",
+    howToPlayStep2Text: "The Regent pairs the dice into two groups.",
+    howToPlayStep3Label: "Choose Location",
+    howToPlayStep3Text:
+      "Choose which pair to use for the Location (where to build) and which for the Build (what to build).",
+    howToPlayStep4Label: "Build",
+    howToPlayStep4Text:
+      "Sum both dice for a bigger building, or Split one die to build and the other to add Population to an adjacent square.",
+    howToPlayOutro:
+      "When every plot is filled, assign labourers to activate your buildings and tally Reputation Points to see whose fiefdom prospers most.",
+    howToPlayDiagramAlt:
+      "Diagram of a Rolling Fiefdoms turn: the Regent rolls all dice, pairs the dice, players choose which pair is the Location, then build with Sum or Split and populate.",
+    featuresTitle: "Features",
+    featuresIntro:
+      "A fast-paced, turn-based dice and strategy game that plays in 20-30 minutes, with no download required — play instantly in your browser.",
+    featuresItem1: "Solo-friendly medieval dice and strategy gameplay",
+    featuresItem2:
+      "8 solo challenges chronicling your fiefdom's rise from a humble settlement to a thriving center of learning and power",
+    featuresItem3: "Free to play, works on desktop and mobile browsers",
+    featuresItem4: "Available in English and French",
+    featuresItem5: "Winner of the ",
+    contestLinkText: "BGG 2025 Roll & Write Game Design Contest",
+    backToTopLabel: "Back to game",
+    faqTitle: "Frequently Asked Questions",
+    faqQ1: "Is Rolling Fiefdoms free to play?",
+    faqA1:
+      "Yes, Rolling Fiefdoms Online Solo is a free medieval strategy and dice game that runs entirely in your browser — no download or install required.",
+    faqQ2: "Can I play this turn-based browser game solo?",
+    faqA2:
+      "Yes, this browser version is solo-only, alternating Regent and Fate turns, with a full solo campaign of challenges in addition to a normal solo game.",
+    faqQ3: "Can I play Rolling Fiefdoms with friends?",
+    faqA3Intro:
+      "The browser version is solo-only. To play the full 1-6 player tabletop game, get the free print-and-play files on",
+    faqA3Or: "or",
+    faqQ4: "Do I need to install anything to play?",
+    faqA4:
+      "No, the game runs directly in your browser on desktop or mobile — just open the page and start playing.",
   },
   sfx: {
     on: "SFX On",

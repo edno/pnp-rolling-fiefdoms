@@ -53,6 +53,49 @@ export default {
     footerTitle: "Rolling Fiefdoms",
     footerCode: "Code :",
     footerAssets: "Ressources :",
+    howToPlayLink: "Comment jouer ?",
+    howToPlayTitle: "Comment jouer",
+    howToPlayIntro:
+      "Dans Rolling Fiefdoms, vous développez un petit fief grâce à un groupement de dés astucieux et une planification minutieuse. À chaque tour, le Régent lance quatre dés et les groupe en deux paires ; les joueurs choisissent alors où construire chaumières, halles et bâtiments remarquables sur leur fief. Une fois toutes les parcelles remplies, assignez des ouvriers pour activer les bâtiments, comptez la réputation, et voyez quel fief prospère le plus.",
+    howToPlayStep1Label: "Lancer",
+    howToPlayStep1Text: "Le Régent lance les quatre dés.",
+    howToPlayStep2Label: "Grouper",
+    howToPlayStep2Text: "Le Régent groupe les dés en deux paires.",
+    howToPlayStep3Label: "Choisir la localisation",
+    howToPlayStep3Text:
+      "Choisissez quelle paire utiliser pour la Coordonnée (où construire) et laquelle pour la Construction (quoi construire).",
+    howToPlayStep4Label: "Construire",
+    howToPlayStep4Text:
+      "Additionnez les deux dés pour un bâtiment plus grand, ou séparez un dé pour construire et l'autre pour ajouter de la Population sur une case adjacente.",
+    howToPlayOutro:
+      "Une fois toutes les parcelles remplies, assignez des ouvriers pour activer vos bâtiments et comptez vos Points de Réputation pour voir quel fief prospère le plus.",
+    howToPlayDiagramAlt:
+      "Schéma d'un tour de Rolling Fiefdoms : le Régent lance tous les dés, groupe les dés, les joueurs choisissent quelle paire est la Coordonnée, puis construisent avec Somme ou Séparer et peuplent.",
+    featuresTitle: "Fonctionnalités",
+    featuresIntro:
+      "Un jeu de dés et de stratégie au tour par tour, rapide et se jouant en 20 à 30 minutes, sans téléchargement — jouez instantanément dans votre navigateur.",
+    featuresItem1: "Jeu de dés et de stratégie médiéval adapté au solo",
+    featuresItem2:
+      "8 défis solo qui racontent l'essor de votre fief, d'une humble colonie à un centre de savoir et de pouvoir florissant",
+    featuresItem3: "Gratuit, fonctionne sur navigateur ordinateur et mobile",
+    featuresItem4: "Disponible en anglais et en français",
+    featuresItem5: "Vainqueur du ",
+    contestLinkText: "BGG 2025 Roll & Write Game Design Contest",
+    backToTopLabel: "Retour au jeu",
+    faqTitle: "Questions fréquentes",
+    faqQ1: "Rolling Fiefdoms est-il gratuit ?",
+    faqA1:
+      "Oui, Rolling Fiefdoms Online Solo est un jeu de stratégie et de dés médiéval gratuit qui se joue entièrement dans le navigateur, sans téléchargement ni installation.",
+    faqQ2: "Puis-je jouer à ce jeu au tour par tour en solo ?",
+    faqA2:
+      "Oui, cette version navigateur est exclusivement solo, alternant les tours du Régent et du Destin, avec une campagne solo complète de défis en plus d'une partie solo normale.",
+    faqQ3: "Puis-je jouer à Rolling Fiefdoms avec des amis ?",
+    faqA3Intro:
+      "La version navigateur est exclusivement solo. Pour jouer au jeu de plateau complet de 1 à 6 joueurs, procurez-vous gratuitement les fichiers print-and-play sur",
+    faqA3Or: "ou",
+    faqQ4: "Dois-je installer quelque chose pour jouer ?",
+    faqA4:
+      "Non, le jeu fonctionne directement dans votre navigateur, sur ordinateur ou mobile — il suffit d'ouvrir la page pour commencer à jouer.",
   },
   sfx: {
     on: "Son activé",
