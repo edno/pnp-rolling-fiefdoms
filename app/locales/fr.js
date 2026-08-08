@@ -42,7 +42,7 @@ export default {
     rollDice: "Lancer les dés",
     finishActivation: "Terminer l'activation",
     playAgain: "Rejouer",
-    splitAndBuild: "Séparer et construire",
+    splitAndBuild: "Grouper et construire",
     swapTitle: "Cliquez pour échanger l'attribution des paires de dés",
     swapAriaLabel: "Échanger les paires de dés coordonnées/construction",
     swapUnavailableOnlyOnePairing: "Échange indisponible : une seule répartition des dés est valide ce tour-ci.",
