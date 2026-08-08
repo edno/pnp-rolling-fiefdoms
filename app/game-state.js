@@ -450,7 +450,12 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
       invalidSelection = true;
       const selectionCount = Array.isArray(state.locationSelection) ? state.locationSelection.length : 0;
       const showSelectPrompt = state.activeTurn && selectionCount < 2;
-      message = showSelectPrompt ? t("location.selectTwoInTurnPanel") : t("location.noValidPairsSpendInfluence");
+      const windroseActive = showSelectPrompt && (state.forcedLocationDice || []).length;
+      message = windroseActive
+        ? t("location.windroseSelectSecond")
+        : showSelectPrompt
+          ? t("location.selectTwoInTurnPanel")
+          : t("location.noValidPairsSpendInfluence");
     } else {
       forceForfeit = true;
       invalidSelection = false;

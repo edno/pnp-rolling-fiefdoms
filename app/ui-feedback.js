@@ -133,6 +133,9 @@ export function actionMessage(state, currentPhase, options = {}) {
 
   if (phase === TURN_PHASE.SPLITTING) {
     if (state.locationSelection.length < 2 && !(state.diceLocked && state.lockedLocationDice?.length === 2)) {
+      if ((state.forcedLocationDice || []).length) {
+        return t("location.windroseSelectSecond");
+      }
       return t("location.selectTwoInTurnPanel");
     }
     return t("hints.lockSplitToContinue");
