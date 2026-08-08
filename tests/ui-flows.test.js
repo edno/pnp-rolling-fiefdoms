@@ -140,6 +140,22 @@ describe("influence population handling (jsdom)", () => {
   });
 });
 
+describe("Social Contract center-building choices (jsdom)", () => {
+  it("only offers the guild subtypes listed in pendingCenterBuilding.choices", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { state, handleCenterBuildingChoice } = hooks;
+    state.pendingCenterBuilding = { active: true, awaitingGuildType: false, choices: ["T", "GF"] };
+
+    handleCenterBuildingChoice("G");
+
+    const availableCodes = Array.from(document.querySelectorAll("#guildsOverlay .guild-hit.available")).map(
+      (el) => el.dataset.code,
+    );
+    expect(availableCodes).toEqual(["GF"]);
+  });
+});
+
 describe("Unrest tally on turn completion (jsdom)", () => {
   it("tallies Unrest for Influence spent when a build (not a Roll Dice click) completes the turn", async () => {
     // Regression test: a build completing the turn goes through

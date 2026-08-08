@@ -126,8 +126,7 @@ function mergeForcedLocationDice(state) {
 
 function calcVagrantsFromState(state, board) {
   const pop = state.populationNodes ? state.populationNodes.flat().reduce((a, b) => a + b, 0) : 0;
-  const cottages = board.flat().filter((c) => c.building === "C").length;
-  return calcVagrants(pop, cottages * 4);
+  return calcVagrants(pop, boardCottages(board) * 4);
 }
 
 // Unrest (challenge VI, "Embers of Revolt") is tallied at the end of each completed turn:
@@ -190,14 +189,23 @@ export function tallyUnrestAndCheckBarricade(state, board) {
     if (result.vagrantUnrest) {
       steps.push({ amount: 1, reason: t("challenges.unrestReasonVagrants") });
     }
+    // Steps carry each source's raw amount (e.g. Influence spent can exceed the
+    // turn's +4 cap on its own), but the turn's actual gain is capped via
+    // Math.min(4, ...) above. Clamp each step's displayed amount to the capacity
+    // still remaining toward that cap so the logged "+N" always reconciles with
+    // the progress total shown alongside it.
     let running = result.prevProgress;
+    let appliedSoFar = 0;
     steps.forEach((step, idx) => {
-      running += step.amount;
+      const remainingCapacity = Math.max(result.gain - appliedSoFar, 0);
+      const appliedAmount = Math.min(step.amount, remainingCapacity);
+      appliedSoFar += appliedAmount;
+      running += appliedAmount;
       const isLast = idx === steps.length - 1;
       const displayProgress = isLast ? result.progress : Math.min(running, 4);
       messages.push({
         kind: "unrest",
-        text: t("challenges.unrestGained", { gain: step.amount, reasons: step.reason, progress: displayProgress }),
+        text: t("challenges.unrestGained", { gain: appliedAmount, reasons: step.reason, progress: displayProgress }),
       });
     });
   }
@@ -583,7 +591,7 @@ export function turnLimitReached(state) {
 }
 
 export function evaluateAutoAdvance(state, board) {
-  if (state.pendingPopulation?.remaining > 0) return "wait";
+  if (state.pendingPopulation?.remaining > 0 || state.pendingBarricade?.active) return "wait";
   if (boardFull(board) || turnLimitReached(state)) return "activate";
   if (state.diceLocked) return "wait";
   return "roll";
@@ -632,9 +640,25 @@ export function boardFull(board) {
   return board.every((row) => row.every((c) => c.building || c.forfeited));
 }
 
+// Shared readiness gate for transitioning off a locked turn into the next roll. Exported so
+// callers that need to decide whether to run turn-completion side effects (e.g. the Unrest
+// tally in app.js) *before* invoking maybeRollAfterLockState() can check the same condition
+// instead of hand-duplicating it, which previously let this list drift out of sync between
+// the two copies.
+export function isReadyToRoll(state) {
+  return (
+    !!state.diceLocked &&
+    !!state.pendingNextRoll &&
+    !(state.pendingPopulation?.remaining > 0) &&
+    !state.pendingBarricade?.active &&
+    !state.pestilence &&
+    !state.forceForfeit &&
+    !state.activationMode
+  );
+}
+
 export function maybeRollAfterLockState(state) {
-  if (!state.diceLocked || !state.pendingNextRoll) return "wait";
-  if (state.pendingPopulation?.remaining > 0 || state.pestilence || state.forceForfeit || state.activationMode) {
+  if (!isReadyToRoll(state)) {
     return "wait";
   }
   state.diceLocked = false;
