@@ -235,6 +235,8 @@ describe("dice selection UI (jsdom)", () => {
     expect(document.querySelectorAll(".die-badge.build-assigned").length).toBe(0);
     expect(buildPreviewDice().length).toBe(0);
     expect(document.querySelectorAll("#buildDicePreview .die-placeholder").length).toBe(2);
+    expect(document.querySelectorAll("#locDicePreview .die-badge:not(.die-placeholder)").length).toBe(1);
+    expect(document.querySelectorAll("#locDicePreview .die-placeholder").length).toBe(1);
   });
 });
 

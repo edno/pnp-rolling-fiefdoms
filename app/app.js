@@ -2931,26 +2931,23 @@ function makeDieBadge(
   return badge;
 }
 
+const DICE_PREVIEW_SLOTS = 2;
+
 function renderDicePreview(container, dice, role, emptyText, { allowInfluence = false } = {}) {
   if (!container) return;
   container.classList.add("split-preview");
   clearElement(container);
-  if (!dice?.length) {
+  const diceList = dice || [];
+  if (diceList.length < DICE_PREVIEW_SLOTS) {
     container.title = emptyText;
-    for (let i = 0; i < 2; i += 1) {
-      const placeholder = document.createElement("div");
-      placeholder.className = "die-badge die-placeholder";
-      placeholder.setAttribute("aria-hidden", "true");
-      container.appendChild(placeholder);
-    }
     const srText = document.createElement("span");
     srText.className = "visually-hidden";
     srText.textContent = emptyText;
     container.appendChild(srText);
-    return;
+  } else {
+    container.removeAttribute("title");
   }
-  container.removeAttribute("title");
-  dice.forEach((die, idx) => {
+  diceList.forEach((die, idx) => {
     const sourceIndex = dieSourceIndex(die);
     const badge = makeDieBadge(die, idx, {
       role,
@@ -2963,6 +2960,12 @@ function renderDicePreview(container, dice, role, emptyText, { allowInfluence = 
     });
     container.appendChild(badge);
   });
+  for (let i = diceList.length; i < DICE_PREVIEW_SLOTS; i += 1) {
+    const placeholder = document.createElement("div");
+    placeholder.className = "die-badge die-placeholder";
+    placeholder.setAttribute("aria-hidden", "true");
+    container.appendChild(placeholder);
+  }
 }
 
 function onDieClick(idx) {
