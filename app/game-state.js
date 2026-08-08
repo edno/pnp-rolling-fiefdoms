@@ -161,7 +161,7 @@ function applyUnrestForCompletedTurn(state, board) {
     }
   }
   state.unrest = { progress };
-  return { gain, progress, triggered, blocked, advancedBuilt, influenceUsed, vagrantUnrest };
+  return { gain, progress, prevProgress, triggered, blocked, advancedBuilt, influenceUsed, vagrantUnrest };
 }
 
 // Called once per completed turn, before the next turn's dice are rolled (see rollDice()
@@ -172,19 +172,33 @@ export function tallyUnrestAndCheckBarricade(state, board) {
   if (!result) return { triggered: false, messages: [] };
   const messages = [];
   if (result.gain > 0) {
-    const reasons = [];
-    if (result.advancedBuilt) reasons.push(t("challenges.unrestReasonAdvanced"));
-    if (result.influenceUsed > 0) {
-      reasons.push(
-        result.influenceUsed > 1
-          ? t("challenges.unrestReasonInfluenceCount", { count: result.influenceUsed })
-          : t("challenges.unrestReasonInfluence"),
-      );
+    // Log each contributing source as its own step (rather than one combined "+2 (A, B)"
+    // line) so it's clear at a glance which turn events actually moved the needle.
+    const steps = [];
+    if (result.advancedBuilt) {
+      steps.push({ amount: 1, reason: t("challenges.unrestReasonAdvanced") });
     }
-    if (result.vagrantUnrest) reasons.push(t("challenges.unrestReasonVagrants"));
-    messages.push({
-      kind: "unrest",
-      text: t("challenges.unrestGained", { gain: result.gain, reasons: reasons.join(", "), progress: result.progress }),
+    if (result.influenceUsed > 0) {
+      steps.push({
+        amount: result.influenceUsed,
+        reason:
+          result.influenceUsed > 1
+            ? t("challenges.unrestReasonInfluenceCount", { count: result.influenceUsed })
+            : t("challenges.unrestReasonInfluence"),
+      });
+    }
+    if (result.vagrantUnrest) {
+      steps.push({ amount: 1, reason: t("challenges.unrestReasonVagrants") });
+    }
+    let running = result.prevProgress;
+    steps.forEach((step, idx) => {
+      running += step.amount;
+      const isLast = idx === steps.length - 1;
+      const displayProgress = isLast ? result.progress : Math.min(running, 4);
+      messages.push({
+        kind: "unrest",
+        text: t("challenges.unrestGained", { gain: step.amount, reasons: step.reason, progress: displayProgress }),
+      });
     });
   }
   if (result.triggered) {
