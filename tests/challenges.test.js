@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { CHALLENGES, CHALLENGE_ORDER } from "../app/challenges.js";
-import { computeScore } from "../app/rules.js";
+import { computeScore, buildingOptionsFromDice, restrictBuildOptionsForBoard } from "../app/rules.js";
 
 const emptyBoard = () =>
   Array.from({ length: 5 }, () =>
@@ -13,6 +13,44 @@ describe("CHALLENGE_ORDER", () => {
     expect(new Set(CHALLENGE_ORDER).size).toBe(CHALLENGE_ORDER.length);
     expect(CHALLENGE_ORDER.length).toBe(Object.keys(CHALLENGES).length);
     CHALLENGE_ORDER.forEach((id) => expect(CHALLENGES[id]).toBeDefined());
+  });
+});
+
+describe("requiredRP", () => {
+  it("matches the reputation reason's need value for every challenge", () => {
+    CHALLENGE_ORDER.forEach((id) => {
+      const challenge = CHALLENGES[id];
+      const board = emptyBoard();
+      const result = computeScore(board, emptyPop());
+      const outcome = challenge.victory(result, { board });
+      const repReason = outcome.reasons.find((r) => r.textKey === "challenges.reasons.reputation");
+      expect(repReason.params.need).toBe(challenge.requiredRP);
+    });
+  });
+});
+
+describe("liveProgress", () => {
+  it("reports raw counts without clamping past the target", () => {
+    const board = emptyBoard();
+    for (let i = 0; i < 5; i++) board[Math.floor(i / 5)][i % 5].building = "S"; // 5 Springhouses, need 3
+    const result = computeScore(board, emptyPop());
+    const progress = CHALLENGES.waterRights.liveProgress(result, { board });
+    expect(progress).toEqual({ have: 5, need: 3, labelKey: "challenges.badgeLabels.springhouses" });
+  });
+
+  it("is defined for all non-embersOfRevolt challenges", () => {
+    CHALLENGE_ORDER.filter((id) => id !== "embersOfRevolt").forEach((id) => {
+      expect(typeof CHALLENGES[id].liveProgress).toBe("function");
+    });
+  });
+
+  it("tracks Charters' Guild count, not Guild RP", () => {
+    const board = emptyBoard();
+    board[0][0].building = "G";
+    board[0][1].building = "G";
+    const result = computeScore(board, emptyPop());
+    const progress = CHALLENGES.charters.liveProgress(result, { board });
+    expect(progress).toEqual({ have: 2, need: 2, labelKey: "challenges.badgeLabels.guilds" });
   });
 });
 
@@ -79,18 +117,20 @@ describe("charters victory", () => {
 });
 
 describe("socialContract victory", () => {
-  it("has a 24-turn limit and a forced center Guild setup", () => {
+  it("has a 24-turn limit and offers a center-building choice", () => {
     expect(CHALLENGES.socialContract.turnLimit).toBe(24);
-    expect(CHALLENGES.socialContract.setup.forcedCenterBuilding.code).toBe("G");
+    expect(CHALLENGES.socialContract.setup.forcedCenterBuilding.choices).toEqual(["T", "GF", "GQ", "GW", "GM"]);
   });
 
-  it("fails when the vagrant penalty is negative", () => {
+  it("fails when the vagrant penalty is negative, reporting its magnitude as have/need", () => {
     const board = emptyBoard();
     const pop = emptyPop();
     pop[0][0] = 14; // population with no housing -> vagrant penalty
     const result = computeScore(board, pop);
     const outcome = CHALLENGES.socialContract.victory(result, { board });
-    expect(outcome.reasons.find((r) => r.textKey === "challenges.reasons.vagrantPenalty").ok).toBe(false);
+    const reason = outcome.reasons.find((r) => r.textKey === "challenges.reasons.vagrantPenalty");
+    expect(reason.ok).toBe(false);
+    expect(reason.params).toEqual({ have: 14, need: 0 });
     expect(outcome.passed).toBe(false);
   });
 });
@@ -112,8 +152,19 @@ describe("embersOfRevolt", () => {
 });
 
 describe("foundations rule flags", () => {
-  it("disables advanced buildings and forces split on 7-10 sums", () => {
+  it("disables advanced buildings", () => {
     expect(CHALLENGES.foundations.rules.disabledBuildings).toEqual(["T", "U", "A", "G"]);
-    expect(CHALLENGES.foundations.rules.forceSplitOnAdvancedSum).toBe(true);
+  });
+
+  it("forces Split on a 7-10 build-pair sum by disabling the resulting Advanced building", () => {
+    // Sum 9 -> Almshouse (A), one of Foundations' disabled codes. Excluding it from the
+    // sum-based option is how "you must use Split instead" is satisfied without any
+    // dedicated enforcement code (a single die can only reach 1-6, so the 7-10 range is
+    // reachable only via this sum option).
+    const dice = [{ resolved: 4 }, { resolved: 5 }];
+    const rawOptions = buildingOptionsFromDice(dice);
+    expect(rawOptions.some((o) => o.code === "A")).toBe(true);
+    const restricted = restrictBuildOptionsForBoard(rawOptions, emptyBoard(), CHALLENGES.foundations.rules.disabledBuildings);
+    expect(restricted.some((o) => o.code === "A")).toBe(false);
   });
 });

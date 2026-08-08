@@ -198,9 +198,14 @@ export function calcVagrants(pop, housing) {
 }
 
 // Filter build options to respect one-per-game advanced buildings (T, U, A) and two guilds max, with unique guild types.
-export function restrictBuildOptionsForBoard(options, board) {
+// `disabledCodes` additionally excludes building codes disallowed by an active challenge (e.g. Foundations
+// bans all Advanced buildings). Excluding a code here also removes it from `sum` combo options in
+// buildingOptionsFromDice, which is how "must use Split instead" (challenge I) is satisfied without
+// separate logic: the sum-based advanced-building option simply won't be offered.
+export function restrictBuildOptionsForBoard(options, board, disabledCodes = []) {
   if (!Array.isArray(options) || !Array.isArray(board)) return options || [];
   const advancedLimit = new Set(["T", "U", "A"]);
+  const disabled = new Set(Array.isArray(disabledCodes) ? disabledCodes : []);
   const builtAdvanced = new Set();
   const builtGuildTypes = new Set();
   let guildCount = 0;
@@ -216,6 +221,7 @@ export function restrictBuildOptionsForBoard(options, board) {
   });
   const remainingGuildSlots = Math.max(0, 2 - guildCount);
   return options.filter((opt) => {
+    if (disabled.has(opt.code)) return false;
     if (advancedLimit.has(opt.code)) return !builtAdvanced.has(opt.code);
     if (opt.code === "G") return remainingGuildSlots > 0 && builtGuildTypes.size < 4;
     return true;

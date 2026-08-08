@@ -28,12 +28,14 @@ import {
 import { createState, resetTurnState, lockDiceSnapshot } from "./state-controller.js";
 import {
   beginTurn,
+  tallyUnrestAndCheckBarricade,
   selectLocationDie,
   evaluateLocationSelection,
   startActivation as startActivationState,
   finishActivation as finishActivationState,
   startPopulationPlacement,
   placePopulationNode,
+  chooseBarricadeNode,
   allocateWorker,
   autoForfeitUnfillableState,
   autoAdvanceState,
@@ -77,8 +79,34 @@ import {
   localeSelect,
   localeFlagIcon,
   turnStatusChip,
+  unrestBadge,
+  challengeProgressBadge,
+  activeChallengeBadge,
+  challengeInfoModal,
+  challengeInfoTitle,
+  challengeInfoDifficulty,
+  challengeInfoDescription,
+  challengeInfoVictory,
+  challengeInfoRules,
+  challengeInfoSetup,
+  challengeInfoCloseBtn,
   loadingOverlay,
   sheetBaseImage,
+  challengePickerEl,
+  challengeCardsEl,
+  challengeConfirmBtn,
+  challengeCancelBtn,
+  challengePickerLocaleSelect,
+  challengePickerLocaleFlagIcon,
+  challengeCarouselPrev,
+  challengeCarouselNext,
+  challengeCarouselDots,
+  challengeOutcomeOverlay,
+  challengeOutcomeText,
+  challengeOutcomeComparison,
+  challengeOutcomeReasons,
+  barricadeAlertOverlay,
+  barricadeAlertText,
   forEachCell,
   createOctagon,
   clearElement,
@@ -97,8 +125,22 @@ import {
   actionMessage as generateActionMessage,
   updateActionBanner as updateBannerUI,
   formatButtonLabelHtml,
+  TURN_PHASE,
 } from "./ui-feedback.js";
-import { initI18n, applyStaticDom, setLocale, getLocale, supportedLocales, localeDisplayName, localeFlag, t } from "./i18n.js";
+import {
+  initI18n,
+  applyStaticDom,
+  setLocale,
+  getLocale,
+  supportedLocales,
+  localeDisplayName,
+  localeFlag,
+  t,
+  hasOwnTranslation,
+  tEnglish,
+  escapeHtml,
+} from "./i18n.js";
+import { CHALLENGES, CHALLENGE_ORDER } from "./challenges.js";
 
 const BOARD_SIZE = 5;
 const POPULATION_GRID_SIZE = 4;
@@ -172,18 +214,19 @@ function updateSfxToggleButton() {
 
 function updateLocaleFlagIcon() {
   if (localeFlagIcon) localeFlagIcon.textContent = localeFlag(getLocale());
+  if (challengePickerLocaleFlagIcon) challengePickerLocaleFlagIcon.textContent = localeFlag(getLocale());
 }
 
-function populateLocaleSelect() {
-  if (!localeSelect) return;
-  localeSelect.innerHTML = "";
+function populateLocaleSelect(selectEl = localeSelect) {
+  if (!selectEl) return;
+  selectEl.innerHTML = "";
   supportedLocales().forEach((code) => {
     const option = document.createElement("option");
     option.value = code;
     option.textContent = localeDisplayName(code);
-    localeSelect.appendChild(option);
+    selectEl.appendChild(option);
   });
-  localeSelect.value = getLocale();
+  selectEl.value = getLocale();
   updateLocaleFlagIcon();
 }
 
@@ -201,6 +244,7 @@ function applyLocaleChange(locale) {
   updateTurnStatusChip();
   refreshDiceVisibility();
   updateActionBanner();
+  if (challengePickerEl && !challengePickerEl.hidden) renderChallengeCards();
 }
 
 function stopAllSfx() {
@@ -289,6 +333,8 @@ function diceAnimationDuration(offsetMs = 0, tailMs = 0) {
 function currentTurnPhase() {
   if (state.activationComplete) return TURN_PHASE.ACTIVATION_DONE;
   if (state.activationMode) return TURN_PHASE.ACTIVATION;
+  if (state.pendingCenterBuilding?.active) return TURN_PHASE.CENTER_BUILDING;
+  if (state.pendingBarricade?.active) return TURN_PHASE.BARRICADE;
   if (state.pendingPopulation?.remaining > 0) return TURN_PHASE.POPULATION;
   if (state.pestilence) return TURN_PHASE.PESTILENCE;
   if (forceForfeitActive()) return TURN_PHASE.FORFEIT;
@@ -329,6 +375,7 @@ function prepareNextRoll() {
   updateActionBanner();
   refreshDiceVisibility();
   highlightLocations();
+  updateSwapButton();
 }
 
 function shouldRerollDoubleWindrose(dice) {
@@ -336,6 +383,15 @@ function shouldRerollDoubleWindrose(dice) {
   const numbered = dice.filter((d) => d?.label?.startsWith("N"));
   if (numbered.length !== 2) return false;
   return numbered.every((d) => d.face === "windrose");
+}
+
+function setTurnHint(text) {
+  if (!turnHintEl) return;
+  if (text && text.includes("<")) {
+    turnHintEl.innerHTML = text;
+  } else {
+    turnHintEl.textContent = text;
+  }
 }
 
 function updateRollButton() {
@@ -346,7 +402,8 @@ function updateRollButton() {
   const awaitingRoll = !allowDebugBypass && state.rollAvailable;
   const showButton = !hidden && (awaitingRoll || allowDebugBypass);
   rollBtn.style.display = showButton ? "inline-block" : "none";
-  const enabled = allowDebugBypass || state.rollAvailable;
+  const enabled =
+    allowDebugBypass || (state.rollAvailable && !state.pendingCenterBuilding?.active && !state.pendingBarricade?.active);
   rollBtn.disabled = !enabled;
   rollBtn.classList.toggle("dice-locked", !enabled && !debugMode);
   rollBtn.title = enabled ? t("turn.rollIdleTitle") : t("turn.rollUsedTitle");
@@ -364,7 +421,7 @@ function refreshDiceVisibility() {
     if (!hidden && !state.activationMode && !state.activationComplete && !awaitingRoll) {
       turnHintEl.style.display = "";
     }
-    if (awaitingRoll) turnHintEl.textContent = "";
+    if (awaitingRoll) setTurnHint("");
   }
 }
 
@@ -394,16 +451,6 @@ const POP_LAYOUT = { rows: [3, 3, 3, 3, 3, 3], pipsPerCell: 4 };
 const POP_TRACK_TOTAL_CELLS = POP_LAYOUT.rows.reduce((sum, len) => sum + len, 0);
 const POP_TRACK_TOTAL_PIPS = POP_TRACK_TOTAL_CELLS * POP_LAYOUT.pipsPerCell;
 const INFLUENCE_TRACK_SLOTS = Math.max(1, earnedInfluenceFromPopulation(POP_TRACK_TOTAL_PIPS));
-const TURN_PHASE = {
-  AWAIT_ROLL: "awaiting-roll",
-  SPLITTING: "splitting",
-  BUILDING: "building",
-  POPULATION: "population",
-  FORFEIT: "forfeit",
-  PESTILENCE: "pestilence",
-  ACTIVATION: "activation",
-  ACTIVATION_DONE: "activation-complete",
-};
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
   const isLocalhost = location.hostname === "localhost" || location.hostname === "127.0.0.1";
@@ -461,23 +508,49 @@ function registerServiceWorker() {
 }
 
 async function init() {
-  resetState();
-  renderBoard();
-  updateTracks();
   updateTurnStatusChip();
   updateActionBanner();
-  refreshDiceVisibility();
   if (!controlsReady) {
     await setupControls();
     controlsReady = true;
   }
+  openChallengePicker();
 }
 
-function resetState() {
+function activeChallenge() {
+  return state.challengeId ? CHALLENGES[state.challengeId] || null : null;
+}
+
+// Challenge display names all start with a roman numeral ("I. Foundations", "VI. Embers
+// of Revolt", ...); wrap just the numeral in a dedicated font (Roboto) distinct from the
+// display font used for the rest of the name, for every render site that shows it.
+function formatChallengeNameHtml(name) {
+  const match = /^([IVXLCDM]+)(\.\s*)(.*)$/.exec(name);
+  if (!match) return escapeHtml(name);
+  const [, numeral, separator, rest] = match;
+  return `<span class="challenge-roman-numeral">${escapeHtml(numeral)}</span>${escapeHtml(separator)}${escapeHtml(rest)}`;
+}
+
+// A plain circle+"i" glyph (not a text/emoji character) so it renders identically across
+// platforms instead of inheriting whatever font is active; uses currentColor so it always
+// matches the badge's text color.
+const CHALLENGE_INFO_ICON_HTML = `<span class="challenge-badge-info-icon" aria-hidden="true"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="4.6" r="1.05" fill="currentColor"/><rect x="7.15" y="7" width="1.7" height="5.3" rx="0.85" fill="currentColor"/></svg></span>`;
+
+// Labels a Social Contract center-building choice ("T" or a guild code like "GF") for
+// display in the picker chooser and the setup log line.
+function centerBuildingLabel(choice) {
+  if (choice === "T") return t("buildings.T");
+  const target = { GF: "F", GQ: "Q", GW: "W", GM: "M" }[choice];
+  return `${t("buildings.G")} · ${t(`buildings.${target}`)}`;
+}
+
+function resetState(challengeId = null) {
+  const challenge = challengeId ? CHALLENGES[challengeId] || null : null;
   state.board = Array.from({ length: BOARD_SIZE }, () =>
     Array.from({ length: BOARD_SIZE }, () => ({ building: null, buildingLabel: null, forfeited: false, springBoost: 0 })),
   );
   state.populationNodes = Array.from({ length: POPULATION_GRID_SIZE }, () => Array(POPULATION_GRID_SIZE).fill(0));
+  state.barricadedNodes = Array.from({ length: POPULATION_GRID_SIZE }, () => Array(POPULATION_GRID_SIZE).fill(false));
   state.populationAvailable = null;
   state.workerAllocations = null;
   state.activationMode = false;
@@ -496,6 +569,16 @@ function resetState() {
   state.rollAvailable = true;
   state.pendingTurnIndex = null;
   state.pendingActiveTurn = null;
+  state.challengeId = challenge?.id || null;
+  state.turnLimit = challenge?.turnLimit ?? null;
+  state.influenceBonus = challenge?.setup?.startingInfluence || 0;
+  state.unrestTracking = Boolean(challenge?.rules?.unrestTracking);
+  state.unrest = { progress: 0 };
+  state.unrestCheckedTurnIndex = null;
+  state.pendingBarricade = null;
+  state.pendingCenterBuilding = challenge?.setup?.forcedCenterBuilding
+    ? { active: true, awaitingGuildType: false }
+    : null;
   resetTurnState(state);
   clearElement(logEl);
   if (finishActivationBtn) finishActivationBtn.style.display = "none";
@@ -504,6 +587,16 @@ function resetState() {
   refreshDiceVisibility();
   updateTurnStatusChip();
   log(t("game.started"));
+  if (challenge) {
+    log(formatChallengeNameHtml(t(challenge.nameKey)));
+  }
+  if (state.influenceBonus > 0) {
+    log(
+      state.influenceBonus === 1
+        ? t("influence.startingSingle")
+        : t("influence.startingPlural", { count: state.influenceBonus }),
+    );
+  }
 }
 
 function setSheetImageSources(el) {
@@ -609,9 +702,10 @@ async function setupControls() {
     updateRollButton();
   }
   if (newGameBtn) {
-    newGameBtn.onclick = () => newGame();
+    newGameBtn.onclick = () => openChallengePicker();
     newGameBtn.style.display = "none";
   }
+  setupChallengePicker();
   if (fullscreenBtn) {
     fullscreenBtn.onclick = () => toggleFullscreen();
   }
@@ -622,6 +716,10 @@ async function setupControls() {
   if (localeSelect) {
     populateLocaleSelect();
     localeSelect.onchange = (e) => applyLocaleChange(e.target.value);
+  }
+  if (challengePickerLocaleSelect) {
+    populateLocaleSelect(challengePickerLocaleSelect);
+    challengePickerLocaleSelect.onchange = (e) => applyLocaleChange(e.target.value);
   }
   const fiefdomInput = document.getElementById("fiefdomInput");
   if (fiefdomInput) {
@@ -672,6 +770,8 @@ function rollDice() {
   
   try {
     if (state.activationMode) return;
+    if (state.pendingCenterBuilding?.active) return;
+    if (state.pendingBarricade?.active) return;
     if (!debugMode && !state.rollAvailable) {
       log(t("turn.rollAlreadyUsed"));
       return;
@@ -718,7 +818,7 @@ function rollDice() {
   if (needsDoubleReroll) {
     const msg = t("turn.doubleWindroseRolled");
     log(msg);
-    state.bannerOverride = t("turn.doubleWindroseRolledBanner");
+    state.bannerOverride = t("turn.doubleWindroseRolledBanner", { rollBtn: formatButtonLabelHtml(t("html.rollDice")) });
     updateActionBanner();
     state.pendingTurnIndex = state.turnIndex;
     state.pendingActiveTurn = state.activeTurn;
@@ -727,7 +827,7 @@ function rollDice() {
     return;
   }
   if (state.pestilence) {
-    if (turnHintEl) turnHintEl.textContent = t("pestilence.forfeitEmptyPlot");
+    if (turnHintEl) setTurnHint(t("pestilence.forfeitEmptyPlot"));
     // Auto-assign the split for pestilence: numbered/windrose stay in location, X dice in build.
     const forcedSplit = splitForcedDice(state.dice || []);
     const locIdx = [];
@@ -745,7 +845,7 @@ function rollDice() {
     state.forceForfeitAdvisory = false;
     state.diceLocked = true;
   } else if (turnHintEl) {
-    turnHintEl.textContent = state.activeTurn ? "" : nonActiveAutoHintText();
+    setTurnHint(state.activeTurn ? "" : nonActiveAutoHintText());
   }
   updateTurnStatusChip();
   updateDiceAssignments();
@@ -804,12 +904,17 @@ function triggerDiceAnimation() {
   const isTest = typeof window !== "undefined" && window.__RF_ENABLE_TEST_HOOKS__;
   const startDelay = isTest ? 0 : 500;
 
+  // Set the "Rolling the dice" banner override immediately so it's already in place by
+  // the time rollDice() calls updateActionBanner() at the end - otherwise the banner
+  // briefly shows the next phase's hint (e.g. "Select a building...") until the delayed
+  // animation start below catches up.
+  const rollingMsg = t("turn.rollingDice");
+  state.bannerOverride = rollingMsg;
+  updateActionBanner();
+
   const startAnimation = () => {
     state.diceRolling = true;
     diceView.classList.add("dice-rolling");
-    const rollingMsg = t("turn.rollingDice");
-    state.bannerOverride = rollingMsg;
-    updateActionBanner();
     const animDuration = isTest ? 0 : diceAnimationDuration(startDelay, 200);
     const animTimeout = setTimeout(() => {
       state.diceRolling = false;
@@ -1016,18 +1121,17 @@ function renderDice() {
   clearElement(diceView);
   if (turnHintEl) {
     if (state.pestilence) {
-      turnHintEl.textContent = t("pestilence.forfeitEmptyPlot");
+      setTurnHint(t("pestilence.forfeitEmptyPlot"));
     } else if (state.activeTurn && state.invalidSelection) {
-      turnHintEl.textContent =
-        state.invalidSelectionMessage || t("location.noValidPlotsForPair");
+      setTurnHint(state.invalidSelectionMessage || t("location.noValidPlotsForPair"));
     } else if (state.forceForfeitAdvisory && !state.forceForfeit) {
-      turnHintEl.textContent = t("location.noValidPairsSpendInfluence");
+      setTurnHint(t("location.noValidPairsSpendInfluence"));
     } else if (forceForfeitActive()) {
-      turnHintEl.textContent = t("location.noValidPairsForfeit");
+      setTurnHint(t("location.noValidPairsForfeit"));
     } else if (!state.activeTurn) {
-      turnHintEl.textContent = nonActiveAutoHintText();
+      setTurnHint(nonActiveAutoHintText());
     } else {
-      turnHintEl.textContent = "";
+      setTurnHint("");
     }
   }
   const field = document.createElement("div");
@@ -1113,7 +1217,11 @@ function fillBuildings(buildDice) {
     return;
   }
   const adjustedBuildDice = applyInfluenceToDice(state, effectiveBuildDice);
-  const allowed = restrictBuildOptionsForBoard(buildingOptionsFromDice(adjustedBuildDice), state.board);
+  const allowed = restrictBuildOptionsForBoard(
+    buildingOptionsFromDice(adjustedBuildDice),
+    state.board,
+    activeChallenge()?.rules?.disabledBuildings,
+  );
   const availableGuildTypes = guildTypes.filter((gt) => !builtGuildTypes(state.board).has(gt));
   const options = allowed.filter((opt) => {
     if (opt.code !== "G") return true;
@@ -1166,22 +1274,32 @@ function enforceBuildingSelection(options = []) {
 function renderBuildingOverlay(options = [], disabled = false) {
   const overlay = document.getElementById("buildingsOverlay");
   if (!overlay) return;
+  const centerBuildingActive = state.pendingCenterBuilding?.active && !state.pendingCenterBuilding?.awaitingGuildType;
+  if (centerBuildingActive) {
+    options = [{ code: "T" }, { code: "G" }];
+  }
   const hasLockedLocation = Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
   const diceLockedForBuild = state.diceLocked;
   const forceDisabled =
-    disabled ||
-    (!hasLockedLocation && state.locationSelection.length !== 2) ||
-    diceLockedForBuild ||
-    state.activationMode ||
-    forceForfeitActive() ||
-    state.forceForfeitAdvisory ||
-    state.pestilence;
+    !centerBuildingActive &&
+    (disabled ||
+      state.pendingBarricade?.active ||
+      (!hasLockedLocation && state.locationSelection.length !== 2) ||
+      diceLockedForBuild ||
+      state.activationMode ||
+      forceForfeitActive() ||
+      state.forceForfeitAdvisory ||
+      state.pestilence);
   const buildDice =
     hasLockedLocation && state.lockedBuildDice?.length === 2
       ? (lockedPairChoice().buildDice || state.lockedBuildDice)
       : state.buildDice;
   if ((!options || !options.length) && buildDice?.length && !forceDisabled) {
-    const fallback = restrictBuildOptionsForBoard(buildingOptionsFromDice(buildDice), state.board);
+    const fallback = restrictBuildOptionsForBoard(
+      buildingOptionsFromDice(buildDice),
+      state.board,
+      activeChallenge()?.rules?.disabledBuildings,
+    );
     options = fallback;
   }
   clearElement(overlay);
@@ -1208,6 +1326,10 @@ function renderBuildingOverlay(options = [], disabled = false) {
     div.addEventListener("click", (e) => {
       e.stopPropagation();
       if (div.classList.contains("disabled")) return;
+      if (state.pendingCenterBuilding?.active) {
+        handleCenterBuildingChoice(hit.code);
+        return;
+      }
       const hasLockedLocation = Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
       const diceLockedForBuild = state.diceLocked;
       if ((!hasLockedLocation && state.locationSelection.length !== 2) || diceLockedForBuild) return;
@@ -1429,6 +1551,21 @@ function highlightLocations() {
     const oct = cell.querySelector(".octagon");
     if (oct) oct.remove();
   });
+  if (state.pendingCenterBuilding?.active) {
+    const centerRow = Math.floor(BOARD_SIZE / 2);
+    const centerCol = Math.floor(BOARD_SIZE / 2);
+    forEachCell((cell) => {
+      const r = parseInt(cell.dataset.row, 10);
+      const c = parseInt(cell.dataset.col, 10);
+      if (r === centerRow && c === centerCol) {
+        cell.classList.add("highlight");
+        cell.appendChild(createOctagon());
+      } else {
+        cell.classList.add("disabled");
+      }
+    });
+    return;
+  }
   if (state.activationMode) {
     const selPop = state.activationSelection.pop;
       forEachCell((cell) => {
@@ -1561,6 +1698,12 @@ function highlightLocations() {
   });
 }
 
+function markAdvancedBuiltIfNeeded(code) {
+  if (BUILDING_RULES[code]?.category === "advanced") {
+    state.turnFlags.advancedBuiltThisTurn = true;
+  }
+}
+
 function placeBuilding(r, c, code) {
   const cell = state.board[r][c];
   if (cell.building || cell.forfeited) {
@@ -1600,6 +1743,7 @@ function placeBuilding(r, c, code) {
   }
   cell.building = code;
   cell.buildingLabel = buildingLabel;
+  markAdvancedBuiltIfNeeded(code);
   playSfx();
   if (code === "C") {
     const previousHousing = state.tracks.housing;
@@ -1627,7 +1771,7 @@ function placeBuilding(r, c, code) {
   log(t("build.placed", { label: displayLabel, row: r + 1, col: c + 1 }));
   state.splitUsedForBuild = true;
   updateDiceAssignments();
-  updateMultiplayerButtons();
+  updateSwapButton();
   // Reset guild selection after placement
   if (code !== "G") {
     state.selectedGuildType = null;
@@ -1753,6 +1897,10 @@ function updateTracks() {
   const influenceSpent = (state.influence?.spent || 0) + (state.influence?.pending || 0);
   renderInfluenceTrack({ influenceEarned, influenceSpent });
   renderPopHousingTrack(state.tracks.population, state.tracks.housing, vagrants);
+  // Refresh the live challenge progress badge here too, not just from updateTurnStatusChip():
+  // flows like worker allocation call updateTracks() without touching the turn chip, and the
+  // badge should stay live wherever scoring-affecting board state changes.
+  updateChallengeProgressBadge();
 }
 
 function log(msg) {
@@ -1763,8 +1911,39 @@ function log(msg) {
   }
 }
 
+// Tally Unrest for the just-completed turn here, the moment the turn is actually done -
+// whether the game continues to the next roll or moves into the final activation phase -
+// rather than deferring it to the next Roll Dice click (which wouldn't run at all on the
+// game's final turn, and which the solo build flow often skips entirely via
+// maybeRollAfterLock()). Returns true if a Barricade was triggered, meaning the caller must
+// stop and let the player resolve it; onPopulationNodeClick() re-calls the turn-advance path
+// once it's resolved, at which point this is skipped (same turnIndex already checked).
+function tallyUnrestForCompletedTurnIfNeeded() {
+  if (!(state.unrestTracking && state.turnIndex > 0 && state.unrestCheckedTurnIndex !== state.turnIndex)) {
+    return false;
+  }
+  state.unrestCheckedTurnIndex = state.turnIndex;
+  const unrestOutcome = tallyUnrestAndCheckBarricade(state, state.board);
+  unrestOutcome.messages.forEach((m) => log(m.text));
+  if (unrestOutcome.messages.length) {
+    updateTracks();
+    updateUnrestBadge();
+  }
+  if (unrestOutcome.triggered) {
+    renderPopulationNodes();
+    showBarricadeAlert();
+    updateActionBanner();
+    return true;
+  }
+  return false;
+}
+
 function autoAdvance() {
   const { action, message } = autoAdvanceState(state, state.board);
+  if (action === "wait") return;
+
+  if (tallyUnrestForCompletedTurnIfNeeded()) return;
+
   if (action === "activate") {
     if (message) log(message);
     enterActivationMode();
@@ -1799,7 +1978,8 @@ function finishActivation() {
   if (!state.activationMode) return;
   autoForfeitUnfillable(true);
   finishActivationState(state);
-  state.finalScore = currentScore({ allowPopulationActivation: true }).total;
+  const scoreResult = currentScore({ allowPopulationActivation: true });
+  state.finalScore = scoreResult.total;
   state.activationSelection = { pop: null };
   if (finishActivationBtn) finishActivationBtn.style.display = "none";
   if (newGameBtn) newGameBtn.style.display = "inline-block";
@@ -1809,24 +1989,378 @@ function finishActivation() {
   updateTracks();
   log(t("activation.finished"));
   log(t("game.endScore", { score: state.finalScore }));
+  logChallengeOutcome(scoreResult);
   updateActionBanner();
   updateTurnStatusChip();
 }
 
-function newGame() {
-  resetState();
+function logChallengeOutcome(scoreResult) {
+  const challenge = activeChallenge();
+  if (!challenge) return;
+  const outcome = challenge.victory(scoreResult, state);
+  const name = formatChallengeNameHtml(t(challenge.nameKey));
+  const outcomeText = t(outcome.passed ? "challenges.result.passed" : "challenges.result.failed", { name });
+  log(outcomeText);
+  outcome.reasons.forEach((reason) => {
+    if (!reason.ok) log(t(reason.textKey, reason.params));
+  });
+  showChallengeOutcomeOverlay(scoreResult, outcome, outcomeText);
+}
+
+function showChallengeOutcomeOverlay(scoreResult, outcome, outcomeText) {
+  if (!challengeOutcomeOverlay || !challengeOutcomeText) return;
+  challengeOutcomeText.innerHTML = outcomeText;
+  if (challengeOutcomeComparison) {
+    challengeOutcomeComparison.textContent = t("challenges.result.scoreComparison", { score: scoreResult.total });
+  }
+  if (challengeOutcomeReasons) {
+    clearElement(challengeOutcomeReasons);
+    outcome.reasons.forEach((reason) => {
+      const li = document.createElement("li");
+      li.textContent = `${reason.ok ? "✓" : "✗"} ${t(reason.textKey, reason.params)}`;
+      li.classList.toggle("challenge-outcome-reason-ok", reason.ok);
+      li.classList.toggle("challenge-outcome-reason-fail", !reason.ok);
+      challengeOutcomeReasons.appendChild(li);
+    });
+  }
+  challengeOutcomeOverlay.hidden = false;
+}
+
+function hideChallengeOutcomeOverlay() {
+  if (!challengeOutcomeOverlay) return;
+  challengeOutcomeOverlay.hidden = true;
+}
+
+let barricadeAlertTimeout = null;
+
+// Briefly flashes a "Barricades raised!" banner (styled like the challenge outcome
+// summary) when Barricades trigger, auto-dismissing after ~4s. Distinct from the
+// permanent log line, which stays in the log for reference.
+function showBarricadeAlert() {
+  if (!barricadeAlertOverlay || !barricadeAlertText) return;
+  barricadeAlertText.textContent = t("challenges.barricadesRaised");
+  barricadeAlertOverlay.hidden = false;
+  clearTimeout(barricadeAlertTimeout);
+  barricadeAlertTimeout = setTimeout(() => {
+    barricadeAlertOverlay.hidden = true;
+  }, 4000);
+}
+
+// Places the Social Contract forced center-plot building once chosen live on the board
+// (Townhall, or a Guild of the chosen subtype), clears the pending-choice gate, and logs it.
+function placeCenterBuilding(code, guildType) {
+  const centerRow = Math.floor(BOARD_SIZE / 2);
+  const centerCol = Math.floor(BOARD_SIZE / 2);
+  state.board[centerRow][centerCol] = { building: code, buildingLabel: guildType, forfeited: false, springBoost: 0 };
+  markAdvancedBuiltIfNeeded(code);
+  log(t("challenges.socialContract.centerBuildingLog", { building: centerBuildingLabel(code === "T" ? "T" : guildType) }));
+  state.pendingCenterBuilding = null;
+  renderBuildingOverlay([], true);
+  renderGuildOverlay([]);
+  renderBoard();
+  updateTracks();
+  refreshDiceVisibility();
+  updateActionBanner();
+}
+
+function handleCenterBuildingChoice(code) {
+  if (code === "T") {
+    placeCenterBuilding("T", null);
+    return;
+  }
+  if (code === "G") {
+    state.pendingCenterBuilding.awaitingGuildType = true;
+    renderBuildingOverlay([], true);
+    renderGuildOverlay(guildTypes);
+    updateActionBanner();
+  }
+}
+
+function newGame(challengeId = null) {
+  hasStartedAnyGame = true;
+  hideChallengeOutcomeOverlay();
+  clearTimeout(barricadeAlertTimeout);
+  if (barricadeAlertOverlay) barricadeAlertOverlay.hidden = true;
+  resetState(challengeId);
   renderBoard();
   prepareNextRoll();
   renderSelectionDice([], []);
   updateTracks();
+  renderBuildingOverlay();
+  renderGuildOverlay([]);
   state.pendingTurnIndex = null;
   state.pendingActiveTurn = null;
   state.deferStatusAppend = false;
   state.bannerOverride = null;
-  if (turnHintEl) turnHintEl.textContent = "";
+  if (turnHintEl) setTurnHint("");
   updateActionBanner();
   if (newGameBtn) newGameBtn.style.display = "none";
   refreshDiceVisibility();
+  updateActiveChallengeBadge();
+}
+
+let pickedChallengeId = null;
+let hasStartedAnyGame = false;
+
+function setupChallengePicker() {
+  if (challengeConfirmBtn) {
+    challengeConfirmBtn.onclick = () => {
+      closeChallengePicker();
+      newGame(pickedChallengeId);
+    };
+  }
+  if (challengeCancelBtn) {
+    challengeCancelBtn.onclick = () => closeChallengePicker();
+  }
+  if (challengeCarouselPrev) {
+    challengeCarouselPrev.onclick = () => scrollChallengeCarousel(-1);
+  }
+  if (challengeCarouselNext) {
+    challengeCarouselNext.onclick = () => scrollChallengeCarousel(1);
+  }
+  if (challengeCardsEl) {
+    let scrollRaf = null;
+    challengeCardsEl.addEventListener("scroll", () => {
+      if (scrollRaf) return;
+      scrollRaf = requestAnimationFrame(() => {
+        scrollRaf = null;
+        updateChallengeCarouselDots();
+      });
+    });
+  }
+  document.addEventListener("keydown", (e) => {
+    if (!challengePickerEl || challengePickerEl.hidden) return;
+    if (e.key === "ArrowRight") scrollChallengeCarousel(1);
+    else if (e.key === "ArrowLeft") scrollChallengeCarousel(-1);
+    else if (e.key === "Escape" && hasStartedAnyGame) closeChallengePicker();
+  });
+  if (challengeOutcomeOverlay) {
+    challengeOutcomeOverlay.onclick = (e) => {
+      if (e.target === challengeOutcomeOverlay) hideChallengeOutcomeOverlay();
+    };
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !challengeOutcomeOverlay.hidden) hideChallengeOutcomeOverlay();
+    });
+  }
+  if (activeChallengeBadge) {
+    activeChallengeBadge.onclick = () => openChallengeInfoModal();
+  }
+  if (challengeInfoCloseBtn) {
+    challengeInfoCloseBtn.onclick = () => closeChallengeInfoModal();
+  }
+  if (challengeInfoModal) {
+    challengeInfoModal.onclick = (e) => {
+      if (e.target === challengeInfoModal) closeChallengeInfoModal();
+    };
+  }
+}
+
+function openChallengeInfoModal() {
+  const challenge = activeChallenge();
+  if (!challenge || !challengeInfoModal) return;
+  if (challengeInfoTitle) challengeInfoTitle.innerHTML = formatChallengeNameHtml(t(challenge.nameKey));
+  if (challengeInfoDifficulty) {
+    clearElement(challengeInfoDifficulty);
+    appendDifficultyDots(challengeInfoDifficulty, challenge.difficulty);
+  }
+  if (challengeInfoDescription) challengeInfoDescription.textContent = t(challenge.descKey);
+  if (challengeInfoVictory) {
+    clearElement(challengeInfoVictory);
+    appendChallengeCardSection(challengeInfoVictory, "challenges.picker.victoryLabel", challenge.victoryKeys);
+  }
+  if (challengeInfoRules) {
+    clearElement(challengeInfoRules);
+    appendChallengeCardSection(challengeInfoRules, "challenges.picker.rulesLabel", challenge.ruleKeys);
+  }
+  if (challengeInfoSetup) {
+    clearElement(challengeInfoSetup);
+    appendChallengeCardSection(challengeInfoSetup, "challenges.picker.setupLabel", challenge.setupKeys);
+  }
+  challengeInfoModal.hidden = false;
+}
+
+function closeChallengeInfoModal() {
+  if (challengeInfoModal) challengeInfoModal.hidden = true;
+}
+
+function updateActiveChallengeBadge() {
+  if (!activeChallengeBadge) return;
+  const challenge = activeChallenge();
+  if (!challenge) {
+    activeChallengeBadge.classList.add("hidden");
+    activeChallengeBadge.setAttribute("aria-hidden", "true");
+    return;
+  }
+  const label = t(challenge.nameKey);
+  const tooltip = t("challenges.picker.badgeTooltip");
+  activeChallengeBadge.innerHTML = formatChallengeNameHtml(label) + CHALLENGE_INFO_ICON_HTML;
+  activeChallengeBadge.setAttribute("aria-label", `${label} — ${tooltip}`);
+  activeChallengeBadge.title = tooltip;
+  activeChallengeBadge.classList.remove("hidden");
+  activeChallengeBadge.removeAttribute("aria-hidden");
+}
+
+function carouselCardStep() {
+  const card = challengeCardsEl?.querySelector(".challenge-card");
+  return card ? card.getBoundingClientRect().width + 14 : 264;
+}
+
+function scrollChallengeCarousel(direction) {
+  if (!challengeCardsEl) return;
+  challengeCardsEl.scrollBy({ left: direction * carouselCardStep(), behavior: "smooth" });
+}
+
+function updateChallengeCarouselDots() {
+  if (!challengeCarouselDots || !challengeCardsEl) return;
+  const dots = challengeCarouselDots.querySelectorAll(".carousel-dot");
+  const step = carouselCardStep();
+  const maxScrollLeft = challengeCardsEl.scrollWidth - challengeCardsEl.clientWidth;
+  let activeIndex = step ? Math.round(challengeCardsEl.scrollLeft / step) : 0;
+  // Near-max scroll may fall short of the last dot's nominal step position (no trailing
+  // gap after the final card), so snap to the last dot once we're effectively at the end.
+  if (maxScrollLeft > 0 && challengeCardsEl.scrollLeft >= maxScrollLeft - 4) {
+    activeIndex = dots.length - 1;
+  }
+  dots.forEach((dot, idx) => dot.classList.toggle("active", idx === activeIndex));
+}
+
+function openChallengePicker() {
+  if (!challengePickerEl || !challengeCardsEl) {
+    newGame();
+    return;
+  }
+  pickedChallengeId = null;
+  renderChallengeCards();
+  if (challengePickerLocaleSelect) challengePickerLocaleSelect.value = getLocale();
+  if (challengeCancelBtn) challengeCancelBtn.style.display = hasStartedAnyGame ? "inline-block" : "none";
+  challengePickerEl.hidden = false;
+}
+
+function closeChallengePicker() {
+  if (challengePickerEl) challengePickerEl.hidden = true;
+}
+
+const UPCOMING_CHALLENGES = [
+  { nameKey: "challenges.drumsOfWar.name", descKey: "challenges.drumsOfWar.description", difficulty: 3 },
+  { nameKey: "challenges.edgeOfTheWorld.name", descKey: "challenges.edgeOfTheWorld.description", difficulty: 3 },
+];
+
+// Appends a labeled bullet list (Setup / Rules / Victory) to a challenge card, skipped
+// entirely when the challenge has no keys for that section (e.g. "no changes" challenges).
+function appendChallengeCardSection(card, labelKey, keys) {
+  if (!keys?.length) return;
+  const label = document.createElement("p");
+  label.className = "challenge-card-section-label";
+  label.textContent = t(labelKey);
+  card.appendChild(label);
+  const list = document.createElement("ul");
+  keys.forEach((key) => {
+    const li = document.createElement("li");
+    li.textContent = t(key);
+    list.appendChild(li);
+  });
+  card.appendChild(list);
+}
+
+const DIFFICULTY_LABEL_KEYS = {
+  1: "challenges.picker.difficultyEasy",
+  2: "challenges.picker.difficultyMedium",
+  3: "challenges.picker.difficultyHard",
+};
+
+// Small crown-icon row (1-3) matching the rulebook's difficulty rating per challenge.
+function appendDifficultyDots(card, level) {
+  if (!level) return;
+  const wrap = document.createElement("div");
+  wrap.className = "difficulty-dots";
+  const label = `${t("challenges.picker.difficultyLabel")}: ${t(DIFFICULTY_LABEL_KEYS[level] || DIFFICULTY_LABEL_KEYS[3])}`;
+  wrap.setAttribute("aria-label", label);
+  wrap.title = label;
+  for (let i = 1; i <= 3; i++) {
+    const icon = document.createElement("img");
+    icon.src = "assets/img/crown.webp";
+    icon.alt = "";
+    icon.className = "difficulty-crown" + (i <= level ? " filled" : "");
+    wrap.appendChild(icon);
+  }
+  card.appendChild(wrap);
+}
+
+// Renders a non-selectable card for content that either isn't implemented yet (VII/VIII)
+// or isn't translated into the active locale. `titleText`/`descText` are already-resolved
+// strings (not i18n keys) so callers can force the English fallback when a locale is missing.
+function appendChallengePlaceholderCard(titleText, descText = null, difficulty = null) {
+  const card = document.createElement("div");
+  card.className = "challenge-card challenge-card-disabled";
+  const badge = document.createElement("span");
+  badge.className = "challenge-card-badge";
+  badge.textContent = t("challenges.comingSoon");
+  const title = document.createElement("h3");
+  title.innerHTML = formatChallengeNameHtml(titleText);
+  card.appendChild(badge);
+  card.appendChild(title);
+  appendDifficultyDots(card, difficulty);
+  if (descText) {
+    const desc = document.createElement("p");
+    desc.textContent = descText;
+    card.appendChild(desc);
+  }
+  challengeCardsEl.appendChild(card);
+}
+
+function renderChallengeCarouselDots(count) {
+  if (!challengeCarouselDots) return;
+  clearElement(challengeCarouselDots);
+  for (let i = 0; i < count; i++) {
+    const dot = document.createElement("button");
+    dot.type = "button";
+    dot.className = "carousel-dot" + (i === 0 ? " active" : "");
+    dot.setAttribute("aria-label", `${i + 1}/${count}`);
+    dot.onclick = () => {
+      challengeCardsEl.scrollTo({ left: i * carouselCardStep(), behavior: "smooth" });
+    };
+    challengeCarouselDots.appendChild(dot);
+  }
+}
+
+function renderChallengeCards() {
+  clearElement(challengeCardsEl);
+  const entries = [
+    { id: null, nameKey: "challenges.picker.normalGameName", descKey: "challenges.picker.normalGameDescription" },
+    ...CHALLENGE_ORDER.map((id) => CHALLENGES[id]),
+  ];
+  entries.forEach((entry) => {
+    if (!hasOwnTranslation(entry.nameKey)) {
+      appendChallengePlaceholderCard(tEnglish(entry.nameKey), null, entry.difficulty);
+      return;
+    }
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "challenge-card";
+    if (entry.id === null) card.classList.add("challenge-card-normal");
+    card.classList.toggle("selected", pickedChallengeId === entry.id);
+    const title = document.createElement("h3");
+    title.innerHTML = formatChallengeNameHtml(t(entry.nameKey));
+    card.appendChild(title);
+    appendDifficultyDots(card, entry.difficulty);
+    const desc = document.createElement("p");
+    desc.textContent = t(entry.descKey);
+    card.appendChild(desc);
+    appendChallengeCardSection(card, "challenges.picker.victoryLabel", entry.victoryKeys);
+    appendChallengeCardSection(card, "challenges.picker.rulesLabel", entry.ruleKeys);
+    appendChallengeCardSection(card, "challenges.picker.setupLabel", entry.setupKeys);
+    card.onclick = () => {
+      pickedChallengeId = entry.id;
+      challengeCardsEl.querySelectorAll(".challenge-card").forEach((el) => el.classList.remove("selected"));
+      card.classList.add("selected");
+      card.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    };
+    challengeCardsEl.appendChild(card);
+  });
+  UPCOMING_CHALLENGES.forEach((entry) => {
+    appendChallengePlaceholderCard(t(entry.nameKey), t(entry.descKey), entry.difficulty);
+  });
+  renderChallengeCarouselDots(challengeCardsEl.children.length);
 }
 
 function handleBuildingChoice() {
@@ -1871,14 +2405,20 @@ function handleBuildingChoice() {
 function renderGuildOverlay(available = []) {
   const overlay = document.getElementById("guildsOverlay");
   if (!overlay) return;
+  const centerBuildingActive = Boolean(state.pendingCenterBuilding?.awaitingGuildType);
+  if (centerBuildingActive) {
+    available = guildTypes;
+  }
   const hasLockedLocation = Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
   const locationReady = hasLockedLocation || state.locationSelection.length === 2;
   const locked =
-    !locationReady ||
-    (state.diceLocked) ||
-    state.activationMode ||
-    forceForfeitActive() ||
-    state.pestilence;
+    !centerBuildingActive &&
+    (state.pendingBarricade?.active ||
+      !locationReady ||
+      state.diceLocked ||
+      state.activationMode ||
+      forceForfeitActive() ||
+      state.pestilence);
   overlay.style.pointerEvents = available.length && !locked ? "auto" : "none";
   clearElement(overlay);
   const availableSet = new Set(available);
@@ -1888,7 +2428,7 @@ function renderGuildOverlay(available = []) {
     div.dataset.code = hit.code;
     div.style.gridColumn = hit.col;
     div.style.gridRow = hit.row;
-    if (!locked && availableSet.has(hit.code) && !builtGuildTypes(state.board).has(hit.code)) {
+    if (!locked && availableSet.has(hit.code) && (centerBuildingActive || !builtGuildTypes(state.board).has(hit.code))) {
       div.classList.add("available");
     } else {
       div.classList.add("disabled");
@@ -1898,6 +2438,10 @@ function renderGuildOverlay(available = []) {
     }
     div.onclick = () => {
       if (locked || !div.classList.contains("available")) return;
+      if (centerBuildingActive) {
+        placeCenterBuilding("G", hit.code);
+        return;
+      }
       document.querySelectorAll(".guild-hit.selected").forEach((el) => el.classList.remove("selected"));
       div.classList.add("selected");
       state.selectedGuildType = hit.code;
@@ -1944,6 +2488,20 @@ function beginPopulationPlacement(r, c, count) {
 }
 
 function onPopulationNodeClick(nr, nc) {
+  if (state.pendingBarricade?.active) {
+    const result = chooseBarricadeNode(state, nr, nc);
+    if (result.message) log(result.message);
+    if (!result.barricaded) return;
+    playSfx();
+    renderBoard();
+    // The Unrest tally that raised this Barricade already ran (from maybeRollAfterLock(),
+    // before diceLocked got a chance to flip false) and is now skipped by its own
+    // once-per-turn guard, so this just needs to actually complete the turn transition that
+    // was deferred while the Barricade was pending.
+    autoAdvance();
+    maybeRollAfterLock();
+    return;
+  }
   if (state.activationMode) {
     const availablePop = state.populationAvailable?.[nr]?.[nc] || 0;
     if (availablePop <= 0) {
@@ -1990,11 +2548,15 @@ function updateActionBanner() {
   });
 }
 
-function updateMultiplayerButtons() {
+function updateSwapButton() {
   if (swapPairBtn) {
-    const showSwap = soloSwapAvailable();
-    swapPairBtn.style.display = showSwap ? "inline-block" : "none";
+    const reasonKey = soloSwapUnavailableReasonKey();
+    const hidden = reasonKey === "hidden";
+    const showSwap = reasonKey === null;
+    swapPairBtn.style.display = hidden ? "none" : "inline-block";
     swapPairBtn.disabled = !showSwap;
+    swapPairBtn.classList.toggle("icon-btn-disabled", !hidden && !showSwap);
+    swapPairBtn.title = showSwap || hidden ? t("html.swapTitle") : t(reasonKey);
     applySwapButtonPulse(showSwap);
   }
 }
@@ -2040,9 +2602,60 @@ function updateTurnStatusChip() {
     turnStatusChip.classList.toggle("status-active", active);
     turnStatusChip.classList.toggle("status-inactive", !active);
   }
+  updateUnrestBadge();
+  updateActiveChallengeBadge();
+  updateChallengeProgressBadge();
+}
+
+function updateUnrestBadge() {
+  if (!unrestBadge) return;
+  if (!state.unrestTracking) {
+    unrestBadge.classList.add("hidden");
+    unrestBadge.setAttribute("aria-hidden", "true");
+    return;
+  }
+  const progress = state.unrest?.progress || 0;
+  const label = `${t("challenges.unrestLabel")}: ${progress}/4`;
+  unrestBadge.textContent = label;
+  unrestBadge.setAttribute("aria-label", label);
+  unrestBadge.title = t("challenges.unrestBadgeTooltip");
+  unrestBadge.classList.remove("hidden");
+  unrestBadge.removeAttribute("aria-hidden");
+}
+
+function updateChallengeProgressBadge() {
+  if (!challengeProgressBadge) return;
+  const challenge = activeChallenge();
+  if (!challenge?.liveProgress) {
+    challengeProgressBadge.classList.add("hidden");
+    challengeProgressBadge.setAttribute("aria-hidden", "true");
+    return;
+  }
+  const { have, need, labelKey } = challenge.liveProgress(currentScore(), state);
+  const label = `${t(labelKey)}: ${have}/${need}`;
+  challengeProgressBadge.textContent = label;
+  challengeProgressBadge.setAttribute("aria-label", label);
+  challengeProgressBadge.title = label;
+  challengeProgressBadge.classList.remove("hidden");
+  challengeProgressBadge.removeAttribute("aria-hidden");
 }
 
 function maybeRollAfterLock() {
+  // Mirrors maybeRollAfterLockState()'s own readiness gate (game-state.js), checked here
+  // *before* calling it so the Unrest tally can run - and potentially raise a Barricade that
+  // blocks the transition - before that function's side effect of flipping diceLocked false.
+  // This is the actual turn-completion path for a normal build (autoAdvance() sees diceLocked
+  // still true at that point and defers here), so skipping the tally here was silently
+  // dropping Unrest gains (Advanced building / Influence spent / Vagrants) on every turn that
+  // ended via a build rather than a barricade/forfeit/activation.
+  const readyToRoll =
+    state.diceLocked &&
+    state.pendingNextRoll &&
+    !(state.pendingPopulation?.remaining > 0) &&
+    !state.pestilence &&
+    !state.forceForfeit &&
+    !state.activationMode;
+  if (readyToRoll && tallyUnrestForCompletedTurnIfNeeded()) return;
   const action = maybeRollAfterLockState(state);
   if (action === "roll") {
     advanceTurnTrack();
@@ -2068,9 +2681,19 @@ function renderPopulationNodes() {
       const originalVal = state.populationNodes?.[r]?.[c] || 0;
       const availableVal = state.populationAvailable?.[r]?.[c];
       const val = state.activationMode ? availableVal || 0 : originalVal;
+      const isBarricaded = Boolean(state.barricadedNodes?.[r]?.[c]);
       node.dataset.nodeRow = r;
       node.dataset.nodeCol = c;
-      if (state.activationMode) {
+      if (isBarricaded) {
+        node.classList.add("barricaded");
+      }
+      if (state.pendingBarricade?.active) {
+        if (!isBarricaded && val === 0) {
+          node.classList.add("highlight");
+        } else {
+          node.classList.add("disabled");
+        }
+      } else if (state.activationMode) {
         if (val > 0) node.classList.add("has-pop");
         if (val > 0) {
           node.classList.add("highlight");
@@ -2082,7 +2705,7 @@ function renderPopulationNodes() {
           node.classList.add("selected-pop");
         }
       } else {
-        const isEligible = eligibleNodes.some(([nr, nc]) => nr === r && nc === c) && val === 0;
+        const isEligible = eligibleNodes.some(([nr, nc]) => nr === r && nc === c) && val === 0 && !isBarricaded;
         if (state.pendingPopulation) {
           if (isEligible) {
             node.classList.add("highlight");
@@ -2179,10 +2802,13 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
   const forcedMode = state.pestilence || forceForfeitActive();
   const forcedSplit = forcedMode ? splitForcedDice(state.dice || []) : null;
   const doubleWindrose = shouldRerollDoubleWindrose(state.dice || []);
+  // A double windrose forces a reroll, but the just-rolled dice should still be visible in
+  // Split & Build (numbered/windrose dice in Location, X dice in Build) rather than blanked out.
+  const doubleWindroseSplit = doubleWindrose ? splitForcedDice(state.dice || []) : null;
 
   let effectiveLoc =
     (doubleWindrose
-      ? []
+      ? (doubleWindroseSplit.locationDice.length && doubleWindroseSplit.locationDice) || []
       : (forcedSplit && forcedSplit.locationDice.length && forcedSplit.locationDice) ||
         (locationDice && locationDice.length && locationDice) ||
         (currentLocFromState.length && currentLocFromState) ||
@@ -2193,7 +2819,7 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
   const buildReady = state.locationSelection.length === 2 || forceBuildPreview;
   let effectiveBuild =
     doubleWindrose
-      ? []
+      ? (doubleWindroseSplit.buildDice.length && doubleWindroseSplit.buildDice) || []
       : (forcedSplit && forcedSplit.buildDice.length)
         ? forcedSplit.buildDice
         : buildReady
@@ -2331,15 +2957,23 @@ function makeDieBadge(
   return badge;
 }
 
+const DICE_PREVIEW_SLOTS = 2;
+
 function renderDicePreview(container, dice, role, emptyText, { allowInfluence = false } = {}) {
   if (!container) return;
   container.classList.add("split-preview");
   clearElement(container);
-  if (!dice?.length) {
-    container.innerHTML = `<span class="hint">${emptyText}</span>`;
-    return;
+  const diceList = dice || [];
+  if (diceList.length < DICE_PREVIEW_SLOTS) {
+    container.title = emptyText;
+    const srText = document.createElement("span");
+    srText.className = "visually-hidden";
+    srText.textContent = emptyText;
+    container.appendChild(srText);
+  } else {
+    container.removeAttribute("title");
   }
-  dice.forEach((die, idx) => {
+  diceList.forEach((die, idx) => {
     const sourceIndex = dieSourceIndex(die);
     const badge = makeDieBadge(die, idx, {
       role,
@@ -2352,6 +2986,12 @@ function renderDicePreview(container, dice, role, emptyText, { allowInfluence = 
     });
     container.appendChild(badge);
   });
+  for (let i = diceList.length; i < DICE_PREVIEW_SLOTS; i += 1) {
+    const placeholder = document.createElement("div");
+    placeholder.className = "die-badge die-placeholder";
+    placeholder.setAttribute("aria-hidden", "true");
+    container.appendChild(placeholder);
+  }
 }
 
 function onDieClick(idx) {
@@ -2382,10 +3022,13 @@ function updateDiceAssignments(renderOnly = false) {
     highlightLocations();
     updateActionBanner();
     renderDice();
-    updateMultiplayerButtons();
+    updateSwapButton();
     return;
   }
-  if (!renderOnly) {
+  // A Pestilence roll locks the location/build split directly (see rollDice()) and
+  // forces a forfeit regardless of pairs; re-evaluating the selection here would
+  // overwrite that locked state and log a stray "no valid pairs" message.
+  if (!renderOnly && !state.pestilence) {
     if (!influenceAdjustmentsEmpty()) {
       const selectionKey = canonicalSelectionKey(state.locationSelection);
       if (state.influenceSelectionKey && state.influenceSelectionKey !== selectionKey) {
@@ -2419,16 +3062,15 @@ function updateDiceAssignments(renderOnly = false) {
 
   if (turnHintEl) {
     if (state.activeTurn && state.invalidSelection) {
-      turnHintEl.textContent =
-        state.invalidSelectionMessage || t("location.noValidPlotsForPair");
+      setTurnHint(state.invalidSelectionMessage || t("location.noValidPlotsForPair"));
     } else if (state.forceForfeitAdvisory) {
-      turnHintEl.textContent = t("location.noValidPairsSpendInfluence");
+      setTurnHint(t("location.noValidPairsSpendInfluence"));
     } else if (forceForfeitActive()) {
-      turnHintEl.textContent = t("location.noValidPairsForfeit");
+      setTurnHint(t("location.noValidPairsForfeit"));
     } else if (!state.activeTurn) {
-      turnHintEl.textContent = nonActiveAutoHintText();
+      setTurnHint(nonActiveAutoHintText());
     } else {
-      turnHintEl.textContent = "";
+      setTurnHint("");
     }
   }
 
@@ -2452,7 +3094,7 @@ function updateDiceAssignments(renderOnly = false) {
   highlightLocations();
   updateActionBanner();
   renderDice();
-  updateMultiplayerButtons();
+  updateSwapButton();
 }
 
 function computeSwapChoice(baseLoc = [], baseBuild = [], swapFlag = false) {
@@ -2537,21 +3179,62 @@ function soloPairCanBeRescued(diceList = []) {
   });
 }
 
-function soloSwapAvailable() {
-  if (state.activeTurn || state.pestilence || state.activationMode) return false;
+// Returns "hidden" when the swap button doesn't apply to the current turn at all (no dice to
+// swap), a locale key naming the reason it's disabled-but-visible, or null when swap is fully
+// available. Centralizing this lets the button show a grey/disabled state with an explanatory
+// tooltip instead of just disappearing (see updateSwapButton()).
+let lastSwapDebugFingerprint = null;
+
+function soloSwapUnavailableReasonKey() {
+  if (state.activeTurn || state.pestilence || state.activationMode) return "hidden";
   const choice = soloPairChoice();
-  if (!choice.baseLocIdx || !choice.baseBuildIdx) return false;
-  if (!choice.swapAllowed) return false;
-  
+  if (!choice.baseLocIdx || !choice.baseBuildIdx) return "hidden";
+  if (!choice.swapAllowed) {
+    logSwapDebugTrace(choice, "html.swapUnavailableOnlyOnePairing", {});
+    return "html.swapUnavailableOnlyOnePairing";
+  }
+
   const baseValid = soloPairHasValidLocations(choice.baseLocDice);
   const altValid = soloPairHasValidLocations(choice.baseBuildDice);
-  
+
   const baseCanBeRescued = !baseValid && soloPairCanBeRescued(choice.baseLocDice);
   const altCanBeRescued = !altValid && soloPairCanBeRescued(choice.baseBuildDice);
   const basePossible = baseValid || baseCanBeRescued;
   const altPossible = altValid || altCanBeRescued;
-  if (!basePossible && !altPossible) return false;
-  return true;
+  const details = { baseValid, altValid, baseCanBeRescued, altCanBeRescued };
+  if (!basePossible && !altPossible) {
+    logSwapDebugTrace(choice, "html.swapUnavailableNoValidPairing", details);
+    return "html.swapUnavailableNoValidPairing";
+  }
+  return null;
+}
+
+// Diagnostic trace for the swap-button availability decision, logged to the console whenever
+// it computes "unavailable" - throttled so it only re-logs when the inputs actually change,
+// since this is re-evaluated on nearly every render. Intended to help track down reports of
+// the button appearing available/orange while this logic believes it's unavailable (or vice
+// versa) without a way to reproduce the exact dice/board state that triggered it.
+function logSwapDebugTrace(choice, reasonKey, details) {
+  const fingerprint = JSON.stringify({
+    loc: choice.baseLocDice?.map((d) => [d.label, d.face, d.resolved]),
+    build: choice.baseBuildDice?.map((d) => [d.label, d.face, d.resolved]),
+    reasonKey,
+    influence: state.influence,
+    adjustments: state.influenceAdjustments,
+  });
+  if (fingerprint === lastSwapDebugFingerprint) return;
+  lastSwapDebugFingerprint = fingerprint;
+  console.debug("[swap-button]", reasonKey, {
+    baseLocDice: choice.baseLocDice,
+    baseBuildDice: choice.baseBuildDice,
+    influence: state.influence,
+    influenceAdjustments: state.influenceAdjustments,
+    ...details,
+  });
+}
+
+function soloSwapAvailable() {
+  return soloSwapUnavailableReasonKey() === null;
 }
 
 function nonActiveAutoHintText() {
@@ -2576,7 +3259,7 @@ function toggleLockedPairChoice() {
   const toggled = toggleSoloPairChoice();
   if (!toggled) return;
   updateDiceAssignments();
-  updateMultiplayerButtons();
+  updateSwapButton();
 }
 
 function autoMarkBuildDoneIfReady(_options = {}) {
@@ -2740,11 +3423,20 @@ function renderInfluenceTrack({ influenceEarned = 0, influenceSpent = 0 } = {}) 
 function renderTurnTrack(filled = 0) {
   if (!turnTrackOverlay) return;
   const count = Math.max(0, Math.min(TURN_TRACK_LENGTH, Number(filled) || 0));
+  // Challenges with a shortened turn limit (e.g. Social Contract's 24) never play the
+  // remaining track slots; cross those out in a distinct color so it's clear they're unused
+  // rather than just "not reached yet".
+  const turnLimit = Math.min(TURN_TRACK_LENGTH, state.turnLimit || TURN_TRACK_LENGTH);
   clearElement(turnTrackOverlay);
   for (let i = 0; i < TURN_TRACK_LENGTH; i += 1) {
     const slot = document.createElement("div");
     slot.className = "turn-slot";
-    if (i < count) {
+    const unused = i >= turnLimit;
+    if (unused) {
+      slot.classList.add("turn-slot-unused");
+      slot.title = t("turn.unusedTurnMarkerTitle");
+    }
+    if (i < count || unused) {
       const icon = document.createElement("img");
       icon.src = "assets/img/forfeit.svg";
       icon.alt = "";
@@ -2820,5 +3512,7 @@ function autoForfeitUnfillable(finalize = false) {
       renderTurnTrack,
       maybeRollAfterLock,
       placeBuilding,
+      onPopulationNodeClick,
+      adjustDieWithInfluence,
     };
   }

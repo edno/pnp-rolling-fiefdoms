@@ -84,20 +84,28 @@ function addCross(svg) {
 }
 
 function addWindrose(svg) {
+  // Uses a pre-colored ivory asset rather than recoloring assets/img/windrose.svg (blue)
+  // via a CSS filter chain: filter-based recoloring of SVG <image> elements renders
+  // inconsistently between Chrome and Safari.
   const img = createSvg("image", {
-    href: "assets/img/windrose.svg",
+    href: "assets/img/windrose-die.svg",
     x: 3,
     y: 17,
     width: 42,
     height: 42,
-    class: "die-icon die-icon-windrose",
+    class: "die-icon",
     role: "presentation",
   });
   svg.appendChild(img);
 }
 
 export function createDieFaceSVG(die, { showLabel = true } = {}) {
-  const svg = createSvg("svg", { viewBox: "0 0 64 64", class: "die-face", "aria-hidden": "true" });
+  // The die-shape image bleeds 3.2px past the nominal 64x64 face on each side (the
+  // hand-drawn ink hatching is meant to slightly overflow the box). Chrome shows this
+  // fine via CSS `overflow: visible` on the root <svg>, but Safari doesn't reliably
+  // honor that and clips to the viewBox instead - so the viewBox itself is expanded to
+  // fully contain the bleed, making the overflow unnecessary.
+  const svg = createSvg("svg", { viewBox: "-3.2 -3.2 70.4 70.4", class: "die-face", "aria-hidden": "true" });
   addDieShape(svg, die);
   addLabel(svg, showLabel ? die?.label : null);
 

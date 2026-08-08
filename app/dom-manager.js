@@ -41,8 +41,34 @@ export const localeSelect = document.getElementById("localeSelect");
 export const localeFlagIcon = document.getElementById("localeFlagIcon");
 export const actionBannerEl = document.getElementById("actionBanner");
 export const turnStatusChip = document.getElementById("turnStatusChip");
+export const unrestBadge = document.getElementById("unrestBadge");
+export const challengeProgressBadge = document.getElementById("challengeProgressBadge");
+export const activeChallengeBadge = document.getElementById("activeChallengeBadge");
+export const challengeInfoModal = document.getElementById("challengeInfoModal");
+export const challengeInfoTitle = document.getElementById("challengeInfoTitle");
+export const challengeInfoDifficulty = document.getElementById("challengeInfoDifficulty");
+export const challengeInfoDescription = document.getElementById("challengeInfoDescription");
+export const challengeInfoVictory = document.getElementById("challengeInfoVictory");
+export const challengeInfoRules = document.getElementById("challengeInfoRules");
+export const challengeInfoSetup = document.getElementById("challengeInfoSetup");
+export const challengeInfoCloseBtn = document.getElementById("challengeInfoCloseBtn");
 export const loadingOverlay = document.getElementById("loadingOverlay");
 export const sheetBaseImage = document.getElementById("sheetBaseImage");
+export const challengePickerEl = document.getElementById("challengePicker");
+export const challengeCardsEl = document.getElementById("challengeCards");
+export const challengeConfirmBtn = document.getElementById("challengeConfirmBtn");
+export const challengeCancelBtn = document.getElementById("challengeCancelBtn");
+export const challengePickerLocaleSelect = document.getElementById("challengePickerLocaleSelect");
+export const challengePickerLocaleFlagIcon = document.getElementById("challengePickerLocaleFlagIcon");
+export const challengeCarouselPrev = document.getElementById("challengeCarouselPrev");
+export const challengeCarouselNext = document.getElementById("challengeCarouselNext");
+export const challengeCarouselDots = document.getElementById("challengeCarouselDots");
+export const challengeOutcomeOverlay = document.getElementById("challengeOutcomeOverlay");
+export const challengeOutcomeText = document.getElementById("challengeOutcomeText");
+export const challengeOutcomeComparison = document.getElementById("challengeOutcomeComparison");
+export const challengeOutcomeReasons = document.getElementById("challengeOutcomeReasons");
+export const barricadeAlertOverlay = document.getElementById("barricadeAlertOverlay");
+export const barricadeAlertText = document.getElementById("barricadeAlertText");
 
 // P2P Multiplayer Elements
 // ============================================================================

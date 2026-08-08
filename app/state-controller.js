@@ -6,6 +6,7 @@ const baseState = {
   populationAvailable: null,
   tracks: { population: 0, housing: 0, influence: 0 },
   influence: { earned: 0, spent: 0, pending: 0 },
+  influenceBonus: 0,
   influenceAdjustments: {},
   influenceTarget: null,
   influenceSelectionKey: null,
@@ -52,6 +53,15 @@ const baseState = {
   invalidSelectionMessage: null,
   forceForfeitAdvisory: false,
   forceForfeitHighlight: false,
+  challengeId: null,
+  turnLimit: null,
+  unrestTracking: false,
+  unrestCheckedTurnIndex: null,
+  unrest: { progress: 0 },
+  pendingBarricade: null,
+  barricadedNodes: null,
+  pendingCenterBuilding: null,
+  turnFlags: { advancedBuiltThisTurn: false },
 };
 
 function commitPendingInfluence(state) {
@@ -105,6 +115,7 @@ export function resetTurnState(state) {
   state.influenceTarget = null;
   state.influenceSelectionKey = null;
   state.forceForfeitHighlight = false;
+  state.turnFlags = { advancedBuiltThisTurn: false };
   // rollAvailable intentionally not reset here to preserve per-turn lock until explicitly re-enabled
 }
 

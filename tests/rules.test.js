@@ -792,6 +792,13 @@ describe("build option restrictions", () => {
     expect(filtered.find((o) => o.code === "G")).toBeUndefined();
     expect(filtered.find((o) => o.code === "F")).toBeDefined();
   });
+
+  it("excludes explicitly disabled codes (challenge rule overrides)", () => {
+    const board = emptyBoard();
+    const opts = [{ code: "T" }, { code: "U" }, { code: "A" }, { code: "G" }, { code: "F" }];
+    const filtered = restrictBuildOptionsForBoard(opts, board, ["T", "U", "A", "G"]);
+    expect(filtered.map((o) => o.code)).toEqual(["F"]);
+  });
 });
 
 describe("activation scoring with worker allocations", () => {

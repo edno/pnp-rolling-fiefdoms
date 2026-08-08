@@ -93,10 +93,35 @@ export function getLocale() {
   return currentLocale;
 }
 
-function resolveKey(key) {
+function resolveKeyIn(key, source) {
   return key
     .split(".")
-    .reduce((node, part) => (node && typeof node === "object" ? node[part] : undefined), strings);
+    .reduce((node, part) => (node && typeof node === "object" ? node[part] : undefined), source);
+}
+
+function resolveKey(key) {
+  return resolveKeyIn(key, strings);
+}
+
+/**
+ * Whether the *active* locale (not the English fallback) actually defines
+ * this key. Use this to detect content that hasn't been translated yet
+ * for a given locale, rather than silently falling back to English.
+ * @param {string} key
+ */
+export function hasOwnTranslation(key) {
+  return typeof resolveKeyIn(key, strings) === "string";
+}
+
+/**
+ * Look up a key directly in the English locale, regardless of the active
+ * locale. Used to label untranslated content explicitly as English rather
+ * than presenting it as if it were localized.
+ * @param {string} key
+ */
+export function tEnglish(key) {
+  const value = resolveKeyIn(key, LOCALES[DEFAULT_LOCALE]);
+  return typeof value === "string" ? value : key;
 }
 
 /**

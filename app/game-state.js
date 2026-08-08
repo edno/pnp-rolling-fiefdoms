@@ -8,6 +8,7 @@ import {
   earnedInfluenceFromPopulation,
 } from "./influence.js";
 import { t } from "./i18n.js";
+import { calcVagrants } from "./rules.js";
 
 const WINDROSE_FACE = "windrose";
 
@@ -123,11 +124,103 @@ function mergeForcedLocationDice(state) {
   state.locationSelection = merged.slice(0, 2);
 }
 
+function calcVagrantsFromState(state, board) {
+  const pop = state.populationNodes ? state.populationNodes.flat().reduce((a, b) => a + b, 0) : 0;
+  const cottages = board.flat().filter((c) => c.building === "C").length;
+  return calcVagrants(pop, cottages * 4);
+}
+
+// Unrest (challenge VI, "Embers of Revolt") is tallied at the end of each completed turn:
+// +1 if an Advanced building was built that turn, +1 per Influence spent that turn, +1 if
+// Vagrants exceed 8, capped at +4/turn. Every 4th Unrest reached raises Barricades: the player
+// must choose an empty Population square to permanently barricade. The Unrest counter wraps
+// back to 0 (mod 4) once a Barricade is actually raised, so `progress` always reads as x/4.
+function applyUnrestForCompletedTurn(state, board) {
+  const influenceUsed = totalInfluenceSpent(state.influenceAdjustments);
+  const advancedBuilt = state.turnFlags?.advancedBuiltThisTurn ? 1 : 0;
+  const vagrantUnrest = calcVagrantsFromState(state, board) > 8 ? 1 : 0;
+  const gain = Math.min(4, advancedBuilt + influenceUsed + vagrantUnrest);
+  const prevProgress = state.unrest?.progress || 0;
+  // A turn with no gain still needs re-evaluating when the counter is already pinned at
+  // the cap from a prior blocked turn, so a postponed Barricade keeps re-attempting every
+  // completed turn (per the design above) rather than only on turns with fresh gain.
+  if (gain <= 0 && prevProgress < 4) return null;
+  let progress = prevProgress + gain;
+  let triggered = false;
+  let blocked = false;
+  if (progress >= 4) {
+    if (hasBarricadeableNode(state)) {
+      progress -= 4;
+      triggered = true;
+    } else {
+      // Every Population square is occupied: pin the counter at the cap instead of
+      // wrapping it, so the event isn't silently lost — it re-attempts on every
+      // subsequent completed turn until a square frees up.
+      progress = 4;
+      blocked = true;
+    }
+  }
+  state.unrest = { progress };
+  return { gain, progress, prevProgress, triggered, blocked, advancedBuilt, influenceUsed, vagrantUnrest };
+}
+
+// Called once per completed turn, before the next turn's dice are rolled (see rollDice()
+// in app.js), so a raised Barricade must be resolved before the Fate roll happens at all.
+export function tallyUnrestAndCheckBarricade(state, board) {
+  if (!state.unrestTracking || !(state.turnIndex > 0)) return { triggered: false, messages: [] };
+  const result = applyUnrestForCompletedTurn(state, board);
+  if (!result) return { triggered: false, messages: [] };
+  const messages = [];
+  if (result.gain > 0) {
+    // Log each contributing source as its own step (rather than one combined "+2 (A, B)"
+    // line) so it's clear at a glance which turn events actually moved the needle.
+    const steps = [];
+    if (result.advancedBuilt) {
+      steps.push({ amount: 1, reason: t("challenges.unrestReasonAdvanced") });
+    }
+    if (result.influenceUsed > 0) {
+      steps.push({
+        amount: result.influenceUsed,
+        reason:
+          result.influenceUsed > 1
+            ? t("challenges.unrestReasonInfluenceCount", { count: result.influenceUsed })
+            : t("challenges.unrestReasonInfluence"),
+      });
+    }
+    if (result.vagrantUnrest) {
+      steps.push({ amount: 1, reason: t("challenges.unrestReasonVagrants") });
+    }
+    let running = result.prevProgress;
+    steps.forEach((step, idx) => {
+      running += step.amount;
+      const isLast = idx === steps.length - 1;
+      const displayProgress = isLast ? result.progress : Math.min(running, 4);
+      messages.push({
+        kind: "unrest",
+        text: t("challenges.unrestGained", { gain: step.amount, reasons: step.reason, progress: displayProgress }),
+      });
+    });
+  }
+  if (result.triggered) {
+    state.pendingBarricade = { active: true };
+    messages.push({ kind: "unrest", text: t("challenges.barricadesRaised") });
+  } else if (result.blocked) {
+    messages.push({ kind: "unrest", text: t("challenges.barricadesPostponed") });
+  }
+  return { triggered: result.triggered, messages };
+}
+
 export function beginTurn(
   state,
   dice,
   board,
-  { uniqueLocationPairs, filterAvailablePairs, computePestilenceInfo, turnIndexOverride = null, activeTurnOverride = null },
+  {
+    uniqueLocationPairs,
+    filterAvailablePairs,
+    computePestilenceInfo,
+    turnIndexOverride = null,
+    activeTurnOverride = null,
+  },
 ) {
   const messages = [];
   resetTurnState(state);
@@ -485,16 +578,23 @@ export function finishActivation(state) {
   state.activationComplete = true;
 }
 
+export function turnLimitReached(state) {
+  return typeof state.turnLimit === "number" && state.turnIndex >= state.turnLimit;
+}
+
 export function evaluateAutoAdvance(state, board) {
   if (state.pendingPopulation?.remaining > 0) return "wait";
-  if (boardFull(board)) return "activate";
+  if (boardFull(board) || turnLimitReached(state)) return "activate";
   if (state.diceLocked) return "wait";
   return "roll";
 }
 
 export function autoAdvanceState(state, board) {
   const action = evaluateAutoAdvance(state, board);
-  if (action === "activate") return { action, message: t("game.boardFull") };
+  if (action === "activate") {
+    const message = boardFull(board) ? t("game.boardFull") : t("game.turnLimitReached");
+    return { action, message };
+  }
   return { action, message: null };
 }
 
@@ -502,10 +602,13 @@ export function recalcTracks(state, { computeScore, calcVagrants }) {
   const pop = state.populationNodes ? state.populationNodes.flat().reduce((a, b) => a + b, 0) : 0;
   const cottages = boardCottages(state.board);
   const housing = cottages * 4;
+  const bonus = Math.max(0, state.influenceBonus || 0);
   const prevEarned = Math.max(0, state.influence?.earned || 0);
+  const prevPopulationEarned = Math.max(0, prevEarned - bonus);
   const prevCommitted = Math.max(0, state.influence?.spent || 0);
   const adjustmentsSpent = totalInfluenceSpent(state.influenceAdjustments);
-  const newEarned = earnedInfluenceFromPopulation(pop);
+  const populationEarned = earnedInfluenceFromPopulation(pop);
+  const newEarned = populationEarned + bonus;
   const committed = Math.min(prevCommitted, newEarned);
   const remaining = Math.max(0, newEarned - committed);
   const pending = Math.min(remaining, Math.max(0, adjustmentsSpent));
@@ -518,7 +621,11 @@ export function recalcTracks(state, { computeScore, calcVagrants }) {
   const scoreResult = computeScore(state.board, state.populationNodes, state.workerAllocations, {
     allowPopulationActivation: false,
   });
-  return { vagrants, scoreResult, influence: { earned: newEarned, available: availableInfluence, gained: Math.max(0, newEarned - prevEarned) } };
+  return {
+    vagrants,
+    scoreResult,
+    influence: { earned: newEarned, available: availableInfluence, gained: Math.max(0, populationEarned - prevPopulationEarned) },
+  };
 }
 
 export function boardFull(board) {
@@ -540,7 +647,9 @@ export function maybeRollAfterLockState(state) {
 
 export function startPopulationPlacement(state, cellCoord, count, { nodesForCell }) {
   const nodes = nodesForCell(cellCoord[0], cellCoord[1]);
-  const availableNodes = nodes.filter(([nr, nc]) => (state.populationNodes?.[nr]?.[nc] || 0) === 0);
+  const availableNodes = nodes.filter(
+    ([nr, nc]) => (state.populationNodes?.[nr]?.[nc] || 0) === 0 && !state.barricadedNodes?.[nr]?.[nc],
+  );
   if (!availableNodes.length) {
     state.pendingPopulation = null;
     return { started: false, message: t("population.noAvailableSpotsSkipped") };
@@ -563,6 +672,8 @@ export function placePopulationNode(state, nr, nc, { nodesForCell, allocatePopul
     return { placed: 0, message: t("population.mustTouchBuiltPlot") };
   if ((state.populationNodes[nr]?.[nc] || 0) > 0)
     return { placed: 0, message: t("population.spotAlreadyUsed") };
+  if (state.barricadedNodes?.[nr]?.[nc])
+    return { placed: 0, message: t("population.spotAlreadyUsed") };
 
   const { placed, grid } = allocatePopulationToNode(
     state.populationNodes,
@@ -583,6 +694,28 @@ export function placePopulationNode(state, nr, nc, { nodesForCell, allocatePopul
         ? t("population.placedPartial", { placed, unplaced })
         : t("population.placedOnCell", { placed, row: nr + 1, col: nc + 1 }),
   };
+}
+
+// Whether at least one Population square is still empty and not already barricaded, i.e.
+// whether raising Barricades is actually resolvable. Guards against gating the turn on an
+// impossible choice if the board has filled up.
+function hasBarricadeableNode(state) {
+  const nodes = state.populationNodes || [];
+  return nodes.some((row, r) => row.some((count, c) => count === 0 && !state.barricadedNodes?.[r]?.[c]));
+}
+
+export function chooseBarricadeNode(state, nr, nc) {
+  if (!state.pendingBarricade?.active) return { barricaded: false, message: null };
+  if (!state.barricadedNodes?.[nr] || nc < 0 || nc >= state.barricadedNodes[nr].length) {
+    return { barricaded: false, message: null };
+  }
+  if ((state.populationNodes?.[nr]?.[nc] || 0) > 0)
+    return { barricaded: false, message: t("population.spotAlreadyUsed") };
+  if (state.barricadedNodes[nr][nc])
+    return { barricaded: false, message: t("population.spotAlreadyUsed") };
+  state.barricadedNodes[nr][nc] = true;
+  state.pendingBarricade = null;
+  return { barricaded: true, message: t("challenges.barricadePlaced", { row: nr + 1, col: nc + 1 }) };
 }
 
 export function allocateWorker(state, popSel, buildingSel, { nodesForCell, buildingRules }) {

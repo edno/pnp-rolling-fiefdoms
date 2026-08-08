@@ -1,6 +1,6 @@
-const CACHE_VERSION = "v1.33";
+const CACHE_VERSION = "v1.46";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
-const APP_VERSION = "v8";
+const APP_VERSION = "v18";
 const SHEET_VERSION = "v2.0";
 const SHEET_BASE_PATH = "/resources/rolling-fiefdoms-player-sheet";
 const SHEET_BASE_PATH_FR = "/resources/rolling-fiefdoms-player-sheet-fr";
@@ -19,13 +19,17 @@ const ASSETS = [
   "/assets/fonts/Roboto/Roboto-Italic-VariableFont_wdth,wght.woff2",
   "/assets/img/forfeit.svg",
   "/assets/img/windrose.svg",
+  "/assets/img/windrose-die.svg",
   "/assets/img/die-event.svg",
   "/assets/img/die-windrose.svg",
+  "/assets/img/swap.svg",
   "/assets/img/rules.webp",
   "/assets/img/playersheet.webp",
   "/assets/img/github.webp",
   "/assets/img/fullscreen.webp",
   "/assets/img/bgg.webp",
+  "/assets/img/hatch.webp",
+  "/assets/img/crown.webp",
   `${SHEET_BASE_PATH}.webp?v=${SHEET_VERSION}`,
   `${SHEET_BASE_PATH}@2x.webp?v=${SHEET_VERSION}`,
   `${SHEET_BASE_PATH_FR}.webp?v=${SHEET_VERSION}`,

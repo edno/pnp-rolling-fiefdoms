@@ -1,17 +1,22 @@
 import { describe, it, expect } from "vitest";
+import { t } from "../app/i18n.js";
 import {
   beginTurn,
+  tallyUnrestAndCheckBarricade,
   evaluateLocationSelection,
   selectLocationDie,
   startActivation,
   finishActivation,
   startPopulationPlacement,
   placePopulationNode,
+  chooseBarricadeNode,
   allocateWorker,
   autoForfeitUnfillableState,
   autoAdvanceState,
   recalcTracks,
   maybeRollAfterLockState,
+  turnLimitReached,
+  canRescueLocationWithInfluence,
 } from "../app/game-state.js";
 import { createState, lockDiceSnapshot, resetTurnState } from "../app/state-controller.js";
 import {
@@ -95,6 +100,152 @@ describe("beginTurn", () => {
     expect(state.pestilence).toBe(true);
     expect(state.pestilenceInfo.sum).toBe(6);
     expect(state.pestilenceInfo.targetCells).toEqual([]);
+  });
+});
+
+// Unrest is now tallied via tallyUnrestAndCheckBarricade(), called once per completed turn
+// from rollDice() in app.js *before* the next turn's dice are rolled (so a raised Barricade
+// must be resolved before the Fate roll happens) rather than from inside beginTurn().
+describe("tallyUnrestAndCheckBarricade (challenge VI)", () => {
+  it("does not accrue Unrest when unrestTracking is off", () => {
+    const state = createState();
+    const { triggered, messages } = tallyUnrestAndCheckBarricade(state, emptyBoard());
+    expect(state.unrest.progress).toBe(0);
+    expect(triggered).toBe(false);
+    expect(messages).toEqual([]);
+  });
+
+  it("does not accrue Unrest on the very first turn (no prior turn to score)", () => {
+    const state = createState();
+    state.unrestTracking = true;
+    state.turnFlags = { advancedBuiltThisTurn: true };
+    tallyUnrestAndCheckBarricade(state, emptyBoard());
+    expect(state.unrest.progress).toBe(0);
+  });
+
+  it("gains 1 Unrest for an Advanced building built during the completed turn", () => {
+    const state = createState();
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.turnFlags = { advancedBuiltThisTurn: true };
+    const { messages } = tallyUnrestAndCheckBarricade(state, emptyBoard());
+    expect(state.unrest.progress).toBe(1);
+    expect(messages.some((m) => m.kind === "unrest")).toBe(true);
+  });
+
+  it("logs a separate step per source instead of combining them into one message", () => {
+    const state = createState();
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.turnFlags = { advancedBuiltThisTurn: true };
+    state.influenceAdjustments = { N1: { delta: 1 } };
+    const { messages } = tallyUnrestAndCheckBarricade(state, emptyBoard());
+    expect(state.unrest.progress).toBe(2);
+    const unrestMessages = messages.filter((m) => m.kind === "unrest").map((m) => m.text);
+    expect(unrestMessages).toEqual([
+      "Unrest +1 (Advanced building): 1/4.",
+      "Unrest +1 (Influence): 2/4.",
+    ]);
+  });
+
+  it("gains 1 Unrest per Influence spent during the completed turn", () => {
+    const state = createState();
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.influenceAdjustments = { N1: { delta: 2 }, N2: { delta: -1 } };
+    tallyUnrestAndCheckBarricade(state, emptyBoard());
+    expect(state.unrest.progress).toBe(3);
+  });
+
+  it("caps Unrest gain at 4 per turn", () => {
+    const state = createState();
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.turnFlags = { advancedBuiltThisTurn: true };
+    state.influenceAdjustments = { N1: { delta: 5 } };
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    state.barricadedNodes = Array.from({ length: 4 }, () => Array(4).fill(false));
+    tallyUnrestAndCheckBarricade(state, emptyBoard());
+    expect(state.unrest.progress).toBe(0);
+    expect(state.pendingBarricade?.active).toBe(true);
+  });
+
+  it("raises Barricades and requires the player to choose a square on crossing a multiple of 4", () => {
+    const state = createState();
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.unrest = { progress: 3 };
+    state.turnFlags = { advancedBuiltThisTurn: true };
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    state.barricadedNodes = Array.from({ length: 4 }, () => Array(4).fill(false));
+    const { triggered, messages } = tallyUnrestAndCheckBarricade(state, emptyBoard());
+    expect(state.unrest.progress).toBe(0);
+    expect(triggered).toBe(true);
+    expect(state.pendingBarricade?.active).toBe(true);
+    expect(messages.some((m) => m.kind === "unrest")).toBe(true);
+
+    const result = chooseBarricadeNode(state, 0, 0);
+    expect(result.barricaded).toBe(true);
+    expect(state.barricadedNodes[0][0]).toBe(true);
+    expect(state.pendingBarricade).toBeNull();
+  });
+
+  it("does not raise Barricades when Unrest does not cross a multiple of 4", () => {
+    const state = createState();
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.unrest = { progress: 1 };
+    state.turnFlags = { advancedBuiltThisTurn: true };
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    const { triggered } = tallyUnrestAndCheckBarricade(state, emptyBoard());
+    expect(state.unrest.progress).toBe(2);
+    expect(triggered).toBe(false);
+    expect(state.pendingBarricade?.active).toBeFalsy();
+  });
+
+  it("gains 1 Unrest when Vagrants exceed 8", () => {
+    const state = createState();
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    state.populationNodes[0][0] = 9; // 9 population, no Cottages -> 9 Vagrants
+    tallyUnrestAndCheckBarricade(state, emptyBoard());
+    expect(state.unrest.progress).toBe(1);
+  });
+
+  it("pins Unrest at the cap (does not raise Barricades) when no Population square is available", () => {
+    const state = createState();
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.unrest = { progress: 3 };
+    // Every node holds 1 pip (board is full, so nothing is barricadeable); population sums to
+    // 16 against 0 Cottage housing, which itself pushes Unrest gain to 1 via the Vagrant clause.
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(1));
+    state.barricadedNodes = Array.from({ length: 4 }, () => Array(4).fill(false));
+    const { triggered, messages } = tallyUnrestAndCheckBarricade(state, emptyBoard());
+    // Pinned at the cap rather than wrapped to 0, so the event re-attempts next turn instead
+    // of being silently lost.
+    expect(state.unrest.progress).toBe(4);
+    expect(triggered).toBe(false);
+    expect(state.pendingBarricade).toBeNull();
+    expect(messages.some((m) => /postponed/i.test(m.text))).toBe(true);
+  });
+
+  it("keeps re-checking a pinned Barricade on a later turn with zero Unrest gain", () => {
+    const state = createState();
+    state.unrestTracking = true;
+    state.turnIndex = 2;
+    // Already pinned at the cap from a prior blocked turn.
+    state.unrest = { progress: 4 };
+    // No Advanced building, no Influence spent, Vagrants within limits: this turn earns 0
+    // Unrest on its own, but the pinned Barricade should still be re-evaluated rather than
+    // silently skipped.
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(1));
+    state.barricadedNodes = Array.from({ length: 4 }, () => Array(4).fill(false));
+    const { triggered, messages } = tallyUnrestAndCheckBarricade(state, emptyBoard());
+    expect(state.unrest.progress).toBe(4);
+    expect(triggered).toBe(false);
+    expect(messages.some((m) => /postponed/i.test(m.text))).toBe(true);
   });
 });
 
@@ -300,6 +451,70 @@ describe("die selection and location evaluation", () => {
   });
 });
 
+describe("canRescueLocationWithInfluence", () => {
+  const singleOpenCellBoard = (openRow, openCol) => {
+    const board = emptyBoard();
+    board.forEach((row, r) =>
+      row.forEach((cell, c) => {
+        if (!(r === openRow && c === openCol)) cell.building = "X";
+      }),
+    );
+    return board;
+  };
+
+  it("finds a rescue when adjusting one die by a delta within budget reaches the only open cell", () => {
+    const state = createState();
+    state.influence = { earned: 2, spent: 0 };
+    const board = singleOpenCellBoard(2, 3); // needs pair values {3,4}
+    const diceList = [
+      { label: "N1", face: 4, resolved: 4 },
+      { label: "N2", face: 1, resolved: 1 }, // needs +2 to reach 3
+    ];
+    expect(canRescueLocationWithInfluence(state, diceList, board, { uniqueLocationPairs, filterAvailablePairs })).toBe(
+      true,
+    );
+  });
+
+  it("returns false when the required delta exceeds the available budget", () => {
+    const state = createState();
+    state.influence = { earned: 1, spent: 0 }; // only 1 point, need 2
+    const board = singleOpenCellBoard(2, 3);
+    const diceList = [
+      { label: "N1", face: 4, resolved: 4 },
+      { label: "N2", face: 1, resolved: 1 },
+    ];
+    expect(canRescueLocationWithInfluence(state, diceList, board, { uniqueLocationPairs, filterAvailablePairs })).toBe(
+      false,
+    );
+  });
+
+  it("returns false when no Influence is available at all", () => {
+    const state = createState();
+    state.influence = { earned: 0, spent: 0 };
+    const board = singleOpenCellBoard(2, 3);
+    const diceList = [
+      { label: "N1", face: 4, resolved: 4 },
+      { label: "N2", face: 1, resolved: 1 },
+    ];
+    expect(canRescueLocationWithInfluence(state, diceList, board, { uniqueLocationPairs, filterAvailablePairs })).toBe(
+      false,
+    );
+  });
+
+  it("finds a rescue via either die, regardless of which one needs the adjustment", () => {
+    const state = createState();
+    state.influence = { earned: 3, spent: 0 };
+    const board = singleOpenCellBoard(0, 2); // needs pair values {1,3}
+    const diceList = [
+      { label: "N1", face: 1, resolved: 1 },
+      { label: "N2", face: 5, resolved: 5 }, // needs -2 to reach 3
+    ];
+    expect(canRescueLocationWithInfluence(state, diceList, board, { uniqueLocationPairs, filterAvailablePairs })).toBe(
+      true,
+    );
+  });
+});
+
 describe("influence integration", () => {
   it("awards influence starting at pip 9, then every eight pips thereafter", () => {
     const state = createState();
@@ -336,6 +551,24 @@ describe("influence integration", () => {
     const third = recalcTracks(state, { computeScore, calcVagrants });
     expect(third.influence.earned).toBe(2);
     expect(state.influence.pending).toBe(2);
+  });
+
+  it("folds a challenge's flat starting-Influence bonus into earned without reporting it as a population gain", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    state.influenceBonus = 1;
+    state.influence = { earned: 0, spent: 0 };
+
+    const start = recalcTracks(state, { computeScore, calcVagrants });
+    expect(start.influence.earned).toBe(1);
+    expect(start.influence.gained).toBe(0); // the bonus isn't a population milestone
+    expect(state.tracks.influence).toBe(1);
+
+    state.populationNodes[0][0] = 9; // crosses the first population-influence threshold
+    const afterPopGrowth = recalcTracks(state, { computeScore, calcVagrants });
+    expect(afterPopGrowth.influence.earned).toBe(2); // 1 from population + the flat bonus
+    expect(afterPopGrowth.influence.gained).toBe(1); // now correctly attributed to population
   });
 
   it("commits spent influence between turns", () => {
@@ -384,7 +617,7 @@ describe("influence integration", () => {
     });
     expect(forceForfeit).toBe(false);
     expect(state.invalidSelection).toBe(true);
-    expect(message).toBe("No valid location pairs; spend Influence or forfeit a plot.");
+    expect(message).toBe("No valid location pairs; spend Influence or click on any empty plot to forfeit it.");
   });
 
   it("prompts non-active turns to spend influence before forfeiting", () => {
@@ -408,7 +641,9 @@ describe("influence integration", () => {
     const { messages } = beginTurn(state, dice, state.board, helpers);
     expect(state.activeTurn).toBe(false);
     expect(state.forceForfeit).toBe(false);
-    expect(messages.map((m) => m.text)).toContain("No valid location pairs; spend Influence or forfeit a plot.");
+    expect(messages.map((m) => m.text)).toContain(
+      "No valid location pairs; spend Influence or click on any empty plot to forfeit it.",
+    );
   });
 
   it("prompts active turns to select location dice when influence can rescue before choosing dice", () => {
@@ -438,8 +673,10 @@ describe("influence integration", () => {
     expect(forceForfeit).toBe(false);
     expect(state.forceForfeitAdvisory).toBe(true);
     expect(state.invalidSelection).toBe(true);
-    expect(message).toBe("Select two location dice in the Turn panel.");
-    expect(state.invalidSelectionMessage).toBe("Select two location dice in the Turn panel.");
+    expect(message).toBe('Select two location dice in the <span class="panel-title-font">Turn</span> panel.');
+    expect(state.invalidSelectionMessage).toBe(
+      'Select two location dice in the <span class="panel-title-font">Turn</span> panel.',
+    );
     expect(state.forceForfeitHighlight).toBe(false);
   });
 
@@ -888,6 +1125,34 @@ describe("auto advance and tracks", () => {
     );
     const result = autoAdvanceState(state, state.board);
     expect(result.action).toBe("activate");
+    expect(result.message).toBe(t("game.boardFull"));
+  });
+
+  it("requests activation early when a challenge turn limit is reached, even with an open board", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.turnLimit = 24;
+    state.turnIndex = 24;
+    expect(turnLimitReached(state)).toBe(true);
+    const result = autoAdvanceState(state, state.board);
+    expect(result.action).toBe("activate");
+    expect(result.message).toBe(t("game.turnLimitReached"));
+  });
+
+  it("does not force activation before the turn limit is reached", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.turnLimit = 24;
+    state.turnIndex = 10;
+    expect(turnLimitReached(state)).toBe(false);
+    const result = autoAdvanceState(state, state.board);
+    expect(result.action).toBe("roll");
+  });
+
+  it("ignores turn limit when unset (normal game)", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    expect(turnLimitReached(state)).toBe(false);
   });
 
   it("recalculates tracks and returns score info", () => {

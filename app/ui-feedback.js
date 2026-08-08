@@ -41,6 +41,8 @@ export const TURN_PHASE = {
   SPLITTING: "splitting",
   BUILDING: "building",
   POPULATION: "population",
+  BARRICADE: "barricade",
+  CENTER_BUILDING: "center-building",
   FORFEIT: "forfeit",
   PESTILENCE: "pestilence",
   ACTIVATION: "activation",
@@ -88,7 +90,7 @@ export function actionMessage(state, currentPhase, options = {}) {
       return t("activation.populationSelected", { remaining });
     }
     if (anyRemaining) return t("activation.selectPopulationNode");
-    return t("activation.finishWhenReady");
+    return t("activation.finishWhenReady", { finishBtn: formatButtonLabelHtml(t("html.finishActivation")) });
   }
 
   if (state.pendingSpringhouseTarget) {
@@ -109,6 +111,16 @@ export function actionMessage(state, currentPhase, options = {}) {
 
   if (phase === TURN_PHASE.FORFEIT) {
     return t("forfeit.emptyPlotBanner");
+  }
+
+  if (phase === TURN_PHASE.BARRICADE) {
+    return t("challenges.barricadeChoose");
+  }
+
+  if (phase === TURN_PHASE.CENTER_BUILDING) {
+    return state.pendingCenterBuilding?.awaitingGuildType
+      ? t("challenges.socialContract.chooseGuildType")
+      : t("challenges.socialContract.chooseCenterBuilding");
   }
 
   if (phase === TURN_PHASE.POPULATION) {

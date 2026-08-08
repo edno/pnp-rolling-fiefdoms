@@ -140,6 +140,198 @@ describe("influence population handling (jsdom)", () => {
   });
 });
 
+describe("Unrest tally on turn completion (jsdom)", () => {
+  it("tallies Unrest for Influence spent when a build (not a Roll Dice click) completes the turn", async () => {
+    // Regression test: a build completing the turn goes through
+    // autoAdvance()+maybeRollAfterLock(), not autoAdvance() alone - the Unrest tally must run
+    // from maybeRollAfterLock() too, or Influence/Advanced-building/Vagrant Unrest gained on
+    // an ordinary build turn is silently dropped.
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { state, placeBuilding } = hooks;
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.unrestCheckedTurnIndex = null;
+    state.unrest = { progress: 0 };
+    state.dice = [
+      { label: "N1", face: 1, resolved: 1 },
+      { label: "N2", face: 4, resolved: 4 },
+      { label: "X1", face: 2, resolved: 2 },
+      { label: "X2", face: 3, resolved: 3 },
+    ];
+    state.locationSelection = [0, 1];
+    state.buildDice = [state.dice[2], state.dice[3]];
+    state.buildChoice = { code: "F" };
+    state.influenceAdjustments = { X2: { delta: 1 } };
+    state.influenceTarget = "X2";
+    state.influence = { earned: 1, spent: 0, pending: 0 };
+    state.rollAvailable = false;
+
+    placeBuilding(0, 0, "F");
+
+    expect(state.unrestCheckedTurnIndex).toBe(1);
+    expect(state.unrest.progress).toBe(1);
+    expect(latestLogs().some((m) => m.includes("Unrest +1"))).toBe(true);
+  });
+
+  it("tallies Unrest for Influence spent via the real adjustDieWithInfluence() flow", async () => {
+    // Uses adjustDieWithInfluence() (what the +/- buttons actually call) instead of writing
+    // state.influenceAdjustments directly, so it also exercises influenceSelectionKey - if
+    // updateDiceAssignments() spuriously decided the selection "changed" it would clear the
+    // adjustment before the tally ever saw it.
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { state, placeBuilding, adjustDieWithInfluence } = hooks;
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.unrestCheckedTurnIndex = null;
+    state.unrest = { progress: 0 };
+    state.dice = [
+      { label: "N1", face: 1, resolved: 1 },
+      { label: "N2", face: 4, resolved: 4 },
+      { label: "X1", face: 2, resolved: 2 },
+      { label: "X2", face: 3, resolved: 3 },
+    ];
+    state.locationSelection = [0, 1];
+    state.buildDice = [state.dice[2], state.dice[3]];
+    state.buildChoice = { code: "F" };
+    state.influence = { earned: 1, spent: 0, pending: 0 };
+    state.rollAvailable = false;
+
+    adjustDieWithInfluence(3, 1);
+    expect(state.influenceAdjustments?.X2?.delta).toBe(1);
+
+    placeBuilding(0, 0, "F");
+
+    expect(state.unrestCheckedTurnIndex).toBe(1);
+    expect(state.unrest.progress).toBe(1);
+    expect(latestLogs().some((m) => m.includes("Unrest +1"))).toBe(true);
+  });
+
+  it("tallies Unrest for Influence spent when the build also grants population", async () => {
+    // Same as above, but through beginPopulationPlacement()'s deferred completion path
+    // (source: "die1" grants population, so the turn only finishes once population is
+    // placed via onPopulationNodeClick, not immediately in placeBuilding()).
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { state, placeBuilding, onPopulationNodeClick } = hooks;
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.unrestCheckedTurnIndex = null;
+    state.unrest = { progress: 0 };
+    state.dice = [
+      { label: "N1", face: 1, resolved: 1 },
+      { label: "N2", face: 4, resolved: 4 },
+      { label: "X1", face: 2, resolved: 2 },
+      { label: "X2", face: 3, resolved: 3 },
+    ];
+    state.locationSelection = [0, 1];
+    state.buildDice = [state.dice[2], state.dice[3]];
+    state.buildChoice = { code: "F", source: "die1" };
+    state.influenceAdjustments = { X2: { delta: 1 } };
+    state.influenceTarget = "X2";
+    state.influence = { earned: 1, spent: 0, pending: 0 };
+    state.rollAvailable = false;
+
+    placeBuilding(0, 0, "F");
+
+    expect(state.pendingPopulation?.remaining).toBeGreaterThan(0);
+    expect(state.unrestCheckedTurnIndex).toBe(null);
+
+    onPopulationNodeClick(0, 0);
+    if (state.pendingPopulation?.remaining > 0) {
+      // Spot capacity may split the placement across more than one node.
+      onPopulationNodeClick(0, 1);
+    }
+    expect(state.pendingPopulation).toBeNull();
+
+    expect(state.unrestCheckedTurnIndex).toBe(1);
+    expect(state.unrest.progress).toBe(1);
+    expect(latestLogs().some((m) => m.includes("Unrest +1"))).toBe(true);
+  });
+
+  it("lets the player resolve a Barricade triggered by a build and completes the turn afterward", async () => {
+    // Regression test for the fix above: since the tally (and any Barricade it raises) now
+    // runs from maybeRollAfterLock() before diceLocked/pendingNextRoll get cleared, resolving
+    // the Barricade must still actually finish the turn transition afterward.
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { state, placeBuilding, onPopulationNodeClick } = hooks;
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.unrestCheckedTurnIndex = null;
+    state.unrest = { progress: 3 };
+    state.dice = [
+      { label: "N1", face: 1, resolved: 1 },
+      { label: "N2", face: 4, resolved: 4 },
+      { label: "X1", face: 2, resolved: 2 },
+      { label: "X2", face: 3, resolved: 3 },
+    ];
+    state.locationSelection = [0, 1];
+    state.buildDice = [state.dice[2], state.dice[3]];
+    state.buildChoice = { code: "F" };
+    state.influenceAdjustments = { X2: { delta: 1 } };
+    state.influenceTarget = "X2";
+    state.influence = { earned: 1, spent: 0, pending: 0 };
+    state.rollAvailable = false;
+
+    placeBuilding(0, 0, "F");
+
+    expect(state.unrest.progress).toBe(0);
+    expect(state.pendingBarricade?.active).toBe(true);
+    expect(state.diceLocked).toBe(true);
+
+    onPopulationNodeClick(0, 0);
+
+    expect(state.pendingBarricade).toBeNull();
+    expect(state.barricadedNodes[0][0]).toBe(true);
+    expect(state.diceLocked).toBe(false);
+    expect(state.pendingNextRoll).toBe(false);
+  });
+});
+
+describe("Unrest tally across a real multi-turn sequence (jsdom)", () => {
+  it("tallies Unrest for Influence spent on a later turn after an earlier plain turn", async () => {
+    await setupApp({
+      enableHooks: true,
+      numbered: [1, 2, 1, 4],
+      x: [2, 3, 2, 3],
+    });
+    const hooks = window.__rfTestHooks;
+    const { state, placeBuilding, adjustDieWithInfluence } = hooks;
+    state.unrestTracking = true;
+    state.unrest = { progress: 0 };
+    state.board = createEmptyBoard();
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    state.barricadedNodes = Array.from({ length: 4 }, () => Array(4).fill(false));
+
+    clickRoll();
+    await flushMicrotasks();
+    clickDie(0);
+    clickDie(1);
+    await flushMicrotasks();
+    placeBuilding(0, 0, "F");
+    await flushMicrotasks();
+    expect(state.unrest.progress).toBe(0);
+
+    clickRoll();
+    await flushMicrotasks();
+    clickDie(0);
+    clickDie(1);
+    await flushMicrotasks();
+    state.influence = { earned: 1, spent: 0, pending: 0 };
+    const buildDieIdx = [2, 3].find((idx) => typeof state.dice[idx]?.resolved === "number");
+    adjustDieWithInfluence(buildDieIdx, 1);
+    await flushMicrotasks();
+    expect(Object.keys(state.influenceAdjustments || {}).length).toBeGreaterThan(0);
+    placeBuilding(1, 0, "F");
+    await flushMicrotasks();
+
+    expect(state.unrest.progress).toBe(1);
+    expect(latestLogs().some((m) => m.includes("Unrest +1"))).toBe(true);
+  });
+});
+
 describe("activation prompts (jsdom)", () => {
   it("shows population-selection prompt then remaining pips when a node is selected", async () => {
     await setupApp({ enableHooks: true });
@@ -221,7 +413,7 @@ describe("dice selection UI (jsdom)", () => {
     hooks.updateDiceAssignments();
     await flushMicrotasks();
 
-    const buildPreviewDice = () => document.querySelectorAll("#buildDicePreview .die-badge");
+    const buildPreviewDice = () => document.querySelectorAll("#buildDicePreview .die-badge:not(.die-placeholder)");
 
     clickDie(0);
     clickDie(1);
@@ -234,6 +426,9 @@ describe("dice selection UI (jsdom)", () => {
     expect(hooks.state.locationSelection.length).toBe(1);
     expect(document.querySelectorAll(".die-badge.build-assigned").length).toBe(0);
     expect(buildPreviewDice().length).toBe(0);
+    expect(document.querySelectorAll("#buildDicePreview .die-placeholder").length).toBe(2);
+    expect(document.querySelectorAll("#locDicePreview .die-badge:not(.die-placeholder)").length).toBe(1);
+    expect(document.querySelectorAll("#locDicePreview .die-placeholder").length).toBe(1);
   });
 });
 
@@ -245,7 +440,7 @@ describe("pestilence UI flow (jsdom)", () => {
     });
     clickRoll();
     const turnHint = document.getElementById("turnHint");
-    expect(turnHint.textContent).toContain("Pestilence");
+    expect(turnHint.textContent).toContain("Double X");
     const targetCell = document.querySelector('.cell[data-row="0"][data-col="0"]');
     expect(targetCell).toBeTruthy();
     targetCell.click();
@@ -257,7 +452,7 @@ describe("pestilence UI flow (jsdom)", () => {
     const logs = latestLogs();
     expect(logs.some((m) => m.includes("Forfeited row 1, col 1"))).toBe(true);
     expect(logs.some((m) => /Rolled W1:1, W2:2/i.test(m))).toBe(true);
-    expect(document.getElementById("turnHint").textContent).not.toContain("Pestilence");
+    expect(document.getElementById("turnHint").textContent).not.toContain("Double X");
   });
 
   it("clears dice lock and enables next roll after pestilence forfeit", async () => {
@@ -314,12 +509,12 @@ describe("pestilence windrose reroll (jsdom)", () => {
     clickRoll();
     let logs = latestLogs();
     expect(logs.some((m) => m.toLowerCase().includes("double windrose rolled"))).toBe(true);
-    expect(document.querySelectorAll("#locDicePreview .die-badge").length).toBe(0);
-    expect(document.querySelectorAll("#buildDicePreview .die-badge").length).toBe(0);
+    expect(document.querySelectorAll("#locDicePreview .die-badge:not(.die-placeholder)").length).toBe(0);
+    expect(document.querySelectorAll("#buildDicePreview .die-badge:not(.die-placeholder)").length).toBe(0);
     clickRoll();
     logs = latestLogs();
     expect(logs.some((m) => m.toLowerCase().includes("windrose") && m.toLowerCase().includes("reroll"))).toBe(true);
-    expect(document.getElementById("turnHint").textContent).toContain("Pestilence");
+    expect(document.getElementById("turnHint").textContent).toContain("Double X");
     expect(logs.some((m) => m.includes("Rolled W1:2") && m.includes("W2:3"))).toBe(true);
   });
 
