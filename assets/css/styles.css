@@ -716,9 +716,27 @@ main {
 }
 
 .turn-track-overlay .turn-slot {
+  position: relative;
   display: flex;
   align-items: flex-start;
   justify-content: center;
+}
+
+.turn-track-overlay .turn-slot-last {
+  pointer-events: auto;
+}
+
+.turn-track-overlay .turn-slot-last::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -2px;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #bf4040;
+  box-shadow: 0 0 0 1px #fff;
 }
 
 .turn-track-overlay .turn-slot:nth-child(even) {
@@ -877,6 +895,11 @@ main {
   gap: 8px;
 }
 
+.panel-title-font {
+  font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-weight: 700;
+}
+
 .panel-title-with-action {
   justify-content: flex-start;
   gap: 20px;
@@ -950,6 +973,12 @@ main {
 .icon-btn:hover {
   background: var(--accent);
   filter: brightness(0.95);
+}
+
+.icon-btn-disabled,
+.icon-btn-disabled:hover {
+  background: var(--muted);
+  filter: none;
 }
 
 .status-chip {

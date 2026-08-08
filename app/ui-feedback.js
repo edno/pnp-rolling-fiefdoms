@@ -90,7 +90,7 @@ export function actionMessage(state, currentPhase, options = {}) {
       return t("activation.populationSelected", { remaining });
     }
     if (anyRemaining) return t("activation.selectPopulationNode");
-    return t("activation.finishWhenReady");
+    return t("activation.finishWhenReady", { finishBtn: formatButtonLabelHtml(t("html.finishActivation")) });
   }
 
   if (state.pendingSpringhouseTarget) {

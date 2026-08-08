@@ -384,6 +384,15 @@ function shouldRerollDoubleWindrose(dice) {
   return numbered.every((d) => d.face === "windrose");
 }
 
+function setTurnHint(text) {
+  if (!turnHintEl) return;
+  if (text && text.includes("<")) {
+    turnHintEl.innerHTML = text;
+  } else {
+    turnHintEl.textContent = text;
+  }
+}
+
 function updateRollButton() {
   const rollBtn = document.getElementById("rollBtn");
   if (!rollBtn) return;
@@ -411,7 +420,7 @@ function refreshDiceVisibility() {
     if (!hidden && !state.activationMode && !state.activationComplete && !awaitingRoll) {
       turnHintEl.style.display = "";
     }
-    if (awaitingRoll) turnHintEl.textContent = "";
+    if (awaitingRoll) setTurnHint("");
   }
 }
 
@@ -803,7 +812,7 @@ function rollDice() {
   if (needsDoubleReroll) {
     const msg = t("turn.doubleWindroseRolled");
     log(msg);
-    state.bannerOverride = t("turn.doubleWindroseRolledBanner");
+    state.bannerOverride = t("turn.doubleWindroseRolledBanner", { rollBtn: formatButtonLabelHtml(t("html.rollDice")) });
     updateActionBanner();
     state.pendingTurnIndex = state.turnIndex;
     state.pendingActiveTurn = state.activeTurn;
@@ -812,7 +821,7 @@ function rollDice() {
     return;
   }
   if (state.pestilence) {
-    if (turnHintEl) turnHintEl.textContent = t("pestilence.forfeitEmptyPlot");
+    if (turnHintEl) setTurnHint(t("pestilence.forfeitEmptyPlot"));
     // Auto-assign the split for pestilence: numbered/windrose stay in location, X dice in build.
     const forcedSplit = splitForcedDice(state.dice || []);
     const locIdx = [];
@@ -830,7 +839,7 @@ function rollDice() {
     state.forceForfeitAdvisory = false;
     state.diceLocked = true;
   } else if (turnHintEl) {
-    turnHintEl.textContent = state.activeTurn ? "" : nonActiveAutoHintText();
+    setTurnHint(state.activeTurn ? "" : nonActiveAutoHintText());
   }
   updateTurnStatusChip();
   updateDiceAssignments();
@@ -1106,18 +1115,17 @@ function renderDice() {
   clearElement(diceView);
   if (turnHintEl) {
     if (state.pestilence) {
-      turnHintEl.textContent = t("pestilence.forfeitEmptyPlot");
+      setTurnHint(t("pestilence.forfeitEmptyPlot"));
     } else if (state.activeTurn && state.invalidSelection) {
-      turnHintEl.textContent =
-        state.invalidSelectionMessage || t("location.noValidPlotsForPair");
+      setTurnHint(state.invalidSelectionMessage || t("location.noValidPlotsForPair"));
     } else if (state.forceForfeitAdvisory && !state.forceForfeit) {
-      turnHintEl.textContent = t("location.noValidPairsSpendInfluence");
+      setTurnHint(t("location.noValidPairsSpendInfluence"));
     } else if (forceForfeitActive()) {
-      turnHintEl.textContent = t("location.noValidPairsForfeit");
+      setTurnHint(t("location.noValidPairsForfeit"));
     } else if (!state.activeTurn) {
-      turnHintEl.textContent = nonActiveAutoHintText();
+      setTurnHint(nonActiveAutoHintText());
     } else {
-      turnHintEl.textContent = "";
+      setTurnHint("");
     }
   }
   const field = document.createElement("div");
@@ -1537,6 +1545,21 @@ function highlightLocations() {
     const oct = cell.querySelector(".octagon");
     if (oct) oct.remove();
   });
+  if (state.pendingCenterBuilding?.active) {
+    const centerRow = Math.floor(BOARD_SIZE / 2);
+    const centerCol = Math.floor(BOARD_SIZE / 2);
+    forEachCell((cell) => {
+      const r = parseInt(cell.dataset.row, 10);
+      const c = parseInt(cell.dataset.col, 10);
+      if (r === centerRow && c === centerCol) {
+        cell.classList.add("highlight");
+        cell.appendChild(createOctagon());
+      } else {
+        cell.classList.add("disabled");
+      }
+    });
+    return;
+  }
   if (state.activationMode) {
     const selPop = state.activationSelection.pop;
       forEachCell((cell) => {
@@ -1965,17 +1988,14 @@ function logChallengeOutcome(scoreResult) {
   outcome.reasons.forEach((reason) => {
     if (!reason.ok) log(t(reason.textKey, reason.params));
   });
-  showChallengeOutcomeOverlay(challenge, scoreResult, outcome, outcomeText);
+  showChallengeOutcomeOverlay(scoreResult, outcome, outcomeText);
 }
 
-function showChallengeOutcomeOverlay(challenge, scoreResult, outcome, outcomeText) {
+function showChallengeOutcomeOverlay(scoreResult, outcome, outcomeText) {
   if (!challengeOutcomeOverlay || !challengeOutcomeText) return;
   challengeOutcomeText.innerHTML = outcomeText;
   if (challengeOutcomeComparison) {
-    challengeOutcomeComparison.textContent = t("challenges.result.scoreComparison", {
-      score: scoreResult.total,
-      required: challenge.requiredRP,
-    });
+    challengeOutcomeComparison.textContent = t("challenges.result.scoreComparison", { score: scoreResult.total });
   }
   if (challengeOutcomeReasons) {
     clearElement(challengeOutcomeReasons);
@@ -2058,7 +2078,7 @@ function newGame(challengeId = null) {
   state.pendingActiveTurn = null;
   state.deferStatusAppend = false;
   state.bannerOverride = null;
-  if (turnHintEl) turnHintEl.textContent = "";
+  if (turnHintEl) setTurnHint("");
   updateActionBanner();
   if (newGameBtn) newGameBtn.style.display = "none";
   refreshDiceVisibility();
@@ -2511,9 +2531,13 @@ function updateActionBanner() {
 
 function updateMultiplayerButtons() {
   if (swapPairBtn) {
-    const showSwap = soloSwapAvailable();
-    swapPairBtn.style.display = showSwap ? "inline-block" : "none";
+    const reasonKey = soloSwapUnavailableReasonKey();
+    const hidden = reasonKey === "hidden";
+    const showSwap = reasonKey === null;
+    swapPairBtn.style.display = hidden ? "none" : "inline-block";
     swapPairBtn.disabled = !showSwap;
+    swapPairBtn.classList.toggle("icon-btn-disabled", !hidden && !showSwap);
+    swapPairBtn.title = showSwap || hidden ? t("html.swapTitle") : t(reasonKey);
     applySwapButtonPulse(showSwap);
   }
 }
@@ -2744,10 +2768,13 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
   const forcedMode = state.pestilence || forceForfeitActive();
   const forcedSplit = forcedMode ? splitForcedDice(state.dice || []) : null;
   const doubleWindrose = shouldRerollDoubleWindrose(state.dice || []);
+  // A double windrose forces a reroll, but the just-rolled dice should still be visible in
+  // Split & Build (numbered/windrose dice in Location, X dice in Build) rather than blanked out.
+  const doubleWindroseSplit = doubleWindrose ? splitForcedDice(state.dice || []) : null;
 
   let effectiveLoc =
     (doubleWindrose
-      ? []
+      ? (doubleWindroseSplit.locationDice.length && doubleWindroseSplit.locationDice) || []
       : (forcedSplit && forcedSplit.locationDice.length && forcedSplit.locationDice) ||
         (locationDice && locationDice.length && locationDice) ||
         (currentLocFromState.length && currentLocFromState) ||
@@ -2758,7 +2785,7 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
   const buildReady = state.locationSelection.length === 2 || forceBuildPreview;
   let effectiveBuild =
     doubleWindrose
-      ? []
+      ? (doubleWindroseSplit.buildDice.length && doubleWindroseSplit.buildDice) || []
       : (forcedSplit && forcedSplit.buildDice.length)
         ? forcedSplit.buildDice
         : buildReady
@@ -2987,16 +3014,15 @@ function updateDiceAssignments(renderOnly = false) {
 
   if (turnHintEl) {
     if (state.activeTurn && state.invalidSelection) {
-      turnHintEl.textContent =
-        state.invalidSelectionMessage || t("location.noValidPlotsForPair");
+      setTurnHint(state.invalidSelectionMessage || t("location.noValidPlotsForPair"));
     } else if (state.forceForfeitAdvisory) {
-      turnHintEl.textContent = t("location.noValidPairsSpendInfluence");
+      setTurnHint(t("location.noValidPairsSpendInfluence"));
     } else if (forceForfeitActive()) {
-      turnHintEl.textContent = t("location.noValidPairsForfeit");
+      setTurnHint(t("location.noValidPairsForfeit"));
     } else if (!state.activeTurn) {
-      turnHintEl.textContent = nonActiveAutoHintText();
+      setTurnHint(nonActiveAutoHintText());
     } else {
-      turnHintEl.textContent = "";
+      setTurnHint("");
     }
   }
 
@@ -3105,21 +3131,29 @@ function soloPairCanBeRescued(diceList = []) {
   });
 }
 
-function soloSwapAvailable() {
-  if (state.activeTurn || state.pestilence || state.activationMode) return false;
+// Returns "hidden" when the swap button doesn't apply to the current turn at all (no dice to
+// swap), a locale key naming the reason it's disabled-but-visible, or null when swap is fully
+// available. Centralizing this lets the button show a grey/disabled state with an explanatory
+// tooltip instead of just disappearing (see updateMultiplayerButtons()).
+function soloSwapUnavailableReasonKey() {
+  if (state.activeTurn || state.pestilence || state.activationMode) return "hidden";
   const choice = soloPairChoice();
-  if (!choice.baseLocIdx || !choice.baseBuildIdx) return false;
-  if (!choice.swapAllowed) return false;
-  
+  if (!choice.baseLocIdx || !choice.baseBuildIdx) return "hidden";
+  if (!choice.swapAllowed) return "html.swapUnavailableOnlyOnePairing";
+
   const baseValid = soloPairHasValidLocations(choice.baseLocDice);
   const altValid = soloPairHasValidLocations(choice.baseBuildDice);
-  
+
   const baseCanBeRescued = !baseValid && soloPairCanBeRescued(choice.baseLocDice);
   const altCanBeRescued = !altValid && soloPairCanBeRescued(choice.baseBuildDice);
   const basePossible = baseValid || baseCanBeRescued;
   const altPossible = altValid || altCanBeRescued;
-  if (!basePossible && !altPossible) return false;
-  return true;
+  if (!basePossible && !altPossible) return "html.swapUnavailableNoValidPairing";
+  return null;
+}
+
+function soloSwapAvailable() {
+  return soloSwapUnavailableReasonKey() === null;
 }
 
 function nonActiveAutoHintText() {
@@ -3308,10 +3342,15 @@ function renderInfluenceTrack({ influenceEarned = 0, influenceSpent = 0 } = {}) 
 function renderTurnTrack(filled = 0) {
   if (!turnTrackOverlay) return;
   const count = Math.max(0, Math.min(TURN_TRACK_LENGTH, Number(filled) || 0));
+  const lastTurnIndex = Math.min(TURN_TRACK_LENGTH, state.turnLimit || TURN_TRACK_LENGTH) - 1;
   clearElement(turnTrackOverlay);
   for (let i = 0; i < TURN_TRACK_LENGTH; i += 1) {
     const slot = document.createElement("div");
     slot.className = "turn-slot";
+    if (i === lastTurnIndex) {
+      slot.classList.add("turn-slot-last");
+      slot.title = t("turn.lastTurnMarkerTitle");
+    }
     if (i < count) {
       const icon = document.createElement("img");
       icon.src = "assets/img/forfeit.svg";

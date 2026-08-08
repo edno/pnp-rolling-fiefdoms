@@ -537,7 +537,7 @@ describe("influence integration", () => {
     });
     expect(forceForfeit).toBe(false);
     expect(state.invalidSelection).toBe(true);
-    expect(message).toBe("No valid location pairs; spend Influence or forfeit a plot.");
+    expect(message).toBe("No valid location pairs; spend Influence or click on any empty plot to forfeit it.");
   });
 
   it("prompts non-active turns to spend influence before forfeiting", () => {
@@ -561,7 +561,9 @@ describe("influence integration", () => {
     const { messages } = beginTurn(state, dice, state.board, helpers);
     expect(state.activeTurn).toBe(false);
     expect(state.forceForfeit).toBe(false);
-    expect(messages.map((m) => m.text)).toContain("No valid location pairs; spend Influence or forfeit a plot.");
+    expect(messages.map((m) => m.text)).toContain(
+      "No valid location pairs; spend Influence or click on any empty plot to forfeit it.",
+    );
   });
 
   it("prompts active turns to select location dice when influence can rescue before choosing dice", () => {
@@ -591,8 +593,10 @@ describe("influence integration", () => {
     expect(forceForfeit).toBe(false);
     expect(state.forceForfeitAdvisory).toBe(true);
     expect(state.invalidSelection).toBe(true);
-    expect(message).toBe("Select two location dice in the Turn panel.");
-    expect(state.invalidSelectionMessage).toBe("Select two location dice in the Turn panel.");
+    expect(message).toBe('Select two location dice in the <span class="panel-title-font">Turn</span> panel.');
+    expect(state.invalidSelectionMessage).toBe(
+      'Select two location dice in the <span class="panel-title-font">Turn</span> panel.',
+    );
     expect(state.forceForfeitHighlight).toBe(false);
   });
 
