@@ -1692,6 +1692,12 @@ function highlightLocations() {
   });
 }
 
+function markAdvancedBuiltIfNeeded(code) {
+  if (BUILDING_RULES[code]?.category === "advanced") {
+    state.turnFlags.advancedBuiltThisTurn = true;
+  }
+}
+
 function placeBuilding(r, c, code) {
   const cell = state.board[r][c];
   if (cell.building || cell.forfeited) {
@@ -1731,9 +1737,7 @@ function placeBuilding(r, c, code) {
   }
   cell.building = code;
   cell.buildingLabel = buildingLabel;
-  if (BUILDING_RULES[code]?.category === "advanced") {
-    state.turnFlags.advancedBuiltThisTurn = true;
-  }
+  markAdvancedBuiltIfNeeded(code);
   playSfx();
   if (code === "C") {
     const previousHousing = state.tracks.housing;
@@ -2036,9 +2040,7 @@ function placeCenterBuilding(code, guildType) {
   const centerRow = Math.floor(BOARD_SIZE / 2);
   const centerCol = Math.floor(BOARD_SIZE / 2);
   state.board[centerRow][centerCol] = { building: code, buildingLabel: guildType, forfeited: false, springBoost: 0 };
-  if (BUILDING_RULES[code]?.category === "advanced") {
-    state.turnFlags.advancedBuiltThisTurn = true;
-  }
+  markAdvancedBuiltIfNeeded(code);
   log(t("challenges.socialContract.centerBuildingLog", { building: centerBuildingLabel(code === "T" ? "T" : guildType) }));
   state.pendingCenterBuilding = null;
   renderBuildingOverlay([], true);

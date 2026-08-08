@@ -8,6 +8,7 @@ import {
   earnedInfluenceFromPopulation,
 } from "./influence.js";
 import { t } from "./i18n.js";
+import { calcVagrants } from "./rules.js";
 
 const WINDROSE_FACE = "windrose";
 
@@ -126,7 +127,7 @@ function mergeForcedLocationDice(state) {
 function calcVagrantsFromState(state, board) {
   const pop = state.populationNodes ? state.populationNodes.flat().reduce((a, b) => a + b, 0) : 0;
   const cottages = board.flat().filter((c) => c.building === "C").length;
-  return Math.max(0, pop - cottages * 4);
+  return calcVagrants(pop, cottages * 4);
 }
 
 // Unrest (challenge VI, "Embers of Revolt") is tallied at the end of each completed turn:
