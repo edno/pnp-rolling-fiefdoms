@@ -42,7 +42,7 @@ export default {
     rollDice: "Roll Dice",
     finishActivation: "Finish Activation",
     playAgain: "Play again",
-    splitAndBuild: "Split & Build",
+    splitAndBuild: "Pair & Build",
     swapTitle: "Click to swap dice pairs allocation",
     swapAriaLabel: "Swap location/build dice pairs",
     swapUnavailableOnlyOnePairing: "Swap unavailable: only one dice pairing is valid this turn.",
