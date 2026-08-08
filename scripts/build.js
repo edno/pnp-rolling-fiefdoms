@@ -9,7 +9,7 @@ const { optimize } = require("svgo");
 
 const root = path.resolve(__dirname, "..");
 const outDir = path.join(root, "dist");
-const staticEntries = ["index.html", "assets", "resources", "robots.txt", "manifest.webmanifest"];
+const staticEntries = ["index.html", "assets", "resources", "robots.txt", "sitemap.xml", "manifest.webmanifest"];
 const PLAYER_SHEET_VARIANTS = [
   {
     relative: path.join("resources", "rolling-fiefdoms-player-sheet.webp"),
@@ -353,6 +353,12 @@ async function run() {
   for (const entry of staticEntries) {
     await copyStatic(entry);
   }
+
+  // Stamp sitemap.xml with the build date so <lastmod> reflects the actual deploy
+  const sitemapPath = path.join(outDir, "sitemap.xml");
+  const sitemapContent = await readFile(sitemapPath, "utf8");
+  const buildDate = new Date().toISOString().slice(0, 10);
+  await writeFile(sitemapPath, sitemapContent.replace("__BUILD_DATE__", buildDate));
 
   // Remove source-only assets that are not meant for deployment (e.g., oversized masters)
   const sourceOnlyAssets = [path.join("resources", "rolling-fiefdoms-player-sheet.png")];

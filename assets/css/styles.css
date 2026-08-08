@@ -21,6 +21,10 @@
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 a {
   border: none;
   outline: none;
@@ -59,6 +63,28 @@ header h1 {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.site-title-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.how-to-play-link {
+  font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 12px;
+  color: var(--muted);
+  text-decoration: none;
+  white-space: nowrap;
+  margin-left: 4px;
+  margin-top: -30px;
+  margin-bottom: 10px;
+}
+
+.how-to-play-link:hover {
+  color: var(--accent);
 }
 
 .top-menu {
@@ -260,9 +286,87 @@ button.menu-item {
 
 .loading header,
 .loading main,
+.loading .landing-info,
 .loading .site-footer {
   visibility: hidden;
   pointer-events: none;
+}
+
+.landing-info {
+  max-width: 1100px;
+  margin: 24px auto 140px;
+  padding: 0 24px;
+  color: var(--text);
+  font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+.landing-info section + section {
+  margin-top: 24px;
+}
+
+.landing-info h2 {
+  margin: 0 0 8px;
+  font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+.landing-info p,
+.landing-info li,
+.landing-info dd {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.landing-info dt {
+  font-weight: 700;
+  color: var(--text);
+  margin-top: 12px;
+}
+
+.landing-info dd {
+  margin: 4px 0 0;
+}
+
+.landing-info-diagram {
+  display: block;
+  max-width: 450px;
+  width: 100%;
+  height: auto;
+  margin: 12px auto;
+}
+
+.back-to-top {
+  position: fixed;
+  right: 24px;
+  bottom: 90px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s ease;
+}
+
+.back-to-top.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.back-to-top:hover {
+  background: var(--accent);
+  color: #fff;
 }
 
 .loading-overlay {
