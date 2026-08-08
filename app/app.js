@@ -3342,16 +3342,20 @@ function renderInfluenceTrack({ influenceEarned = 0, influenceSpent = 0 } = {}) 
 function renderTurnTrack(filled = 0) {
   if (!turnTrackOverlay) return;
   const count = Math.max(0, Math.min(TURN_TRACK_LENGTH, Number(filled) || 0));
-  const lastTurnIndex = Math.min(TURN_TRACK_LENGTH, state.turnLimit || TURN_TRACK_LENGTH) - 1;
+  // Challenges with a shortened turn limit (e.g. Social Contract's 24) never play the
+  // remaining track slots; cross those out in a distinct color so it's clear they're unused
+  // rather than just "not reached yet".
+  const turnLimit = Math.min(TURN_TRACK_LENGTH, state.turnLimit || TURN_TRACK_LENGTH);
   clearElement(turnTrackOverlay);
   for (let i = 0; i < TURN_TRACK_LENGTH; i += 1) {
     const slot = document.createElement("div");
     slot.className = "turn-slot";
-    if (i === lastTurnIndex) {
-      slot.classList.add("turn-slot-last");
-      slot.title = t("turn.lastTurnMarkerTitle");
+    const unused = i >= turnLimit;
+    if (unused) {
+      slot.classList.add("turn-slot-unused");
+      slot.title = t("turn.unusedTurnMarkerTitle");
     }
-    if (i < count) {
+    if (i < count || unused) {
       const icon = document.createElement("img");
       icon.src = "assets/img/forfeit.svg";
       icon.alt = "";

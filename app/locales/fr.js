@@ -77,7 +77,7 @@ export default {
     rollAlreadyUsed: "Lancer déjà utilisé ce tour-ci. Terminez le tour pour relancer.",
     rollingDice: "Lancer des dés...",
     rolled: "Lancé {dice}",
-    lastTurnMarkerTitle: "Dernier tour",
+    unusedTurnMarkerTitle: "Ce tour ne sera pas joué (limite de tours atteinte plus tôt).",
   },
   game: {
     started: "Partie commencée.",

@@ -77,7 +77,7 @@ export default {
     rollAlreadyUsed: "Roll already used this turn. Finish the turn to roll again.",
     rollingDice: "Rolling dice...",
     rolled: "Rolled {dice}",
-    lastTurnMarkerTitle: "Last turn",
+    unusedTurnMarkerTitle: "This turn won't be played (turn limit reached earlier).",
   },
   game: {
     started: "Game started.",
