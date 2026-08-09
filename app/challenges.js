@@ -195,6 +195,12 @@ export const CHALLENGES = {
     difficulty: 3,
     nameKey: "challenges.drumsOfWar.name",
     descKey: "challenges.drumsOfWar.description",
+    // Dedicated board art (baked-in Buildings-panel text: Barracks replacing the printed Cottage
+    // row). `default` is the English-board filename suffix (resources/rolling-fiefdoms-player-sheet-<suffix>.webp);
+    // `locales` maps a locale to its own dedicated combo suffix where one exists. A locale with
+    // neither its own combo art nor a plain localized board falls back to the English variant
+    // (see sheetBasePathForLocale in app.js).
+    sheetVariant: { default: "challenge-vii", locales: { fr: "fr-challenge-vii" } },
     setupKeys: [],
     ruleKeys: [
       "challenges.drumsOfWar.rule1",
