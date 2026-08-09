@@ -10,12 +10,15 @@ This repository hosts the solo-friendly browser implementation. It mirrors the p
 
 - **Authentic sheet & rules**: The in-browser board is the same art you’d print at home; the included PDF rulebook matches the tabletop release.
 - **Solo assistant**: Lock dice, track influence, place population, and tally reputation without reaching for an eraser.
+- **Solo challenges**: A campaign of ranked chapters with custom setups, rule twists, and victory conditions drawn from the solo-challenges rulebook.
+- **English & French**: The UI and rulebooks are available in both languages.
 - **Offline-ready**: A lightweight service worker caches the core shell so you can play even when the connection drops.
 
 ## Learn & play
 
-- **Official rules**: `resources/rolling-fiefdoms-rulebook.pdf`
-- **Player sheet**: `resources/rolling-fiefdoms-player-sheet.webp`
+- **Official rules**: `resources/rolling-fiefdoms-rulebook.pdf` (`-fr.pdf` for French)
+- **Solo challenges rules**: `resources/rolling-fiefdoms-solo-challenges.pdf` (`-fr.pdf` for French)
+- **Player sheet**: `resources/rolling-fiefdoms-player-sheet.webp` (`-fr.webp` for French)
 - **BoardGameGeek**: [Rolling Fiefdoms @ BGG](https://boardgamegeek.com/boardgame/465867)
 - **Download**: [Rolling Fiefdoms @ PnP Stash](https://pnpstash.com/product/rolling-fiefdoms/)
 
