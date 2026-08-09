@@ -11,40 +11,19 @@ const { optimize } = require("svgo");
 const root = path.resolve(__dirname, "..");
 const outDir = path.join(root, "dist");
 const staticEntries = ["index.html", "assets", "resources", "robots.txt", "sitemap.xml", "llms.txt", "manifest.webmanifest"];
-const PLAYER_SHEET_VARIANTS = [
+// Every board-art variant, as a filename suffix ("" = the plain English board). Keep in sync with
+// sw.js's SHEET_VARIANT_SUFFIXES and each challenge's sheetVariant in app/challenges.js.
+const PLAYER_SHEET_SUFFIXES = ["", "-fr", "-challenge-vii", "-fr-challenge-vii"];
+const PLAYER_SHEET_VARIANTS = PLAYER_SHEET_SUFFIXES.flatMap((suffix) => [
   {
-    relative: path.join("resources", "rolling-fiefdoms-player-sheet.webp"),
+    relative: path.join("resources", `rolling-fiefdoms-player-sheet${suffix}.webp`),
     target: { width: 1086, height: 768 },
   },
   {
-    relative: path.join("resources", "rolling-fiefdoms-player-sheet@2x.webp"),
+    relative: path.join("resources", `rolling-fiefdoms-player-sheet${suffix}@2x.webp`),
     target: { width: 2172, height: 1536 },
   },
-  {
-    relative: path.join("resources", "rolling-fiefdoms-player-sheet-fr.webp"),
-    target: { width: 1086, height: 768 },
-  },
-  {
-    relative: path.join("resources", "rolling-fiefdoms-player-sheet-fr@2x.webp"),
-    target: { width: 2172, height: 1536 },
-  },
-  {
-    relative: path.join("resources", "rolling-fiefdoms-player-sheet-challenge-vii.webp"),
-    target: { width: 1086, height: 768 },
-  },
-  {
-    relative: path.join("resources", "rolling-fiefdoms-player-sheet-challenge-vii@2x.webp"),
-    target: { width: 2172, height: 1536 },
-  },
-  {
-    relative: path.join("resources", "rolling-fiefdoms-player-sheet-fr-challenge-vii.webp"),
-    target: { width: 1086, height: 768 },
-  },
-  {
-    relative: path.join("resources", "rolling-fiefdoms-player-sheet-fr-challenge-vii@2x.webp"),
-    target: { width: 2172, height: 1536 },
-  },
-];
+]);
 
 // Parse CLI flags
 const enableSourcemaps = process.argv.includes("--sourcemap");
