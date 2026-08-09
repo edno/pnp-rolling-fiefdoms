@@ -447,6 +447,11 @@ const SHEET_BASE_PATH = "resources/rolling-fiefdoms-player-sheet";
 // Locales with dedicated board artwork (baked-in translated text). Any
 // locale not listed here falls back to the English board.
 const LOCALIZED_SHEET_LOCALES = new Set(["fr"]);
+// Challenges with a dedicated board variant (baked-in Buildings-panel text, e.g. Drums of War's
+// Barracks replacing the printed Cottage row). Keyed by challenge id -> filename suffix. Only
+// English art exists so far; a locale without a matching `-<locale>-<suffix>` file falls back to
+// that locale's plain board (see sheetBasePathForLocale below).
+const CHALLENGE_SHEET_VARIANTS = { drumsOfWar: "challenge-vii" };
 const POP_CAPACITY = 5;
 const POP_LAYOUT = { rows: [3, 3, 3, 3, 3, 3], pipsPerCell: 4 };
 const POP_TRACK_TOTAL_CELLS = POP_LAYOUT.rows.reduce((sum, len) => sum + len, 0);
@@ -650,7 +655,10 @@ function preloadSheet() {
 
 function sheetBasePathForLocale() {
   const locale = getLocale();
-  return LOCALIZED_SHEET_LOCALES.has(locale) ? `${SHEET_BASE_PATH}-${locale}` : SHEET_BASE_PATH;
+  if (LOCALIZED_SHEET_LOCALES.has(locale)) return `${SHEET_BASE_PATH}-${locale}`;
+  const challengeSuffix = CHALLENGE_SHEET_VARIANTS[activeChallenge()?.id];
+  if (challengeSuffix) return `${SHEET_BASE_PATH}-${challengeSuffix}`;
+  return SHEET_BASE_PATH;
 }
 
 function sheetImageUrl(scale = 1) {
@@ -2092,6 +2100,7 @@ function newGame(challengeId = null) {
   clearTimeout(barricadeAlertTimeout);
   if (barricadeAlertOverlay) barricadeAlertOverlay.hidden = true;
   resetState(challengeId);
+  setSheetImageSources(sheetBaseImage);
   renderBoard();
   prepareNextRoll();
   renderSelectionDice([], []);

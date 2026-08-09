@@ -1,9 +1,10 @@
-const CACHE_VERSION = "v1.48";
+const CACHE_VERSION = "v1.49";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
-const APP_VERSION = "v20";
+const APP_VERSION = "v21";
 const SHEET_VERSION = "v2.0";
 const SHEET_BASE_PATH = "/resources/rolling-fiefdoms-player-sheet";
 const SHEET_BASE_PATH_FR = "/resources/rolling-fiefdoms-player-sheet-fr";
+const SHEET_BASE_PATH_CHALLENGE_VII = "/resources/rolling-fiefdoms-player-sheet-challenge-vii";
 const ASSETS = [
   "/",
   "/index.html",
@@ -34,6 +35,8 @@ const ASSETS = [
   `${SHEET_BASE_PATH}@2x.webp?v=${SHEET_VERSION}`,
   `${SHEET_BASE_PATH_FR}.webp?v=${SHEET_VERSION}`,
   `${SHEET_BASE_PATH_FR}@2x.webp?v=${SHEET_VERSION}`,
+  `${SHEET_BASE_PATH_CHALLENGE_VII}.webp?v=${SHEET_VERSION}`,
+  `${SHEET_BASE_PATH_CHALLENGE_VII}@2x.webp?v=${SHEET_VERSION}`,
   "/robots.txt",
   "/manifest.webmanifest",
 ];
