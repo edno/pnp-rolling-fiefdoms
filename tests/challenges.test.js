@@ -164,6 +164,15 @@ describe("drumsOfWar", () => {
     expect(opts.some((o) => o.code === "B")).toBe(false);
   });
 
+  it("liveProgress excludes off-diagonal Barracks, since they can never score and would overstate progress", () => {
+    const board = emptyBoard();
+    board[0][0].building = "B"; // diagonal
+    board[0][1].building = "B"; // off-diagonal
+    board[0][2].building = "B"; // off-diagonal
+    const result = computeScore(board, emptyPop());
+    expect(CHALLENGES.drumsOfWar.liveProgress(result, { board }).have).toBe(1);
+  });
+
   it("fails on reputation alone when fewer than 4 Barracks are scored", () => {
     const board = emptyBoard();
     board[0][0].building = "B"; // diagonal, active -> 5 RP
@@ -172,7 +181,7 @@ describe("drumsOfWar", () => {
     const result = computeScore(board, emptyPop(), workers);
     const outcome = CHALLENGES.drumsOfWar.victory(result, { board });
     expect(outcome.passed).toBe(false);
-    expect(CHALLENGES.drumsOfWar.liveProgress(result).have).toBe(1);
+    expect(CHALLENGES.drumsOfWar.liveProgress(result, { board }).have).toBe(1);
   });
 
   it("satisfies the Barracks victory condition once 4 active diagonal Barracks are scored", () => {
@@ -190,7 +199,7 @@ describe("drumsOfWar", () => {
     });
     const result = computeScore(board, emptyPop(), workers);
     const outcome = CHALLENGES.drumsOfWar.victory(result, { board });
-    expect(CHALLENGES.drumsOfWar.liveProgress(result).have).toBe(4);
+    expect(CHALLENGES.drumsOfWar.liveProgress(result, { board }).have).toBe(4);
     expect(result.breakdown.barracks).toBe(20);
     // Reputation is still short of 80 RP with only Barracks on the board, so overall victory
     // isn't reached yet, but the Barracks-specific reason should now read as satisfied.

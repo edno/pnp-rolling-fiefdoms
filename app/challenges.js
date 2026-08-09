@@ -9,8 +9,24 @@
 // code to a new one, e.g. { C: "B" } for Barracks-replaces-Cottage. Challenge VIII (Piscary
 // replacing Windmill) can reuse the same mechanism with { W: "<new code>" }.
 
+import { isDiagonalPlot } from "./rules.js";
+
 function countBuilding(board, code) {
   return board.flat().filter((cell) => cell.building === code).length;
+}
+
+// Like countBuilding, but only counts cells on the board's diagonal — used for Challenge VII's
+// live Barracks tracker so it doesn't overcount off-diagonal Barracks that can never score.
+function countDiagonalBuilding(board, code) {
+  const rows = board.length;
+  const cols = board[0]?.length || 0;
+  let count = 0;
+  board.forEach((row, r) =>
+    row.forEach((cell, c) => {
+      if (cell.building === code && isDiagonalPlot(r, c, rows, cols)) count += 1;
+    }),
+  );
+  return count;
 }
 
 export const CHALLENGES = {
@@ -230,9 +246,14 @@ export const CHALLENGES = {
         ],
       };
     },
-    liveProgress(scoreResult) {
+    liveProgress(scoreResult, state) {
+      // Unlike victory() (evaluated once at true game end, when activation is real), the live
+      // badge is shown throughout play, before the end-game activation phase ever runs — so it
+      // can't check breakdown.barracks (which requires an active diagonal Barracks to be nonzero).
+      // Track diagonal-placed Barracks instead: position is known immediately at placement time,
+      // and counting off-diagonal Barracks (which can never score) would overstate progress.
       return {
-        have: Math.floor(scoreResult.breakdown.barracks / 5),
+        have: countDiagonalBuilding(state.board, "B"),
         need: 4,
         labelKey: "challenges.badgeLabels.barracks",
       };

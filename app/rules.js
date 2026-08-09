@@ -767,7 +767,7 @@ function key(r, c) {
 }
 
 // The board's two corner-to-corner diagonals (Challenge VII: Barracks scores only here).
-function isDiagonalPlot(r, c, rows, cols) {
+export function isDiagonalPlot(r, c, rows, cols) {
   return r === c || r + c === rows - 1;
 }
 
