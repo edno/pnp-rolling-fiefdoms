@@ -278,6 +278,39 @@ describe("edgeOfTheWorld", () => {
     expect(piscaryReason.ok).toBe(false);
     expect(piscaryReason.params).toEqual({ have: 1, need: 4 });
   });
+
+  it("fails the Piscary-bonus condition when a built Piscary is never activated at all", () => {
+    const board = emptyBoard();
+    const workers = emptyWorkers();
+    // 4 active, edge Piscaries, each with an active adjacent Market: satisfies the guild and
+    // scores the Market bonus on all of them.
+    edgeCells.forEach(([r, c]) => {
+      board[r][c].building = "P";
+      workers[r][c] = 2;
+    });
+    const marketNeighbors = [
+      [0, 1],
+      [4, 1],
+      [1, 0],
+      [1, 4],
+    ];
+    marketNeighbors.forEach(([r, c]) => {
+      board[r][c].building = "M";
+      workers[r][c] = 3;
+    });
+    board[3][3].building = "G";
+    board[3][3].buildingLabel = "GW";
+    workers[3][3] = 4;
+    // A 5th Piscary, built but left with 0 workers — never activates, so it can never score its
+    // Market bonus. It must still count against "score ALL Piscaries with the bonus".
+    board[2][1].building = "P";
+    const state = { board, populationNodes: emptyPop(), workerAllocations: workers };
+    const result = computeScore(board, emptyPop(), workers, { buildingOverrides: { W: "P" } });
+    const outcome = CHALLENGES.edgeOfTheWorld.victory(result, state);
+    const piscaryReason = outcome.reasons.find((r) => r.textKey === "challenges.reasons.piscary");
+    expect(piscaryReason.ok).toBe(false);
+    expect(piscaryReason.params).toEqual({ have: 4, need: 5 });
+  });
 });
 
 describe("foundations rule flags", () => {

@@ -54,9 +54,13 @@ function activePiscaryMarketBonusProgress(state) {
   for (let r = 0; r < state.board.length; r++) {
     for (let c = 0; c < state.board[0].length; c++) {
       const cell = state.board[r][c];
-      if (cell.building !== "P" || !activation.get(`${r},${c}`)) continue;
+      if (cell.building !== "P") continue;
+      // Every built Piscary counts toward `total`, not just active ones — an unactivated Piscary
+      // never scores its Market bonus, so it must count against "score ALL Piscaries with the
+      // bonus" rather than being silently excluded from the check entirely.
       total += 1;
-      if (adjCountActiveBuilding(state.board, activation, r, c, "M") > 0) have += 1;
+      const active = activation.get(`${r},${c}`);
+      if (active && adjCountActiveBuilding(state.board, activation, r, c, "M") > 0) have += 1;
     }
   }
   return { have, need: total };
