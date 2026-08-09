@@ -1,12 +1,19 @@
-const CACHE_VERSION = "v1.50";
+const CACHE_VERSION = "v1.51";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
-const APP_VERSION = "v22";
+const APP_VERSION = "v23";
 const SHEET_VERSION = "v2.0";
 const SHEET_BASE_PATH = "/resources/rolling-fiefdoms-player-sheet";
 // Every board-art variant, as a filename suffix appended to SHEET_BASE_PATH ("" = the plain
 // English board). Keep in sync with app.js's LOCALIZED_SHEET_LOCALES and each challenge's
 // sheetVariant in challenges.js.
-const SHEET_VARIANT_SUFFIXES = ["", "-fr", "-challenge-vii", "-fr-challenge-vii"];
+const SHEET_VARIANT_SUFFIXES = [
+  "",
+  "-fr",
+  "-challenge-vii",
+  "-fr-challenge-vii",
+  "-challenge-viii",
+  "-fr-challenge-viii",
+];
 const SHEET_ASSETS = SHEET_VARIANT_SUFFIXES.flatMap((suffix) => [
   `${SHEET_BASE_PATH}${suffix}.webp?v=${SHEET_VERSION}`,
   `${SHEET_BASE_PATH}${suffix}@2x.webp?v=${SHEET_VERSION}`,
