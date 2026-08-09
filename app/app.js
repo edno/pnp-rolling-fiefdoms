@@ -874,7 +874,7 @@ function buildingDisplayLetter(code) {
 }
 
 function guildDisplayLabel(guildLabel) {
-  const target = guildTargetFromLabel(guildLabel);
+  const target = guildTargetFromLabel(guildLabel, activeChallenge()?.rules?.buildingOverrides);
   if (!target) return (guildLabel || "G").toUpperCase();
   return `${buildingDisplayLetter(target)}G`;
 }
