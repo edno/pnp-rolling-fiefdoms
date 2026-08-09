@@ -335,9 +335,8 @@ export default {
     embersOfRevolt: {
       name: "VI. Braises de la révolte",
       description: "Votre fief est le centre du monde connu. Mais sous votre règne, les tribus locales ont été délaissées, et la tension monte dans les rues. Des rumeurs parlent d'une révolte en préparation pour renverser l'élite et raviver les anciennes traditions.",
-      rule1: "La piste de tours sert aussi à suivre l'Agitation.",
-      rule2: "À la fin de chaque tour, gagnez de l'Agitation pour chacune des conditions suivantes (max. +4 Agitation par tour) : +1 si vous avez construit un Bâtiment avancé, +1 pour chaque Influence utilisée ce tour-ci, +1 si vous avez plus de 8 Vagabonds.",
-      rule3: "À chaque 4ème niveau d'Agitation atteint, des Barricades sont érigées : choisissez une case Population vide à hachurer définitivement.",
+      rule1: "À la fin de chaque tour, gagnez de l'Agitation pour chacune des conditions suivantes (max. +4 Agitation par tour) : +1 si vous avez construit un Bâtiment avancé, +1 pour chaque Influence utilisée ce tour-ci, +1 si vous avez plus de 8 Vagabonds.",
+      rule2: "À chaque 4ème niveau d'Agitation atteint, des Barricades sont érigées : choisissez une case Population vide à hachurer définitivement.",
       victory1: "Obtenez au moins 80 PR.",
     },
     drumsOfWar: {

@@ -175,7 +175,6 @@ export const CHALLENGES = {
     ruleKeys: [
       "challenges.embersOfRevolt.rule1",
       "challenges.embersOfRevolt.rule2",
-      "challenges.embersOfRevolt.rule3",
     ],
     victoryKeys: ["challenges.embersOfRevolt.victory1"],
     setup: {},
