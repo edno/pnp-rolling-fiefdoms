@@ -1,6 +1,6 @@
-const CACHE_VERSION = "v1.51";
+const CACHE_VERSION = "v1.52";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
-const APP_VERSION = "v23";
+const APP_VERSION = "v24";
 const SHEET_VERSION = "v2.0";
 const SHEET_BASE_PATH = "/resources/rolling-fiefdoms-player-sheet";
 // Every board-art variant, as a filename suffix appended to SHEET_BASE_PATH ("" = the plain

@@ -13,7 +13,14 @@ const outDir = path.join(root, "dist");
 const staticEntries = ["index.html", "assets", "resources", "robots.txt", "sitemap.xml", "llms.txt", "manifest.webmanifest"];
 // Every board-art variant, as a filename suffix ("" = the plain English board). Keep in sync with
 // sw.js's SHEET_VARIANT_SUFFIXES and each challenge's sheetVariant in app/challenges.js.
-const PLAYER_SHEET_SUFFIXES = ["", "-fr", "-challenge-vii", "-fr-challenge-vii", "-challenge-viii"];
+const PLAYER_SHEET_SUFFIXES = [
+  "",
+  "-fr",
+  "-challenge-vii",
+  "-fr-challenge-vii",
+  "-challenge-viii",
+  "-fr-challenge-viii",
+];
 const PLAYER_SHEET_VARIANTS = PLAYER_SHEET_SUFFIXES.flatMap((suffix) => [
   {
     relative: path.join("resources", `rolling-fiefdoms-player-sheet${suffix}.webp`),
