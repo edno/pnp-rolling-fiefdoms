@@ -151,6 +151,54 @@ describe("embersOfRevolt", () => {
   });
 });
 
+describe("drumsOfWar", () => {
+  const emptyWorkers = () => Array.from({ length: 5 }, () => Array(5).fill(0));
+
+  it("replaces Cottage with Barracks via rules.buildingOverrides", () => {
+    expect(CHALLENGES.drumsOfWar.rules.buildingOverrides).toEqual({ C: "B" });
+  });
+
+  it("buildingOptionsFromDice never yields Barracks without the override (unreachable in other challenges)", () => {
+    const dice = [{ resolved: 1 }, { resolved: 2 }];
+    const opts = buildingOptionsFromDice(dice);
+    expect(opts.some((o) => o.code === "B")).toBe(false);
+  });
+
+  it("fails on reputation alone when fewer than 4 Barracks are scored", () => {
+    const board = emptyBoard();
+    board[0][0].building = "B"; // diagonal, active -> 5 RP
+    const workers = emptyWorkers();
+    workers[0][0] = 3;
+    const result = computeScore(board, emptyPop(), workers);
+    const outcome = CHALLENGES.drumsOfWar.victory(result, { board });
+    expect(outcome.passed).toBe(false);
+    expect(CHALLENGES.drumsOfWar.liveProgress(result).have).toBe(1);
+  });
+
+  it("satisfies the Barracks victory condition once 4 active diagonal Barracks are scored", () => {
+    const board = emptyBoard();
+    const diagonalCells = [
+      [0, 0],
+      [1, 1],
+      [3, 3],
+      [4, 4],
+    ];
+    const workers = emptyWorkers();
+    diagonalCells.forEach(([r, c]) => {
+      board[r][c].building = "B";
+      workers[r][c] = 3;
+    });
+    const result = computeScore(board, emptyPop(), workers);
+    const outcome = CHALLENGES.drumsOfWar.victory(result, { board });
+    expect(CHALLENGES.drumsOfWar.liveProgress(result).have).toBe(4);
+    expect(result.breakdown.barracks).toBe(20);
+    // Reputation is still short of 80 RP with only Barracks on the board, so overall victory
+    // isn't reached yet, but the Barracks-specific reason should now read as satisfied.
+    const barracksReason = outcome.reasons.find((r) => r.textKey === "challenges.reasons.barracks");
+    expect(barracksReason.ok).toBe(true);
+  });
+});
+
 describe("foundations rule flags", () => {
   it("disables advanced buildings", () => {
     expect(CHALLENGES.foundations.rules.disabledBuildings).toEqual(["T", "U", "A", "G"]);

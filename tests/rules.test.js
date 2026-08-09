@@ -12,6 +12,7 @@ import {
   restrictBuildOptionsForBoard,
   allocatePopulationToNode,
   availableLocationPairs,
+  BUILDING_RULES,
 } from "../app/rules.js";
 
 const buildings = {
@@ -928,5 +929,70 @@ describe("activation scoring with workers", () => {
     workers[1][1] = 2;
     const result = computeScore(board, pop, workers, { allowPopulationActivation: true });
     expect(result.breakdown.farm).toBeGreaterThan(0);
+  });
+});
+
+describe("Barracks (Challenge VII: Drums of War)", () => {
+  const emptyBoard = () =>
+    Array.from({ length: 5 }, () =>
+      Array.from({ length: 5 }, () => ({ building: null, forfeited: false, springBoost: 0 })),
+    );
+  const emptyPop = () => Array.from({ length: 4 }, () => Array(4).fill(0));
+  const emptyWorkers = () => Array.from({ length: 5 }, () => Array(5).fill(0));
+
+  it("is registered with a 3-Labourer requirement and the special category", () => {
+    expect(BUILDING_RULES.B).toBeTruthy();
+    expect(BUILDING_RULES.B.requirement).toBe(3);
+    expect(BUILDING_RULES.B.category).toBe("special");
+  });
+
+  it("buildingOptionsFromDice only maps die-value 1 to Barracks when codeOverrides requests it", () => {
+    const dice = [{ resolved: 1 }, { resolved: 2 }];
+    const defaultOpts = buildingOptionsFromDice(dice);
+    expect(defaultOpts.some((o) => o.code === "C")).toBe(true);
+    expect(defaultOpts.some((o) => o.code === "B")).toBe(false);
+
+    const overriddenOpts = buildingOptionsFromDice(dice, BUILDING_RULES, { C: "B" });
+    expect(overriddenOpts.some((o) => o.code === "B")).toBe(true);
+    expect(overriddenOpts.some((o) => o.code === "C")).toBe(false);
+  });
+
+  it("scores 5 RP only when active on a diagonal plot", () => {
+    const board = emptyBoard();
+    board[0][0].building = "B"; // r === c: on the main diagonal
+    board[0][1].building = "B"; // off-diagonal
+    const workers = emptyWorkers();
+    workers[0][0] = 3;
+    workers[0][1] = 3;
+    const result = computeScore(board, emptyPop(), workers);
+    expect(result.breakdown.barracks).toBe(5);
+  });
+
+  it("scores 0 RP when built off a diagonal plot even if active", () => {
+    const board = emptyBoard();
+    board[0][1].building = "B";
+    const workers = emptyWorkers();
+    workers[0][1] = 3;
+    const result = computeScore(board, emptyPop(), workers);
+    expect(result.breakdown.barracks).toBe(0);
+  });
+
+  it("does not score or provide housing when inactive (fewer than 3 Labourers)", () => {
+    const board = emptyBoard();
+    board[0][0].building = "B";
+    const workers = emptyWorkers();
+    workers[0][0] = 2; // short of the 3-Labourer requirement
+    const result = computeScore(board, emptyPop(), workers);
+    expect(result.breakdown.barracks).toBe(0);
+    expect(result.housing).toBe(0);
+  });
+
+  it("provides 8 Housing (2 units) once activated", () => {
+    const board = emptyBoard();
+    board[0][0].building = "B";
+    const workers = emptyWorkers();
+    workers[0][0] = 3;
+    const result = computeScore(board, emptyPop(), workers);
+    expect(result.housing).toBe(8);
   });
 });
