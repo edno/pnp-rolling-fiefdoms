@@ -1074,4 +1074,49 @@ describe("Piscary (Challenge VIII: Edge of the World)", () => {
     const withoutOverride = computeScore(board, emptyPop(), workers);
     expect(withoutOverride.breakdown["guilds-gw"]).toBe(0);
   });
+
+  it("Piscators' Guild requires a Piscary on every edge, not just 4+ anywhere on the perimeter", () => {
+    const board = emptyBoard();
+    // 4 active Piscaries, but all on the top edge (row 0) — satisfies a naive edgeCount >= 4,
+    // but not "at least 1 active Piscary on each outer edge" (no bottom, left, or right coverage).
+    const topEdgeCells = [
+      [0, 0],
+      [0, 1],
+      [0, 2],
+      [0, 3],
+    ];
+    const workers = emptyWorkers();
+    topEdgeCells.forEach(([r, c]) => {
+      board[r][c].building = "P";
+      workers[r][c] = 2;
+    });
+    board[1][1].building = "G";
+    board[1][1].buildingLabel = "GW";
+    workers[1][1] = 4;
+    const result = computeScore(board, emptyPop(), workers, { buildingOverrides: { W: "P" } });
+    expect(result.breakdown["guilds-gw"]).toBe(0);
+  });
+
+  it("Piscators' Guild is satisfied when a corner Piscary covers the one edge still missing", () => {
+    const board = emptyBoard();
+    // Non-corner cells cover bottom, left, right; only top is uncovered by a dedicated cell.
+    // The (0,0) corner is the only Piscary that could cover "top", so matching must assign it
+    // there instead of leaving it idle or double-booking it against "left".
+    const cells = [
+      [0, 0], // corner: top or left
+      [4, 2], // bottom only
+      [2, 0], // left only
+      [2, 4], // right only
+    ];
+    const workers = emptyWorkers();
+    cells.forEach(([r, c]) => {
+      board[r][c].building = "P";
+      workers[r][c] = 2;
+    });
+    board[1][1].building = "G";
+    board[1][1].buildingLabel = "GW";
+    workers[1][1] = 4;
+    const result = computeScore(board, emptyPop(), workers, { buildingOverrides: { W: "P" } });
+    expect(result.breakdown["guilds-gw"]).toBe(15);
+  });
 });

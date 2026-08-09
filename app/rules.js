@@ -710,6 +710,46 @@ export function guildTargetFromLabel(label, buildingOverrides = {}) {
   return buildingOverrides?.[target] || target;
 }
 
+// Piscators' Guild requires at least 1 active Piscary on *each* of the 4 outer edges (top,
+// bottom, left, right); a corner cell borders two edges but counts toward only one, the player's
+// choice. That's a stricter condition than Windmillers' Guild's simple "4+ anywhere on the
+// perimeter" (edgeCount), so it needs an actual matching check: can each of the 4 edges be paired
+// with a distinct active Piscary cell, given corner cells are shared between two edges? Small
+// bipartite matching (Kuhn's algorithm) over 4 "edge" nodes.
+function hasActiveBuildingOnEachEdge(board, activation, code) {
+  const rows = board.length;
+  const cols = board[0].length;
+  const edgesForCell = (r, c) => {
+    const edges = [];
+    if (r === 0) edges.push("top");
+    if (r === rows - 1) edges.push("bottom");
+    if (c === 0) edges.push("left");
+    if (c === cols - 1) edges.push("right");
+    return edges;
+  };
+  const cellsByEdge = { top: [], bottom: [], left: [], right: [] };
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (board[r][c].building !== code || !activation.get(key(r, c))) continue;
+      edgesForCell(r, c).forEach((edge) => cellsByEdge[edge].push(key(r, c)));
+    }
+  }
+  const matchedCell = new Map(); // cellKey -> edge currently assigned to it
+  const tryAssign = (edge, visited) => {
+    for (const cellKey of cellsByEdge[edge]) {
+      if (visited.has(cellKey)) continue;
+      visited.add(cellKey);
+      const currentEdge = matchedCell.get(cellKey);
+      if (!currentEdge || tryAssign(currentEdge, visited)) {
+        matchedCell.set(cellKey, edge);
+        return true;
+      }
+    }
+    return false;
+  };
+  return ["top", "bottom", "left", "right"].every((edge) => tryAssign(edge, new Set()));
+}
+
 function meetsGuildCondition(board, activation, targetCode) {
   switch (targetCode) {
     case "F":
@@ -719,7 +759,7 @@ function meetsGuildCondition(board, activation, targetCode) {
     case "W":
       return edgeCount(board, activation, "W") >= 4;
     case "P":
-      return edgeCount(board, activation, "P") >= 4;
+      return hasActiveBuildingOnEachEdge(board, activation, "P");
     case "M":
       return centerCount(board, activation, "M") >= 4;
     default:
