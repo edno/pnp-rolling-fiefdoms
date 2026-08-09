@@ -940,10 +940,10 @@ describe("Barracks (Challenge VII: Drums of War)", () => {
   const emptyPop = () => Array.from({ length: 4 }, () => Array(4).fill(0));
   const emptyWorkers = () => Array.from({ length: 5 }, () => Array(5).fill(0));
 
-  it("is registered with a 3-Labourer requirement and the special category", () => {
+  it("is registered with a 3-Labourer requirement and the basic category", () => {
     expect(BUILDING_RULES.B).toBeTruthy();
     expect(BUILDING_RULES.B.requirement).toBe(3);
-    expect(BUILDING_RULES.B.category).toBe("special");
+    expect(BUILDING_RULES.B.category).toBe("basic");
   });
 
   it("buildingOptionsFromDice only maps die-value 1 to Barracks when codeOverrides requests it", () => {

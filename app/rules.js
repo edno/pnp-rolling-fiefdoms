@@ -83,7 +83,7 @@ function possibleValues(die) {
 // module was first imported.
 export const BUILDING_RULES = {
   C: { get name() { return t("buildings.C"); }, requirement: 0, base: 0, category: "special" },
-  B: { get name() { return t("buildings.B"); }, requirement: 3, base: 0, category: "special" },
+  B: { get name() { return t("buildings.B"); }, requirement: 3, base: 0, category: "basic" },
   F: { get name() { return t("buildings.F"); }, requirement: 2, base: 3, category: "basic" },
   Q: { get name() { return t("buildings.Q"); }, requirement: 2, base: 3, category: "basic" },
   W: { get name() { return t("buildings.W"); }, requirement: 2, base: 3, category: "basic" },
