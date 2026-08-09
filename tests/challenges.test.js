@@ -208,6 +208,78 @@ describe("drumsOfWar", () => {
   });
 });
 
+describe("edgeOfTheWorld", () => {
+  const emptyWorkers = () => Array.from({ length: 5 }, () => Array(5).fill(0));
+  const edgeCells = [
+    [0, 2],
+    [4, 2],
+    [2, 0],
+    [2, 4],
+  ];
+
+  it("replaces Windmill with Piscary via rules.buildingOverrides", () => {
+    expect(CHALLENGES.edgeOfTheWorld.rules.buildingOverrides).toEqual({ W: "P" });
+  });
+
+  it("buildingOptionsFromDice never yields Piscary without the override (unreachable in other challenges)", () => {
+    const dice = [{ resolved: 4 }, { resolved: 1 }];
+    const opts = buildingOptionsFromDice(dice);
+    expect(opts.some((o) => o.code === "P")).toBe(false);
+  });
+
+  it("liveProgress counts Piscaries with a Market neighbor by presence only (activation isn't meaningful mid-game)", () => {
+    const board = emptyBoard();
+    board[0][0].building = "P"; // no adjacent Market
+    board[1][1].building = "P";
+    board[1][2].building = "M"; // adjacent to [1][1]
+    // Neither building has any workers assigned (mid-game, before the activation phase).
+    const result = computeScore(board, emptyPop());
+    const progress = CHALLENGES.edgeOfTheWorld.liveProgress(result, { board });
+    expect(progress.have).toBe(1);
+    expect(progress.need).toBe(2);
+  });
+
+  it("fails victory when reputation is short even if the guild and Piscary bonuses are satisfied", () => {
+    const board = emptyBoard();
+    const workers = emptyWorkers();
+    edgeCells.forEach(([r, c]) => {
+      board[r][c].building = "P";
+      workers[r][c] = 2;
+    });
+    board[1][1].building = "G";
+    board[1][1].buildingLabel = "GW";
+    workers[1][1] = 4;
+    const state = { board, populationNodes: emptyPop(), workerAllocations: workers };
+    const result = computeScore(board, emptyPop(), workers, { buildingOverrides: { W: "P" } });
+    const outcome = CHALLENGES.edgeOfTheWorld.victory(result, state);
+    expect(outcome.passed).toBe(false);
+    const repReason = outcome.reasons.find((r) => r.textKey === "challenges.reasons.reputation");
+    expect(repReason.ok).toBe(false);
+  });
+
+  it("fails the Piscary-bonus condition when at least one active Piscary lacks an active adjacent Market", () => {
+    const board = emptyBoard();
+    const workers = emptyWorkers();
+    edgeCells.forEach(([r, c]) => {
+      board[r][c].building = "P";
+      workers[r][c] = 2;
+    });
+    // Give one Piscary an active Market neighbor so the guild's edge condition and some RP
+    // still land, but leave the other three without one.
+    board[0][1].building = "M";
+    workers[0][1] = 3;
+    board[1][1].building = "G";
+    board[1][1].buildingLabel = "GW";
+    workers[1][1] = 4;
+    const state = { board, populationNodes: emptyPop(), workerAllocations: workers };
+    const result = computeScore(board, emptyPop(), workers, { buildingOverrides: { W: "P" } });
+    const outcome = CHALLENGES.edgeOfTheWorld.victory(result, state);
+    const piscaryReason = outcome.reasons.find((r) => r.textKey === "challenges.reasons.piscary");
+    expect(piscaryReason.ok).toBe(false);
+    expect(piscaryReason.params).toEqual({ have: 1, need: 4 });
+  });
+});
+
 describe("foundations rule flags", () => {
   it("disables advanced buildings", () => {
     expect(CHALLENGES.foundations.rules.disabledBuildings).toEqual(["T", "U", "A", "G"]);
