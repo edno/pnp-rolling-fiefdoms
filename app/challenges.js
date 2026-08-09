@@ -6,10 +6,10 @@
 // predicate evaluated against the final score breakdown once the game ends.
 //
 // `rules.buildingOverrides` (introduced by Challenge VII) remaps a die-value's default building
-// code to a new one, e.g. { C: "B" } for Barracks-replaces-Cottage. Challenge VIII (Piscary
-// replacing Windmill) can reuse the same mechanism with { W: "<new code>" }.
+// code to a new one, e.g. { C: "B" } for Barracks-replaces-Cottage, or { W: "P" } for Challenge
+// VIII's Piscary-replaces-Windmill.
 
-import { isDiagonalPlot } from "./rules.js";
+import { computeActivationMap, adjCountBuilding, adjCountActiveBuilding, isDiagonalPlot } from "./rules.js";
 
 function countBuilding(board, code) {
   return board.flat().filter((cell) => cell.building === code).length;
@@ -27,6 +27,39 @@ function countDiagonalBuilding(board, code) {
     }),
   );
   return count;
+}
+
+// Live (mid-game) progress for Challenge VIII: labourer activation only happens in the end-game
+// activation phase, so this deliberately ignores activation and just counts, of the Piscaries
+// built so far, how many currently have a Market neighbor (any activation status) present.
+function piscaryMarketPresenceProgress(board) {
+  let have = 0;
+  let total = 0;
+  for (let r = 0; r < board.length; r++) {
+    for (let c = 0; c < board[0].length; c++) {
+      if (board[r][c].building !== "P") continue;
+      total += 1;
+      if (adjCountBuilding(board, r, c, "M") > 0) have += 1;
+    }
+  }
+  return { have, need: total };
+}
+
+// Final (end-game) check for Challenge VIII's "score all Piscaries with the Market bonus"
+// victory condition: every *active* Piscary must have at least one *active* adjacent Market.
+function activePiscaryMarketBonusProgress(state) {
+  const activation = computeActivationMap(state.board, state.populationNodes, state.workerAllocations);
+  let have = 0;
+  let total = 0;
+  for (let r = 0; r < state.board.length; r++) {
+    for (let c = 0; c < state.board[0].length; c++) {
+      const cell = state.board[r][c];
+      if (cell.building !== "P" || !activation.get(`${r},${c}`)) continue;
+      total += 1;
+      if (adjCountActiveBuilding(state.board, activation, r, c, "M") > 0) have += 1;
+    }
+  }
+  return { have, need: total };
 }
 
 export const CHALLENGES = {
@@ -259,6 +292,48 @@ export const CHALLENGES = {
       };
     },
   },
+
+  edgeOfTheWorld: {
+    id: "edgeOfTheWorld",
+    difficulty: 3,
+    nameKey: "challenges.edgeOfTheWorld.name",
+    descKey: "challenges.edgeOfTheWorld.description",
+    setupKeys: [],
+    ruleKeys: [
+      "challenges.edgeOfTheWorld.rule1",
+      "challenges.edgeOfTheWorld.rule2",
+      "challenges.edgeOfTheWorld.rule3",
+      "challenges.edgeOfTheWorld.rule4",
+      "challenges.edgeOfTheWorld.rule5",
+    ],
+    victoryKeys: [
+      "challenges.edgeOfTheWorld.victory1",
+      "challenges.edgeOfTheWorld.victory2",
+      "challenges.edgeOfTheWorld.victory3",
+    ],
+    setup: {},
+    rules: { buildingOverrides: { W: "P" } },
+    turnLimit: null,
+    requiredRP: 80,
+    victory(scoreResult, state) {
+      const repOk = scoreResult.total >= this.requiredRP;
+      const guildOk = scoreResult.breakdown["guilds-gw"] > 0;
+      const { have, need } = activePiscaryMarketBonusProgress(state);
+      const piscaryOk = need >= 1 && have === need;
+      return {
+        passed: repOk && guildOk && piscaryOk,
+        reasons: [
+          { ok: repOk, textKey: "challenges.reasons.reputation", params: { have: scoreResult.total, need: this.requiredRP } },
+          { ok: guildOk, textKey: "challenges.reasons.piscatorsGuild", params: {} },
+          { ok: piscaryOk, textKey: "challenges.reasons.piscary", params: { have, need } },
+        ],
+      };
+    },
+    liveProgress(scoreResult, state) {
+      const { have, need } = piscaryMarketPresenceProgress(state.board);
+      return { have, need: Math.max(1, need), labelKey: "challenges.badgeLabels.piscary" };
+    },
+  },
 };
 
 export const CHALLENGE_ORDER = [
@@ -269,4 +344,5 @@ export const CHALLENGE_ORDER = [
   "enlightenment",
   "embersOfRevolt",
   "drumsOfWar",
+  "edgeOfTheWorld",
 ];
