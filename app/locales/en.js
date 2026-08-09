@@ -335,9 +335,8 @@ export default {
     embersOfRevolt: {
       name: "VI. Embers of Revolt",
       description: "Your fief is the center of the known world. But under your rule, the local tribes have been left behind and trouble is rising in the streets. Rumors say a revolt is being prepared to topple the elite and revive the old traditions.",
-      rule1: "The Turn track is also used for tracking Unrest.",
-      rule2: "At the end of each turn, gain Unrest for each of the following conditions (max. +4 Unrest per turn): +1 if you have built an Advanced building, +1 for each Influence used for the turn, +1 if you have more than 8 Vagrants.",
-      rule3: "Every 4th Unrest reached, Barricades are raised: choose an empty Population square to permanently barricade.",
+      rule1: "At the end of each turn, gain Unrest for each of the following conditions (max. +4 Unrest per turn): +1 if you have built an Advanced building, +1 for each Influence used for the turn, +1 if you have more than 8 Vagrants.",
+      rule2: "Every 4th Unrest reached, Barricades are raised: choose an empty Population square to permanently barricade.",
       victory1: "Achieve at least 80 RP.",
     },
     drumsOfWar: {
