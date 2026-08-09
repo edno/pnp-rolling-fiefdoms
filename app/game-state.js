@@ -611,12 +611,13 @@ export function autoAdvanceState(state, board) {
   return { action, message: null };
 }
 
-export function recalcTracks(state, { computeScore, calcVagrants }) {
+export function recalcTracks(state, { computeScore, calcVagrants, buildingOverrides }) {
   // computeScore is the single source of truth for housing (cottages*4 plus, since Challenge VII,
   // 8 per active Barracks) — read pop/housing off its result instead of recomputing activation and
   // the formula a second time here.
   const scoreResult = computeScore(state.board, state.populationNodes, state.workerAllocations, {
     allowPopulationActivation: false,
+    buildingOverrides,
   });
   const pop = scoreResult.pop;
   const housing = scoreResult.housing;

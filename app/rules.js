@@ -87,6 +87,7 @@ export const BUILDING_RULES = {
   F: { get name() { return t("buildings.F"); }, requirement: 2, base: 3, category: "basic" },
   Q: { get name() { return t("buildings.Q"); }, requirement: 2, base: 3, category: "basic" },
   W: { get name() { return t("buildings.W"); }, requirement: 2, base: 3, category: "basic" },
+  P: { get name() { return t("buildings.P"); }, requirement: 2, base: 3, category: "basic" },
   M: { get name() { return t("buildings.M"); }, requirement: 3, base: 0, category: "basic" },
   S: { get name() { return t("buildings.S"); }, requirement: 0, base: 0, category: "special" },
   T: { get name() { return t("buildings.T"); }, requirement: 4, base: 5, category: "advanced" },
@@ -290,6 +291,7 @@ export function computeActivationMap(
 }
 
 export function computeScore(board, populationNodes, workerAllocations = null, options = {}) {
+  const { buildingOverrides = {} } = options;
   const rows = board.length;
   const cols = board[0]?.length || 0;
   const popTotal = populationNodes.flat().reduce((a, b) => a + b, 0);
@@ -309,6 +311,7 @@ export function computeScore(board, populationNodes, workerAllocations = null, o
     farm: 0,
     quarry: 0,
     windmill: 0,
+    piscary: 0,
     market: 0,
     springhouse: 0,
     townhall: 0,
@@ -328,6 +331,7 @@ export function computeScore(board, populationNodes, workerAllocations = null, o
       if (!cell.building) continue;
       const points = scoreBuildingCell(board, populationNodes, activation, r, c, {
         marketAllocations,
+        buildingOverrides,
       });
       switch (cell.building) {
         case "B":
@@ -341,6 +345,9 @@ export function computeScore(board, populationNodes, workerAllocations = null, o
           break;
         case "W":
           scores.windmill += points;
+          break;
+        case "P":
+          scores.piscary += points;
           break;
         case "M":
           scores.market += points;
@@ -366,7 +373,7 @@ export function computeScore(board, populationNodes, workerAllocations = null, o
     }
   }
 
-  const guildScore = guildBonuses(board, activation);
+  const guildScore = guildBonuses(board, activation, buildingOverrides);
   scores.guilds = guildScore.total;
   Object.entries(guildScore.breakdown).forEach(([key, val]) => {
     scores[key] = val;
@@ -388,6 +395,7 @@ export function computeScore(board, populationNodes, workerAllocations = null, o
     scores.farm +
     scores.quarry +
     scores.windmill +
+    scores.piscary +
     scores.market +
     scores.springhouse +
     scores.townhall +
@@ -435,10 +443,10 @@ function scoreCottages(board, populationNodes) {
   return occupied * 2;
 }
 
-export function scoreBuildingAt(board, populationNodes, workerAllocations, r, c, activation = null) {
+export function scoreBuildingAt(board, populationNodes, workerAllocations, r, c, activation = null, buildingOverrides = {}) {
   const actMap = activation || computeActivationMap(board, populationNodes, workerAllocations);
   const marketAllocations = resolveMarketAllocations(board, populationNodes, actMap);
-  return scoreBuildingCell(board, populationNodes, actMap, r, c, { marketAllocations });
+  return scoreBuildingCell(board, populationNodes, actMap, r, c, { marketAllocations, buildingOverrides });
 }
 
 function popAround(r, c, popGrid) {
@@ -533,9 +541,18 @@ function adjHasBuilding(board, r, c, code) {
   );
 }
 
-function adjCountBuilding(board, r, c, code) {
+export function adjCountBuilding(board, r, c, code) {
   return orthNeighbors(r, c, board.length, board[0].length).filter(
     ([nr, nc]) => board[nr][nc].building === code,
+  ).length;
+}
+
+// Like adjCountBuilding, but also requires the neighbor to be activated. Unlike every other
+// per-building adjacency bonus in this file (Farm+Springhouse, Quarry+Quarry, Windmill+Windmill,
+// all presence-only), Piscary's Market bonus is explicitly activation-gated per the rulebook text.
+export function adjCountActiveBuilding(board, activation, r, c, code) {
+  return orthNeighbors(r, c, board.length, board[0].length).filter(
+    ([nr, nc]) => board[nr][nc].building === code && activation.get(key(nr, nc)),
   ).length;
 }
 
@@ -590,7 +607,7 @@ function uniPoints(uniqueAdv) {
   return 15;
 }
 
-function guildBonuses(board, activation) {
+function guildBonuses(board, activation, buildingOverrides = {}) {
   const breakdown = {
     "guilds-gf": 0,
     "guilds-gq": 0,
@@ -607,7 +624,8 @@ function guildBonuses(board, activation) {
       const guildLabel = (cell.buildingLabel || "G").toUpperCase();
       const config = guildConfigForLabel(guildLabel);
       if (!config) continue;
-      if (meetsGuildCondition(board, activation, config.target)) {
+      const target = guildTargetFromLabel(guildLabel, buildingOverrides);
+      if (meetsGuildCondition(board, activation, target)) {
         breakdown[config.scoreKey] += 15;
         total += 15;
       }
@@ -682,8 +700,14 @@ function guildConfigForLabel(label) {
   return GUILD_LABEL_CONFIG[label] || null;
 }
 
-export function guildTargetFromLabel(label) {
-  return guildConfigForLabel(label)?.target || null;
+// `buildingOverrides` resolves the guild's configured target through an active challenge's
+// building swap (e.g. Challenge VIII's Piscary-replaces-Windmill: { W: "P" }), so the Windmillers'
+// Guild slot (label "GW") correctly targets Piscary cells instead of a Windmill code that can
+// never appear on the board while that challenge is active.
+export function guildTargetFromLabel(label, buildingOverrides = {}) {
+  const target = guildConfigForLabel(label)?.target || null;
+  if (!target) return target;
+  return buildingOverrides?.[target] || target;
 }
 
 function meetsGuildCondition(board, activation, targetCode) {
@@ -694,6 +718,8 @@ function meetsGuildCondition(board, activation, targetCode) {
       return maxContiguous(board, activation, "Q") >= 4;
     case "W":
       return edgeCount(board, activation, "W") >= 4;
+    case "P":
+      return edgeCount(board, activation, "P") >= 4;
     case "M":
       return centerCount(board, activation, "M") >= 4;
     default:
@@ -705,7 +731,14 @@ function adjCountForfeits(board, r, c) {
   return orthNeighbors(r, c, board.length, board[0].length).filter(([nr, nc]) => board[nr][nc].forfeited).length;
 }
 
-function scoreBuildingCell(board, populationNodes, activation, r, c, { marketAllocations = null } = {}) {
+function scoreBuildingCell(
+  board,
+  populationNodes,
+  activation,
+  r,
+  c,
+  { marketAllocations = null, buildingOverrides = {} } = {},
+) {
   const cell = board[r]?.[c];
   if (!cell || !cell.building || cell.forfeited || cell.activationForfeit) return 0;
   const active = activation.get(key(r, c));
@@ -728,6 +761,13 @@ function scoreBuildingCell(board, populationNodes, activation, r, c, { marketAll
     case "W": {
       const base = BUILDING_RULES.W.base;
       const bonus = adjCountBuilding(board, r, c, "W");
+      return base + bonus;
+    }
+    case "P": {
+      // "+1 RP per adjacent active Market" mirrors Windmill's "+1 per adjacent Windmill" wording,
+      // i.e. it stacks per neighbor (0-4), not a flat +1 if any neighbor qualifies.
+      const base = BUILDING_RULES.P.base;
+      const bonus = adjCountActiveBuilding(board, activation, r, c, "M");
       return base + bonus;
     }
     case "M": {
@@ -753,7 +793,7 @@ function scoreBuildingCell(board, populationNodes, activation, r, c, { marketAll
     case "A":
       return 0; // affects vagrants only
     case "G": {
-      const target = guildTargetFromLabel((cell.buildingLabel || "G").toUpperCase());
+      const target = guildTargetFromLabel((cell.buildingLabel || "G").toUpperCase(), buildingOverrides);
       if (!target) return 0;
       return meetsGuildCondition(board, activation, target) ? 15 : 0;
     }
