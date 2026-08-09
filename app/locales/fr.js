@@ -11,6 +11,7 @@ export default {
   },
   buildings: {
     C: "Logis",
+    B: "Quartier",
     F: "Ferme",
     Q: "Carrière",
     W: "Moulin",
@@ -283,6 +284,7 @@ export default {
       guilds: "Guildes marquées : {have}/{need} PR",
       vagrantPenalty: "Pénalité de Vagabonds finale : {have}/{need} PR",
       university: "Score de l'Université : {have}/{need} PR",
+      barracks: "Quartiers marqués : {have}/{need}",
     },
     badgeLabels: {
       cottages: "Logis",
@@ -290,6 +292,7 @@ export default {
       guilds: "Guildes",
       vagrantPenalty: "Pénalité de Vagabonds",
       university: "PR d'Université",
+      barracks: "Quartiers",
     },
     foundations: {
       name: "I. Fondations",
@@ -342,6 +345,12 @@ export default {
     drumsOfWar: {
       name: "VII. Tambours de guerre",
       description: "Un seigneur de guerre marche sur votre fief. Il veut vos terres, vos richesses et votre peuple sous sa coupe. Mobilisez vos citoyens et préparez-vous à protéger votre fief.",
+      rule1: "Le Quartier remplace le Logis : chaque fois que vous devriez construire un Logis, construisez un Quartier à la place.",
+      rule2: "Le Quartier nécessite 3 Ouvriers pour l'Activation.",
+      rule3: "Le Quartier fournit 2 logis une fois activé (soit 8 unités de Logement).",
+      rule4: "Le Quartier ne marque 5 PR que s'il est actif sur une case diagonale, sinon 0 PR.",
+      victory1: "Obtenez au moins 80 PR.",
+      victory2: "Marquez au moins 4 Quartiers (5 PR chacun sur une case diagonale).",
     },
     edgeOfTheWorld: {
       name: "VIII. Au bout du monde",

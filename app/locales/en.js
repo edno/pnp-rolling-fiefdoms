@@ -11,6 +11,7 @@ export default {
   },
   buildings: {
     C: "Cottage",
+    B: "Barracks",
     F: "Farm",
     Q: "Quarry",
     W: "Windmill",
@@ -283,6 +284,7 @@ export default {
       guilds: "Guilds scored: {have}/{need} RP",
       vagrantPenalty: "Final Vagrant penalty: {have}/{need} RP",
       university: "University score: {have}/{need} RP",
+      barracks: "Barracks scored: {have}/{need}",
     },
     badgeLabels: {
       cottages: "Cottages",
@@ -290,6 +292,7 @@ export default {
       guilds: "Guilds",
       vagrantPenalty: "Vagrant Penalty",
       university: "University RP",
+      barracks: "Barracks",
     },
     foundations: {
       name: "I. Foundations",
@@ -342,6 +345,12 @@ export default {
     drumsOfWar: {
       name: "VII. Drums of War",
       description: "A warlord is marching on your fief. They want your land, your wealth, and your people under their rule. Rally your citizens, muster your forces, and prepare to protect your fief.",
+      rule1: "Barracks replaces Cottage: whenever you would build a Cottage, build a Barracks instead.",
+      rule2: "Barracks requires 3 Labourers for Activation.",
+      rule3: "Barracks provides 2 Housing units (8 Housing) when activated.",
+      rule4: "Barracks scores 5 RP only if active on a diagonal plot, and 0 RP otherwise.",
+      victory1: "Achieve at least 80 RP.",
+      victory2: "Score at least 4 Barracks (5 RP each on a diagonal plot).",
     },
     edgeOfTheWorld: {
       name: "VIII. Edge of the World",

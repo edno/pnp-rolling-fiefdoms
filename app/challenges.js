@@ -1,13 +1,13 @@
-// Solo challenge definitions (campaign chapters I-VI from the solo-challenges rulebook).
+// Solo challenge definitions (campaign chapters I-VII from the solo-challenges rulebook).
 //
 // Each challenge is a pure config object: i18n keys for display text, a
 // `setup` patch applied once at game start, a `rules` patch consulted by
 // game logic during play, an optional `turnLimit`, and a `victory()`
 // predicate evaluated against the final score breakdown once the game ends.
 //
-// Reserved (not yet implemented) extension point for challenges VII/VIII,
-// which each replace an existing building with a new one:
-//   rules: { buildingOverrides: { C: "barracksConfig" } }
+// `rules.buildingOverrides` (introduced by Challenge VII) remaps a die-value's default building
+// code to a new one, e.g. { C: "B" } for Barracks-replaces-Cottage. Challenge VIII (Piscary
+// replacing Windmill) can reuse the same mechanism with { W: "<new code>" }.
 
 function countBuilding(board, code) {
   return board.flat().filter((cell) => cell.building === code).length;
@@ -189,6 +189,49 @@ export const CHALLENGES = {
       };
     },
   },
+
+  drumsOfWar: {
+    id: "drumsOfWar",
+    difficulty: 3,
+    nameKey: "challenges.drumsOfWar.name",
+    descKey: "challenges.drumsOfWar.description",
+    setupKeys: [],
+    ruleKeys: [
+      "challenges.drumsOfWar.rule1",
+      "challenges.drumsOfWar.rule2",
+      "challenges.drumsOfWar.rule3",
+      "challenges.drumsOfWar.rule4",
+    ],
+    victoryKeys: ["challenges.drumsOfWar.victory1", "challenges.drumsOfWar.victory2"],
+    setup: {},
+    rules: { buildingOverrides: { C: "B" } },
+    turnLimit: null,
+    requiredRP: 80,
+    victory(scoreResult) {
+      const repOk = scoreResult.total >= this.requiredRP;
+      // Each active diagonal Barracks scores exactly 5 RP (0 if built off-diagonal), so
+      // requiring >= 20 RP is equivalent to "at least 4 Barracks scored".
+      const barracksOk = scoreResult.breakdown.barracks >= 20;
+      return {
+        passed: repOk && barracksOk,
+        reasons: [
+          { ok: repOk, textKey: "challenges.reasons.reputation", params: { have: scoreResult.total, need: this.requiredRP } },
+          {
+            ok: barracksOk,
+            textKey: "challenges.reasons.barracks",
+            params: { have: Math.floor(scoreResult.breakdown.barracks / 5), need: 4 },
+          },
+        ],
+      };
+    },
+    liveProgress(scoreResult) {
+      return {
+        have: Math.floor(scoreResult.breakdown.barracks / 5),
+        need: 4,
+        labelKey: "challenges.badgeLabels.barracks",
+      };
+    },
+  },
 };
 
 export const CHALLENGE_ORDER = [
@@ -198,4 +241,5 @@ export const CHALLENGE_ORDER = [
   "socialContract",
   "enlightenment",
   "embersOfRevolt",
+  "drumsOfWar",
 ];
