@@ -448,10 +448,13 @@ const SHEET_BASE_PATH = "resources/rolling-fiefdoms-player-sheet";
 // locale not listed here falls back to the English board.
 const LOCALIZED_SHEET_LOCALES = new Set(["fr"]);
 // Challenges with a dedicated board variant (baked-in Buildings-panel text, e.g. Drums of War's
-// Barracks replacing the printed Cottage row). Keyed by challenge id -> filename suffix. Only
-// English art exists so far; a locale without a matching `-<locale>-<suffix>` file falls back to
-// that locale's plain board (see sheetBasePathForLocale below).
-const CHALLENGE_SHEET_VARIANTS = { drumsOfWar: "challenge-vii" };
+// Barracks replacing the printed Cottage row). Keyed by challenge id -> { default, locales }:
+// `default` is the English-board filename suffix; `locales` maps a locale to its own dedicated
+// combo suffix where one exists. A locale with neither its own combo art nor plain localized
+// board falls back to the English variant (see sheetBasePathForLocale below).
+const CHALLENGE_SHEET_VARIANTS = {
+  drumsOfWar: { default: "challenge-vii", locales: { fr: "fr-challenge-vii" } },
+};
 const POP_CAPACITY = 5;
 const POP_LAYOUT = { rows: [3, 3, 3, 3, 3, 3], pipsPerCell: 4 };
 const POP_TRACK_TOTAL_CELLS = POP_LAYOUT.rows.reduce((sum, len) => sum + len, 0);
@@ -655,9 +658,13 @@ function preloadSheet() {
 
 function sheetBasePathForLocale() {
   const locale = getLocale();
+  const variant = CHALLENGE_SHEET_VARIANTS[activeChallenge()?.id];
+  if (variant) {
+    const localizedSuffix = variant.locales?.[locale];
+    if (localizedSuffix) return `${SHEET_BASE_PATH}-${localizedSuffix}`;
+    if (!LOCALIZED_SHEET_LOCALES.has(locale)) return `${SHEET_BASE_PATH}-${variant.default}`;
+  }
   if (LOCALIZED_SHEET_LOCALES.has(locale)) return `${SHEET_BASE_PATH}-${locale}`;
-  const challengeSuffix = CHALLENGE_SHEET_VARIANTS[activeChallenge()?.id];
-  if (challengeSuffix) return `${SHEET_BASE_PATH}-${challengeSuffix}`;
   return SHEET_BASE_PATH;
 }
 
