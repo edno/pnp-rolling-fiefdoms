@@ -83,6 +83,7 @@ function possibleValues(die) {
 // module was first imported.
 export const BUILDING_RULES = {
   C: { get name() { return t("buildings.C"); }, requirement: 0, base: 0, category: "special" },
+  B: { get name() { return t("buildings.B"); }, requirement: 3, base: 0, category: "special" },
   F: { get name() { return t("buildings.F"); }, requirement: 2, base: 3, category: "basic" },
   Q: { get name() { return t("buildings.Q"); }, requirement: 2, base: 3, category: "basic" },
   W: { get name() { return t("buildings.W"); }, requirement: 2, base: 3, category: "basic" },
@@ -107,8 +108,10 @@ export function buildingOptions(buildVals, buildings = BUILDING_RULES) {
 }
 
 // Derive building options from dice objects, allowing flexible faces (windrose or legacy paired faces) to stay flexible.
-export function buildingOptionsFromDice(buildDice, buildings = BUILDING_RULES) {
-  const map = {
+// `codeOverrides` lets an active challenge swap one building code for another (e.g. Challenge VII's
+// Barracks-replaces-Cottage: { C: "B" }) without touching the die-value mapping itself.
+export function buildingOptionsFromDice(buildDice, buildings = BUILDING_RULES, codeOverrides = {}) {
+  const baseMap = {
     1: "C",
     2: "F",
     3: "Q",
@@ -120,6 +123,9 @@ export function buildingOptionsFromDice(buildDice, buildings = BUILDING_RULES) {
     9: "A",
     10: "G",
   };
+  const map = Object.fromEntries(
+    Object.entries(baseMap).map(([value, code]) => [value, codeOverrides?.[code] || code]),
+  );
   const opts = new Map();
   const valuesPerDie = buildDice.map((die) => {
     const vals = possibleValues(die);
@@ -288,15 +294,18 @@ export function computeScore(board, populationNodes, workerAllocations = null, o
   const cols = board[0]?.length || 0;
   const popTotal = populationNodes.flat().reduce((a, b) => a + b, 0);
   const cottages = board.flat().filter((c) => c.building === "C").length;
-  const housing = cottages * 4;
   const forfeitsCount = board.flat().filter((c) => c.forfeited || c.activationForfeit).length;
 
   const activation = computeActivationMap(board, populationNodes, workerAllocations, options);
+  // Barracks (Challenge VII) provides 2 Housing units (8 Housing) only once activated, unlike
+  // Cottage's flat 4 (its requirement of 0 makes it trivially always active).
+  const housing = cottages * 4 + activeBuildingCount(board, activation, "B") * 8;
   const marketAllocations = resolveMarketAllocations(board, populationNodes, activation);
   const nodeToMarket = buildNodeToMarketMap(board, populationNodes, activation);
 
   let scores = {
     cottages: scoreCottages(board, populationNodes),
+    barracks: 0,
     farm: 0,
     quarry: 0,
     windmill: 0,
@@ -321,6 +330,9 @@ export function computeScore(board, populationNodes, workerAllocations = null, o
         marketAllocations,
       });
       switch (cell.building) {
+        case "B":
+          scores.barracks += points;
+          break;
         case "F":
           scores.farm += points;
           break;
@@ -372,6 +384,7 @@ export function computeScore(board, populationNodes, workerAllocations = null, o
 
   const buildingsTotal =
     scores.cottages +
+    scores.barracks +
     scores.farm +
     scores.quarry +
     scores.windmill +
@@ -400,6 +413,18 @@ export function computeScore(board, populationNodes, workerAllocations = null, o
     marketDetails,
     nodeToMarket,
   };
+}
+
+// Count cells with the given building code that are currently active. Shared by computeScore's
+// housing calc and game-state.js's live recalcTracks so both agree on active-Barracks housing.
+export function activeBuildingCount(board, activation, code) {
+  let count = 0;
+  for (let r = 0; r < board.length; r++) {
+    for (let c = 0; c < board[0].length; c++) {
+      if (board[r][c].building === code && activation.get(key(r, c))) count++;
+    }
+  }
+  return count;
 }
 
 function scoreCottages(board, populationNodes) {
@@ -687,6 +712,9 @@ function scoreBuildingCell(board, populationNodes, activation, r, c, { marketAll
   if (!active) return 0;
 
   switch (cell.building) {
+    case "B": {
+      return isDiagonalPlot(r, c, board.length, board[0].length) ? 5 : 0;
+    }
     case "F": {
       const base = BUILDING_RULES.F.base;
       const bonus = adjHasBuilding(board, r, c, "S") ? 2 : 0;
@@ -736,6 +764,11 @@ function scoreBuildingCell(board, populationNodes, activation, r, c, { marketAll
 
 function key(r, c) {
   return `${r},${c}`;
+}
+
+// The board's two corner-to-corner diagonals (Challenge VII: Barracks scores only here).
+function isDiagonalPlot(r, c, rows, cols) {
+  return r === c || r + c === rows - 1;
 }
 
 function orthNeighbors(r, c, rows, cols) {

@@ -612,9 +612,14 @@ export function autoAdvanceState(state, board) {
 }
 
 export function recalcTracks(state, { computeScore, calcVagrants }) {
-  const pop = state.populationNodes ? state.populationNodes.flat().reduce((a, b) => a + b, 0) : 0;
-  const cottages = boardCottages(state.board);
-  const housing = cottages * 4;
+  // computeScore is the single source of truth for housing (cottages*4 plus, since Challenge VII,
+  // 8 per active Barracks) — read pop/housing off its result instead of recomputing activation and
+  // the formula a second time here.
+  const scoreResult = computeScore(state.board, state.populationNodes, state.workerAllocations, {
+    allowPopulationActivation: false,
+  });
+  const pop = scoreResult.pop;
+  const housing = scoreResult.housing;
   const bonus = Math.max(0, state.influenceBonus || 0);
   const prevEarned = Math.max(0, state.influence?.earned || 0);
   const prevPopulationEarned = Math.max(0, prevEarned - bonus);
@@ -631,9 +636,6 @@ export function recalcTracks(state, { computeScore, calcVagrants }) {
   state.tracks.housing = housing;
   state.tracks.influence = availableInfluence;
   const vagrants = calcVagrants(pop, housing);
-  const scoreResult = computeScore(state.board, state.populationNodes, state.workerAllocations, {
-    allowPopulationActivation: false,
-  });
   return {
     vagrants,
     scoreResult,
