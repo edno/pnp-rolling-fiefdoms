@@ -1450,6 +1450,7 @@ function renderBoard() {
               r,
               c,
               activationMap,
+              activeChallenge()?.rules?.buildingOverrides,
             );
             const scoreLabel = document.createElement("div");
             scoreLabel.className = "cell-score";
@@ -1894,6 +1895,7 @@ function updateTracks() {
   const { vagrants, scoreResult, influence } = recalcTracks(state, {
     computeScore,
     calcVagrants,
+    buildingOverrides: activeChallenge()?.rules?.buildingOverrides,
   });
   if (influence?.gained > 0) {
     log(
@@ -2270,9 +2272,7 @@ function closeChallengePicker() {
   if (challengePickerEl) challengePickerEl.hidden = true;
 }
 
-const UPCOMING_CHALLENGES = [
-  { nameKey: "challenges.edgeOfTheWorld.name", descKey: "challenges.edgeOfTheWorld.description", difficulty: 3 },
-];
+const UPCOMING_CHALLENGES = [];
 
 // Appends a labeled bullet list (Setup / Rules / Victory) to a challenge card, skipped
 // entirely when the challenge has no keys for that section (e.g. "no changes" challenges).
@@ -3306,6 +3306,7 @@ function currentScore({ allowPopulationActivation } = {}) {
       : state.activationMode || state.activationComplete;
   return computeScore(state.board, state.populationNodes, currentWorkerAllocationsForScore(), {
     allowPopulationActivation: usePopActivation,
+    buildingOverrides: activeChallenge()?.rules?.buildingOverrides,
   });
 }
 
