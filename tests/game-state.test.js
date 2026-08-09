@@ -148,6 +148,19 @@ describe("tallyUnrestAndCheckBarricade (challenge VI)", () => {
     ]);
   });
 
+  it("clamps each step's displayed amount so multi-step totals stay within the turn's +4 cap", () => {
+    const state = createState();
+    state.unrestTracking = true;
+    state.turnIndex = 1;
+    state.turnFlags = { advancedBuiltThisTurn: true };
+    state.influenceAdjustments = { N1: { delta: 4 } }; // 1 (advanced) + 4 (influence) = 5 raw, capped to 4
+    const { messages } = tallyUnrestAndCheckBarricade(state, emptyBoard());
+    expect(state.unrest.progress).toBe(4);
+    const unrestMessages = messages.filter((m) => m.kind === "unrest").map((m) => m.text);
+    expect(unrestMessages[0]).toBe("Unrest +1 (Advanced building): 1/4.");
+    expect(unrestMessages[1]).toBe("Unrest +3 (Influence x4): 4/4.");
+  });
+
   it("gains 1 Unrest per Influence spent during the completed turn", () => {
     const state = createState();
     state.unrestTracking = true;

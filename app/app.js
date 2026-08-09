@@ -41,6 +41,7 @@ import {
   autoAdvanceState,
   recalcTracks,
   maybeRollAfterLockState,
+  isReadyToRoll,
   canRescueLocationWithInfluence,
 } from "./game-state.js";
 import { rollNumberedDie, rollXDie } from "./dice.js";
@@ -577,7 +578,11 @@ function resetState(challengeId = null) {
   state.unrestCheckedTurnIndex = null;
   state.pendingBarricade = null;
   state.pendingCenterBuilding = challenge?.setup?.forcedCenterBuilding
-    ? { active: true, awaitingGuildType: false }
+    ? {
+        active: true,
+        awaitingGuildType: false,
+        choices: challenge.setup.forcedCenterBuilding.choices || ["T", ...guildTypes],
+      }
     : null;
   resetTurnState(state);
   clearElement(logEl);
@@ -1276,7 +1281,10 @@ function renderBuildingOverlay(options = [], disabled = false) {
   if (!overlay) return;
   const centerBuildingActive = state.pendingCenterBuilding?.active && !state.pendingCenterBuilding?.awaitingGuildType;
   if (centerBuildingActive) {
-    options = [{ code: "T" }, { code: "G" }];
+    const choices = state.pendingCenterBuilding.choices || ["T", ...guildTypes];
+    options = [];
+    if (choices.includes("T")) options.push({ code: "T" });
+    if (choices.some((c) => guildTypes.includes(c))) options.push({ code: "G" });
   }
   const hasLockedLocation = Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
   const diceLockedForBuild = state.diceLocked;
@@ -2070,8 +2078,10 @@ function handleCenterBuildingChoice(code) {
   }
   if (code === "G") {
     state.pendingCenterBuilding.awaitingGuildType = true;
+    const choices = state.pendingCenterBuilding.choices || ["T", ...guildTypes];
+    const allowedGuildTypes = guildTypes.filter((gt) => choices.includes(gt));
     renderBuildingOverlay([], true);
-    renderGuildOverlay(guildTypes);
+    renderGuildOverlay(allowedGuildTypes);
     updateActionBanner();
   }
 }
@@ -2200,9 +2210,21 @@ function updateActiveChallengeBadge() {
   activeChallengeBadge.removeAttribute("aria-hidden");
 }
 
+let cachedCarouselCardStep = null;
+if (typeof window !== "undefined") {
+  window.addEventListener("resize", () => {
+    cachedCarouselCardStep = null;
+  });
+}
+
+// Cached to avoid forcing a layout (getBoundingClientRect) on every scroll-throttled
+// animation frame while the picker carousel is being dragged/scrolled - the card width only
+// changes on a window resize, which invalidates the cache above.
 function carouselCardStep() {
+  if (cachedCarouselCardStep !== null) return cachedCarouselCardStep;
   const card = challengeCardsEl?.querySelector(".challenge-card");
-  return card ? card.getBoundingClientRect().width + 14 : 264;
+  cachedCarouselCardStep = card ? card.getBoundingClientRect().width + 14 : 264;
+  return cachedCarouselCardStep;
 }
 
 function scrollChallengeCarousel(direction) {
@@ -2325,6 +2347,7 @@ function renderChallengeCarouselDots(count) {
 }
 
 function renderChallengeCards() {
+  cachedCarouselCardStep = null;
   clearElement(challengeCardsEl);
   const entries = [
     { id: null, nameKey: "challenges.picker.normalGameName", descKey: "challenges.picker.normalGameDescription" },
@@ -2408,7 +2431,8 @@ function renderGuildOverlay(available = []) {
   if (!overlay) return;
   const centerBuildingActive = Boolean(state.pendingCenterBuilding?.awaitingGuildType);
   if (centerBuildingActive) {
-    available = guildTypes;
+    const choices = state.pendingCenterBuilding.choices || ["T", ...guildTypes];
+    available = guildTypes.filter((gt) => choices.includes(gt));
   }
   const hasLockedLocation = Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
   const locationReady = hasLockedLocation || state.locationSelection.length === 2;
@@ -2642,21 +2666,14 @@ function updateChallengeProgressBadge() {
 }
 
 function maybeRollAfterLock() {
-  // Mirrors maybeRollAfterLockState()'s own readiness gate (game-state.js), checked here
-  // *before* calling it so the Unrest tally can run - and potentially raise a Barricade that
-  // blocks the transition - before that function's side effect of flipping diceLocked false.
-  // This is the actual turn-completion path for a normal build (autoAdvance() sees diceLocked
-  // still true at that point and defers here), so skipping the tally here was silently
-  // dropping Unrest gains (Advanced building / Influence spent / Vagrants) on every turn that
-  // ended via a build rather than a barricade/forfeit/activation.
-  const readyToRoll =
-    state.diceLocked &&
-    state.pendingNextRoll &&
-    !(state.pendingPopulation?.remaining > 0) &&
-    !state.pestilence &&
-    !state.forceForfeit &&
-    !state.activationMode;
-  if (readyToRoll && tallyUnrestForCompletedTurnIfNeeded()) return;
+  // Uses game-state.js's own isReadyToRoll() gate, checked here *before* calling
+  // maybeRollAfterLockState() so the Unrest tally can run - and potentially raise a Barricade
+  // that blocks the transition - before that function's side effect of flipping diceLocked
+  // false. This is the actual turn-completion path for a normal build (autoAdvance() sees
+  // diceLocked still true at that point and defers here), so skipping the tally here was
+  // silently dropping Unrest gains (Advanced building / Influence spent / Vagrants) on every
+  // turn that ended via a build rather than a barricade/forfeit/activation.
+  if (isReadyToRoll(state) && tallyUnrestForCompletedTurnIfNeeded()) return;
   const action = maybeRollAfterLockState(state);
   if (action === "roll") {
     advanceTurnTrack();
@@ -3216,6 +3233,7 @@ function soloSwapUnavailableReasonKey() {
 // the button appearing available/orange while this logic believes it's unavailable (or vice
 // versa) without a way to reproduce the exact dice/board state that triggered it.
 function logSwapDebugTrace(choice, reasonKey, details) {
+  if (!debugMode) return;
   const fingerprint = JSON.stringify({
     loc: choice.baseLocDice?.map((d) => [d.label, d.face, d.resolved]),
     build: choice.baseBuildDice?.map((d) => [d.label, d.face, d.resolved]),
@@ -3515,5 +3533,6 @@ function autoForfeitUnfillable(finalize = false) {
       placeBuilding,
       onPopulationNodeClick,
       adjustDieWithInfluence,
+      handleCenterBuildingChoice,
     };
   }
