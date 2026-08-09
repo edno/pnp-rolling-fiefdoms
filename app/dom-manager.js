@@ -70,7 +70,6 @@ export const challengeOutcomeReasons = document.getElementById("challengeOutcome
 export const barricadeAlertOverlay = document.getElementById("barricadeAlertOverlay");
 export const barricadeAlertText = document.getElementById("barricadeAlertText");
 
-// P2P Multiplayer Elements
 // ============================================================================
 // DOM UTILITIES
 // ============================================================================

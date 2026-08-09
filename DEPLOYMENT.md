@@ -71,5 +71,4 @@ The project includes a `public/_headers` file that configures:
    - Always Online: Enable (serves cached version if origin is down)
 
 3. **Network**:
-   - WebSockets: Enable (needed for P2P signalling)
    - HTTP/2: Enabled by default
