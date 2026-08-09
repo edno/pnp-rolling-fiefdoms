@@ -20,6 +20,7 @@ export const ICONS = {
 
 export const buildingHitboxes = [
   { code: "C", col: 1, row: 1 },
+  { code: "B", col: 1, row: 1 },
   { code: "F", col: 1, row: 2 },
   { code: "Q", col: 1, row: 3 },
   { code: "W", col: 1, row: 4 },
@@ -40,6 +41,7 @@ export const guildHitboxes = [
 
 const buildingScoreSpots = [
   { key: "cottages", x: 6, y: 10 },
+  { key: "barracks", x: 6, y: 10 },
   { key: "farm", x: 6, y: 58 },
   { key: "quarry", x: 6, y: 104 },
   { key: "windmill", x: 6, y: 154 },

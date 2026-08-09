@@ -1223,7 +1223,7 @@ function fillBuildings(buildDice) {
   }
   const adjustedBuildDice = applyInfluenceToDice(state, effectiveBuildDice);
   const allowed = restrictBuildOptionsForBoard(
-    buildingOptionsFromDice(adjustedBuildDice),
+    buildingOptionsFromDice(adjustedBuildDice, BUILDING_RULES, activeChallenge()?.rules?.buildingOverrides),
     state.board,
     activeChallenge()?.rules?.disabledBuildings,
   );
@@ -1304,7 +1304,7 @@ function renderBuildingOverlay(options = [], disabled = false) {
       : state.buildDice;
   if ((!options || !options.length) && buildDice?.length && !forceDisabled) {
     const fallback = restrictBuildOptionsForBoard(
-      buildingOptionsFromDice(buildDice),
+      buildingOptionsFromDice(buildDice, BUILDING_RULES, activeChallenge()?.rules?.buildingOverrides),
       state.board,
       activeChallenge()?.rules?.disabledBuildings,
     );
@@ -2263,7 +2263,6 @@ function closeChallengePicker() {
 }
 
 const UPCOMING_CHALLENGES = [
-  { nameKey: "challenges.drumsOfWar.name", descKey: "challenges.drumsOfWar.description", difficulty: 3 },
   { nameKey: "challenges.edgeOfTheWorld.name", descKey: "challenges.edgeOfTheWorld.description", difficulty: 3 },
 ];
 
@@ -3319,9 +3318,7 @@ function updateScoreOverlays(breakdown, total = 0, marketDetails = [], nodeToMar
   clearElement(scoreOverlayBuildingsEl);
   clearElement(scoreOverlayGuildsEl);
   clearElement(scoreOverlayReputationEl);
-  scoringSpots.forEach((spot) => {
-    const leftPos = typeof spot.x === "number" ? spot.x : 0;
-    const topPos = typeof spot.y === "number" ? spot.y : 30;
+  const computedSpots = scoringSpots.map((spot) => {
     let val;
     if (spot.key === "reputation") {
       val = total;
@@ -3330,6 +3327,26 @@ function updateScoreOverlays(breakdown, total = 0, marketDetails = [], nodeToMar
     } else {
       val = typeof breakdown[spot.key] === "number" ? breakdown[spot.key] : 0;
     }
+    return { spot, val };
+  });
+  // Some spots intentionally share coordinates when a challenge's building replaces another's
+  // on the fixed scoresheet art (e.g. Barracks reusing Cottage's slot) — the score-chip text has
+  // no background, so rendering both would visually overlap. Keep only the nonzero one per spot.
+  const seenCoords = new Map();
+  const spotsToRender = [];
+  computedSpots.forEach((entry) => {
+    const coordKey = `${entry.spot.x},${entry.spot.y}`;
+    const existingIdx = seenCoords.get(coordKey);
+    if (existingIdx === undefined) {
+      seenCoords.set(coordKey, spotsToRender.length);
+      spotsToRender.push(entry);
+    } else if (entry.val !== 0 && spotsToRender[existingIdx].val === 0) {
+      spotsToRender[existingIdx] = entry;
+    }
+  });
+  spotsToRender.forEach(({ spot, val }) => {
+    const leftPos = typeof spot.x === "number" ? spot.x : 0;
+    const topPos = typeof spot.y === "number" ? spot.y : 30;
     const negative = typeof val === "number" && val < 0;
     const forceNegative = spot.key === "vagrants" || spot.key === "springhouse";
     const chip = document.createElement("div");
