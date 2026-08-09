@@ -298,6 +298,9 @@ export const CHALLENGES = {
     difficulty: 3,
     nameKey: "challenges.edgeOfTheWorld.name",
     descKey: "challenges.edgeOfTheWorld.description",
+    // Dedicated board art (Piscary replacing the printed Windmill row, Piscators' Guild replacing
+    // the Windmillers' Guild). See drumsOfWar's sheetVariant comment for the shape.
+    sheetVariant: { default: "challenge-viii", locales: { fr: "fr-challenge-viii" } },
     setupKeys: [],
     ruleKeys: [
       "challenges.edgeOfTheWorld.rule1",
@@ -331,7 +334,7 @@ export const CHALLENGES = {
     },
     liveProgress(scoreResult, state) {
       const { have, need } = piscaryMarketPresenceProgress(state.board);
-      return { have, need: Math.max(1, need), labelKey: "challenges.badgeLabels.piscary" };
+      return { have, need, labelKey: "challenges.badgeLabels.piscary" };
     },
   },
 };
