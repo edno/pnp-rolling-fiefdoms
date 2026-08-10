@@ -1,16 +1,69 @@
-// Solo challenge definitions (campaign chapters I-VI from the solo-challenges rulebook).
+// Solo challenge definitions (campaign chapters I-VII from the solo-challenges rulebook).
 //
 // Each challenge is a pure config object: i18n keys for display text, a
 // `setup` patch applied once at game start, a `rules` patch consulted by
 // game logic during play, an optional `turnLimit`, and a `victory()`
 // predicate evaluated against the final score breakdown once the game ends.
 //
-// Reserved (not yet implemented) extension point for challenges VII/VIII,
-// which each replace an existing building with a new one:
-//   rules: { buildingOverrides: { C: "barracksConfig" } }
+// `rules.buildingOverrides` (introduced by Challenge VII) remaps a die-value's default building
+// code to a new one, e.g. { C: "B" } for Barracks-replaces-Cottage, or { W: "P" } for Challenge
+// VIII's Piscary-replaces-Windmill.
+
+import { computeActivationMap, adjCountBuilding, adjCountActiveBuilding, isDiagonalPlot } from "./rules.js";
 
 function countBuilding(board, code) {
   return board.flat().filter((cell) => cell.building === code).length;
+}
+
+// Like countBuilding, but only counts cells on the board's diagonal — used for Challenge VII's
+// live Barracks tracker so it doesn't overcount off-diagonal Barracks that can never score.
+function countDiagonalBuilding(board, code) {
+  const rows = board.length;
+  const cols = board[0]?.length || 0;
+  let count = 0;
+  board.forEach((row, r) =>
+    row.forEach((cell, c) => {
+      if (cell.building === code && isDiagonalPlot(r, c, rows, cols)) count += 1;
+    }),
+  );
+  return count;
+}
+
+// Live (mid-game) progress for Challenge VIII: labourer activation only happens in the end-game
+// activation phase, so this deliberately ignores activation and just counts, of the Piscaries
+// built so far, how many currently have a Market neighbor (any activation status) present.
+function piscaryMarketPresenceProgress(board) {
+  let have = 0;
+  let total = 0;
+  for (let r = 0; r < board.length; r++) {
+    for (let c = 0; c < board[0].length; c++) {
+      if (board[r][c].building !== "P") continue;
+      total += 1;
+      if (adjCountBuilding(board, r, c, "M") > 0) have += 1;
+    }
+  }
+  return { have, need: total };
+}
+
+// Final (end-game) check for Challenge VIII's "score all Piscaries with the Market bonus"
+// victory condition: every *active* Piscary must have at least one *active* adjacent Market.
+function activePiscaryMarketBonusProgress(state) {
+  const activation = computeActivationMap(state.board, state.populationNodes, state.workerAllocations);
+  let have = 0;
+  let total = 0;
+  for (let r = 0; r < state.board.length; r++) {
+    for (let c = 0; c < state.board[0].length; c++) {
+      const cell = state.board[r][c];
+      if (cell.building !== "P") continue;
+      // Every built Piscary counts toward `total`, not just active ones — an unactivated Piscary
+      // never scores its Market bonus, so it must count against "score ALL Piscaries with the
+      // bonus" rather than being silently excluded from the check entirely.
+      total += 1;
+      const active = activation.get(`${r},${c}`);
+      if (active && adjCountActiveBuilding(state.board, activation, r, c, "M") > 0) have += 1;
+    }
+  }
+  return { have, need: total };
 }
 
 export const CHALLENGES = {
@@ -189,6 +242,105 @@ export const CHALLENGES = {
       };
     },
   },
+
+  drumsOfWar: {
+    id: "drumsOfWar",
+    difficulty: 3,
+    nameKey: "challenges.drumsOfWar.name",
+    descKey: "challenges.drumsOfWar.description",
+    // Dedicated board art (baked-in Buildings-panel text: Barracks replacing the printed Cottage
+    // row). `default` is the English-board filename suffix (resources/rolling-fiefdoms-player-sheet-<suffix>.webp);
+    // `locales` maps a locale to its own dedicated combo suffix where one exists. A locale with
+    // neither its own combo art nor a plain localized board falls back to the English variant
+    // (see sheetBasePathForLocale in app.js).
+    sheetVariant: { default: "challenge-vii", locales: { fr: "fr-challenge-vii" } },
+    setupKeys: [],
+    ruleKeys: [
+      "challenges.drumsOfWar.rule1",
+      "challenges.drumsOfWar.rule2",
+      "challenges.drumsOfWar.rule3",
+      "challenges.drumsOfWar.rule4",
+    ],
+    victoryKeys: ["challenges.drumsOfWar.victory1", "challenges.drumsOfWar.victory2"],
+    setup: {},
+    rules: { buildingOverrides: { C: "B" } },
+    turnLimit: null,
+    requiredRP: 80,
+    victory(scoreResult) {
+      const repOk = scoreResult.total >= this.requiredRP;
+      // Each active diagonal Barracks scores exactly 5 RP (0 if built off-diagonal), so
+      // requiring >= 20 RP is equivalent to "at least 4 Barracks scored".
+      const barracksOk = scoreResult.breakdown.barracks >= 20;
+      return {
+        passed: repOk && barracksOk,
+        reasons: [
+          { ok: repOk, textKey: "challenges.reasons.reputation", params: { have: scoreResult.total, need: this.requiredRP } },
+          {
+            ok: barracksOk,
+            textKey: "challenges.reasons.barracks",
+            params: { have: Math.floor(scoreResult.breakdown.barracks / 5), need: 4 },
+          },
+        ],
+      };
+    },
+    liveProgress(scoreResult, state) {
+      // Unlike victory() (evaluated once at true game end, when activation is real), the live
+      // badge is shown throughout play, before the end-game activation phase ever runs — so it
+      // can't check breakdown.barracks (which requires an active diagonal Barracks to be nonzero).
+      // Track diagonal-placed Barracks instead: position is known immediately at placement time,
+      // and counting off-diagonal Barracks (which can never score) would overstate progress.
+      return {
+        have: countDiagonalBuilding(state.board, "B"),
+        need: 4,
+        labelKey: "challenges.badgeLabels.barracks",
+      };
+    },
+  },
+
+  edgeOfTheWorld: {
+    id: "edgeOfTheWorld",
+    difficulty: 3,
+    nameKey: "challenges.edgeOfTheWorld.name",
+    descKey: "challenges.edgeOfTheWorld.description",
+    // Dedicated board art (Piscary replacing the printed Windmill row, Piscators' Guild replacing
+    // the Windmillers' Guild). See drumsOfWar's sheetVariant comment for the shape.
+    sheetVariant: { default: "challenge-viii", locales: { fr: "fr-challenge-viii" } },
+    setupKeys: [],
+    ruleKeys: [
+      "challenges.edgeOfTheWorld.rule1",
+      "challenges.edgeOfTheWorld.rule2",
+      "challenges.edgeOfTheWorld.rule3",
+      "challenges.edgeOfTheWorld.rule4",
+      "challenges.edgeOfTheWorld.rule5",
+    ],
+    victoryKeys: [
+      "challenges.edgeOfTheWorld.victory1",
+      "challenges.edgeOfTheWorld.victory2",
+      "challenges.edgeOfTheWorld.victory3",
+    ],
+    setup: {},
+    rules: { buildingOverrides: { W: "P" } },
+    turnLimit: null,
+    requiredRP: 80,
+    victory(scoreResult, state) {
+      const repOk = scoreResult.total >= this.requiredRP;
+      const guildOk = scoreResult.breakdown["guilds-gw"] > 0;
+      const { have, need } = activePiscaryMarketBonusProgress(state);
+      const piscaryOk = need >= 1 && have === need;
+      return {
+        passed: repOk && guildOk && piscaryOk,
+        reasons: [
+          { ok: repOk, textKey: "challenges.reasons.reputation", params: { have: scoreResult.total, need: this.requiredRP } },
+          { ok: guildOk, textKey: "challenges.reasons.piscatorsGuild", params: {} },
+          { ok: piscaryOk, textKey: "challenges.reasons.piscary", params: { have, need } },
+        ],
+      };
+    },
+    liveProgress(scoreResult, state) {
+      const { have, need } = piscaryMarketPresenceProgress(state.board);
+      return { have, need, labelKey: "challenges.badgeLabels.piscary" };
+    },
+  },
 };
 
 export const CHALLENGE_ORDER = [
@@ -198,4 +350,6 @@ export const CHALLENGE_ORDER = [
   "socialContract",
   "enlightenment",
   "embersOfRevolt",
+  "drumsOfWar",
+  "edgeOfTheWorld",
 ];

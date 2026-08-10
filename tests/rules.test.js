@@ -12,6 +12,8 @@ import {
   restrictBuildOptionsForBoard,
   allocatePopulationToNode,
   availableLocationPairs,
+  BUILDING_RULES,
+  guildTargetFromLabel,
 } from "../app/rules.js";
 
 const buildings = {
@@ -928,5 +930,193 @@ describe("activation scoring with workers", () => {
     workers[1][1] = 2;
     const result = computeScore(board, pop, workers, { allowPopulationActivation: true });
     expect(result.breakdown.farm).toBeGreaterThan(0);
+  });
+});
+
+describe("Barracks (Challenge VII: Drums of War)", () => {
+  const emptyBoard = () =>
+    Array.from({ length: 5 }, () =>
+      Array.from({ length: 5 }, () => ({ building: null, forfeited: false, springBoost: 0 })),
+    );
+  const emptyPop = () => Array.from({ length: 4 }, () => Array(4).fill(0));
+  const emptyWorkers = () => Array.from({ length: 5 }, () => Array(5).fill(0));
+
+  it("is registered with a 3-Labourer requirement and the basic category", () => {
+    expect(BUILDING_RULES.B).toBeTruthy();
+    expect(BUILDING_RULES.B.requirement).toBe(3);
+    expect(BUILDING_RULES.B.category).toBe("basic");
+  });
+
+  it("buildingOptionsFromDice only maps die-value 1 to Barracks when codeOverrides requests it", () => {
+    const dice = [{ resolved: 1 }, { resolved: 2 }];
+    const defaultOpts = buildingOptionsFromDice(dice);
+    expect(defaultOpts.some((o) => o.code === "C")).toBe(true);
+    expect(defaultOpts.some((o) => o.code === "B")).toBe(false);
+
+    const overriddenOpts = buildingOptionsFromDice(dice, BUILDING_RULES, { C: "B" });
+    expect(overriddenOpts.some((o) => o.code === "B")).toBe(true);
+    expect(overriddenOpts.some((o) => o.code === "C")).toBe(false);
+  });
+
+  it("scores 5 RP only when active on a diagonal plot", () => {
+    const board = emptyBoard();
+    board[0][0].building = "B"; // r === c: on the main diagonal
+    board[0][1].building = "B"; // off-diagonal
+    const workers = emptyWorkers();
+    workers[0][0] = 3;
+    workers[0][1] = 3;
+    const result = computeScore(board, emptyPop(), workers);
+    expect(result.breakdown.barracks).toBe(5);
+  });
+
+  it("scores 0 RP when built off a diagonal plot even if active", () => {
+    const board = emptyBoard();
+    board[0][1].building = "B";
+    const workers = emptyWorkers();
+    workers[0][1] = 3;
+    const result = computeScore(board, emptyPop(), workers);
+    expect(result.breakdown.barracks).toBe(0);
+  });
+
+  it("does not score or provide housing when inactive (fewer than 3 Labourers)", () => {
+    const board = emptyBoard();
+    board[0][0].building = "B";
+    const workers = emptyWorkers();
+    workers[0][0] = 2; // short of the 3-Labourer requirement
+    const result = computeScore(board, emptyPop(), workers);
+    expect(result.breakdown.barracks).toBe(0);
+    expect(result.housing).toBe(0);
+  });
+
+  it("provides 8 Housing (2 units) once activated", () => {
+    const board = emptyBoard();
+    board[0][0].building = "B";
+    const workers = emptyWorkers();
+    workers[0][0] = 3;
+    const result = computeScore(board, emptyPop(), workers);
+    expect(result.housing).toBe(8);
+  });
+});
+
+describe("Piscary (Challenge VIII: Edge of the World)", () => {
+  const emptyBoard = () =>
+    Array.from({ length: 5 }, () =>
+      Array.from({ length: 5 }, () => ({ building: null, forfeited: false, springBoost: 0 })),
+    );
+  const emptyPop = () => Array.from({ length: 4 }, () => Array(4).fill(0));
+  const emptyWorkers = () => Array.from({ length: 5 }, () => Array(5).fill(0));
+
+  it("is registered with a 2-Labourer requirement, base 3, and the basic category", () => {
+    expect(BUILDING_RULES.P).toBeTruthy();
+    expect(BUILDING_RULES.P.requirement).toBe(2);
+    expect(BUILDING_RULES.P.base).toBe(3);
+    expect(BUILDING_RULES.P.category).toBe("basic");
+  });
+
+  it("buildingOptionsFromDice only maps die-value 4 to Piscary when codeOverrides requests it", () => {
+    const dice = [{ resolved: 4 }, { resolved: 1 }];
+    const defaultOpts = buildingOptionsFromDice(dice);
+    expect(defaultOpts.some((o) => o.code === "W")).toBe(true);
+    expect(defaultOpts.some((o) => o.code === "P")).toBe(false);
+
+    const overriddenOpts = buildingOptionsFromDice(dice, BUILDING_RULES, { W: "P" });
+    expect(overriddenOpts.some((o) => o.code === "P")).toBe(true);
+    expect(overriddenOpts.some((o) => o.code === "W")).toBe(false);
+  });
+
+  it("scores 3 RP base, +1 per adjacent active Market", () => {
+    const board = emptyBoard();
+    board[0][0].building = "P";
+    board[0][1].building = "M";
+    const workers = emptyWorkers();
+    workers[0][0] = 2; // activates the Piscary
+    workers[0][1] = 3; // activates the Market
+    const result = computeScore(board, emptyPop(), workers);
+    expect(result.breakdown.piscary).toBe(4);
+  });
+
+  it("does not count an inactive adjacent Market", () => {
+    const board = emptyBoard();
+    board[0][0].building = "P";
+    board[0][1].building = "M";
+    const workers = emptyWorkers();
+    workers[0][0] = 2; // Piscary active
+    // Market left inactive (0 workers, no nearby population)
+    const result = computeScore(board, emptyPop(), workers, { allowPopulationActivation: false });
+    expect(result.breakdown.piscary).toBe(3);
+  });
+
+  it("guildTargetFromLabel resolves GW's target through buildingOverrides", () => {
+    expect(guildTargetFromLabel("GW")).toBe("W");
+    expect(guildTargetFromLabel("GW", { W: "P" })).toBe("P");
+  });
+
+  it("Piscators' Guild (GW label) scores 15 RP via guilds-gw once the override resolves its target to Piscary", () => {
+    const board = emptyBoard();
+    const edgeCells = [
+      [0, 2],
+      [4, 2],
+      [2, 0],
+      [2, 4],
+    ];
+    const workers = emptyWorkers();
+    edgeCells.forEach(([r, c]) => {
+      board[r][c].building = "P";
+      workers[r][c] = 2;
+    });
+    board[1][1].building = "G";
+    board[1][1].buildingLabel = "GW";
+    workers[1][1] = 4;
+
+    const withOverride = computeScore(board, emptyPop(), workers, { buildingOverrides: { W: "P" } });
+    expect(withOverride.breakdown["guilds-gw"]).toBe(15);
+
+    const withoutOverride = computeScore(board, emptyPop(), workers);
+    expect(withoutOverride.breakdown["guilds-gw"]).toBe(0);
+  });
+
+  it("Piscators' Guild requires a Piscary on every edge, not just 4+ anywhere on the perimeter", () => {
+    const board = emptyBoard();
+    // 4 active Piscaries, but all on the top edge (row 0) — satisfies a naive edgeCount >= 4,
+    // but not "at least 1 active Piscary on each outer edge" (no bottom, left, or right coverage).
+    const topEdgeCells = [
+      [0, 0],
+      [0, 1],
+      [0, 2],
+      [0, 3],
+    ];
+    const workers = emptyWorkers();
+    topEdgeCells.forEach(([r, c]) => {
+      board[r][c].building = "P";
+      workers[r][c] = 2;
+    });
+    board[1][1].building = "G";
+    board[1][1].buildingLabel = "GW";
+    workers[1][1] = 4;
+    const result = computeScore(board, emptyPop(), workers, { buildingOverrides: { W: "P" } });
+    expect(result.breakdown["guilds-gw"]).toBe(0);
+  });
+
+  it("Piscators' Guild is satisfied when a corner Piscary covers the one edge still missing", () => {
+    const board = emptyBoard();
+    // Non-corner cells cover bottom, left, right; only top is uncovered by a dedicated cell.
+    // The (0,0) corner is the only Piscary that could cover "top", so matching must assign it
+    // there instead of leaving it idle or double-booking it against "left".
+    const cells = [
+      [0, 0], // corner: top or left
+      [4, 2], // bottom only
+      [2, 0], // left only
+      [2, 4], // right only
+    ];
+    const workers = emptyWorkers();
+    cells.forEach(([r, c]) => {
+      board[r][c].building = "P";
+      workers[r][c] = 2;
+    });
+    board[1][1].building = "G";
+    board[1][1].buildingLabel = "GW";
+    workers[1][1] = 4;
+    const result = computeScore(board, emptyPop(), workers, { buildingOverrides: { W: "P" } });
+    expect(result.breakdown["guilds-gw"]).toBe(15);
   });
 });

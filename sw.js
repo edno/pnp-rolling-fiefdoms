@@ -1,9 +1,23 @@
-const CACHE_VERSION = "v1.48";
+const CACHE_VERSION = "v1.52";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
-const APP_VERSION = "v20";
+const APP_VERSION = "v24";
 const SHEET_VERSION = "v2.0";
 const SHEET_BASE_PATH = "/resources/rolling-fiefdoms-player-sheet";
-const SHEET_BASE_PATH_FR = "/resources/rolling-fiefdoms-player-sheet-fr";
+// Every board-art variant, as a filename suffix appended to SHEET_BASE_PATH ("" = the plain
+// English board). Keep in sync with app.js's LOCALIZED_SHEET_LOCALES and each challenge's
+// sheetVariant in challenges.js.
+const SHEET_VARIANT_SUFFIXES = [
+  "",
+  "-fr",
+  "-challenge-vii",
+  "-fr-challenge-vii",
+  "-challenge-viii",
+  "-fr-challenge-viii",
+];
+const SHEET_ASSETS = SHEET_VARIANT_SUFFIXES.flatMap((suffix) => [
+  `${SHEET_BASE_PATH}${suffix}.webp?v=${SHEET_VERSION}`,
+  `${SHEET_BASE_PATH}${suffix}@2x.webp?v=${SHEET_VERSION}`,
+]);
 const ASSETS = [
   "/",
   "/index.html",
@@ -30,10 +44,7 @@ const ASSETS = [
   "/assets/img/bgg.webp",
   "/assets/img/hatch.webp",
   "/assets/img/crown.webp",
-  `${SHEET_BASE_PATH}.webp?v=${SHEET_VERSION}`,
-  `${SHEET_BASE_PATH}@2x.webp?v=${SHEET_VERSION}`,
-  `${SHEET_BASE_PATH_FR}.webp?v=${SHEET_VERSION}`,
-  `${SHEET_BASE_PATH_FR}@2x.webp?v=${SHEET_VERSION}`,
+  ...SHEET_ASSETS,
   "/robots.txt",
   "/manifest.webmanifest",
 ];

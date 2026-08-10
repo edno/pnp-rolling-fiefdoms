@@ -20,9 +20,11 @@ export const ICONS = {
 
 export const buildingHitboxes = [
   { code: "C", col: 1, row: 1 },
+  { code: "B", col: 1, row: 1 },
   { code: "F", col: 1, row: 2 },
   { code: "Q", col: 1, row: 3 },
   { code: "W", col: 1, row: 4 },
+  { code: "P", col: 1, row: 4 },
   { code: "M", col: 1, row: 5 },
   { code: "S", col: 1, row: 6 },
   { code: "T", col: 1, row: 7 },
@@ -40,9 +42,11 @@ export const guildHitboxes = [
 
 const buildingScoreSpots = [
   { key: "cottages", x: 6, y: 10 },
+  { key: "barracks", x: 6, y: 10 },
   { key: "farm", x: 6, y: 58 },
   { key: "quarry", x: 6, y: 104 },
   { key: "windmill", x: 6, y: 154 },
+  { key: "piscary", x: 6, y: 154 },
   { key: "market", x: 6, y: 202 },
   { key: "springhouse", x: 6, y: 246 },
   { key: "townhall", x: 6, y: 296 },

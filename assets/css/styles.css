@@ -1215,6 +1215,10 @@ button:disabled {
 .guild-hit.disabled,
 .building-hit.disabled {
   cursor: not-allowed;
+  /* A challenge can reuse another building's grid slot (e.g. Barracks over Cottage's), stacking
+     two hitboxes in the same cell. The disabled one must not intercept clicks meant for a sibling
+     underneath it, even though its own click handler is already a no-op while disabled. */
+  pointer-events: none;
 }
 
 .log-panel {
