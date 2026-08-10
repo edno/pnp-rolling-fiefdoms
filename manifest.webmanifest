@@ -8,6 +8,7 @@
   "background_color": "#ffffff",
   "theme_color": "#e67e22",
   "icons": [
-    { "src": "assets/img/ink-splatter.png", "sizes": "any", "type": "image/png", "purpose": "any maskable" }
+    { "src": "assets/img/ink-splatter.png", "sizes": "320x320", "type": "image/png", "purpose": "any" },
+    { "src": "assets/img/ink-splatter-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
