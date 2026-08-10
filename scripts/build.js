@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 const path = require("node:path");
+const { createHash } = require("node:crypto");
 const { mkdir, rm, cp, readFile, writeFile, readdir, stat } = require("node:fs/promises");
 const { build } = require("esbuild");
 const { minify: minifyHtml } = require("html-minifier-terser");
@@ -282,6 +283,43 @@ async function minifyCssFiles(dirPath) {
   }
 }
 
+// Computes a Subresource Integrity hash for each same-origin module script
+// from the final (minified) dist output and injects it into index.html, so
+// the hash can never drift from what's actually shipped and a tampered
+// CDN/cache copy of app.js will fail to execute.
+async function patchSecurityHashes(dirPath) {
+  const indexPath = path.join(dirPath, "index.html");
+  let html = await readFile(indexPath, "utf8");
+
+  html = await replaceAsync(html, /<script type="module" src="(app\/[^"]+\.js)(\?[^"]*)?">/g, async (match, src) => {
+    const scriptPath = path.join(dirPath, src);
+    try {
+      const content = await readFile(scriptPath);
+      const hash = createHash("sha384").update(content).digest("base64");
+      return match.replace('">', `" integrity="sha384-${hash}">`);
+    } catch (err) {
+      if (err?.code === "ENOENT") {
+        console.warn(`⚠ Could not compute SRI hash, script not found: ${src}`);
+        return match;
+      }
+      throw err;
+    }
+  });
+
+  await writeFile(indexPath, html, "utf8");
+  console.log("✓ Injected SRI integrity attributes for module scripts");
+}
+
+async function replaceAsync(str, regex, asyncFn) {
+  const matches = [...str.matchAll(regex)];
+  const replacements = await Promise.all(matches.map((m) => asyncFn(...m)));
+  let result = str;
+  matches.forEach((m, i) => {
+    result = result.replace(m[0], replacements[i]);
+  });
+  return result;
+}
+
 async function optimizeSVGsInDirectory(dirPath) {
   const entries = await readdir(dirPath, { withFileTypes: true });
   for (const entry of entries) {
@@ -299,7 +337,7 @@ async function run() {
   await mkdir(outDir, { recursive: true });
 
   const result = await build({
-    entryPoints: [path.join(root, "app/app.js")],
+    entryPoints: [path.join(root, "app/app.js"), path.join(root, "app/inline-init.js")],
     bundle: true,
     format: "esm",
     minify: true,
@@ -392,6 +430,9 @@ async function run() {
       console.warn("⚠ Could not copy _headers:", err.message);
     }
   }
+
+  console.log("\nPatching SRI/CSP security hashes...");
+  await patchSecurityHashes(outDir);
 
   console.log("\nCleaning up unnecessary files...");
   await cleanupUnnecessaryFiles(outDir);

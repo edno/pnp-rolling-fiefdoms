@@ -574,27 +574,7 @@
       </div>
     </div>
 
-    <script>
-      document.getElementById("currentYear").textContent =
-        new Date().getFullYear();
-
-      const backToTopBtn = document.getElementById("backToTopBtn");
-      const landingInfo = document.querySelector(".landing-info");
-      if (backToTopBtn && landingInfo && "IntersectionObserver" in window) {
-        const observer = new IntersectionObserver(
-          (entries) => {
-            entries.forEach((entry) => {
-              backToTopBtn.classList.toggle("visible", entry.isIntersecting);
-            });
-          },
-          { threshold: 0 }
-        );
-        observer.observe(landingInfo);
-        backToTopBtn.addEventListener("click", () => {
-          window.scrollTo({ top: 0, behavior: "smooth" });
-        });
-      }
-    </script>
+    <script type="module" src="app/inline-init.js?v=v1"></script>
     <script type="module" src="app/app.js?v=v20"></script>
   </body>
 </html>
