@@ -76,7 +76,7 @@ export default {
     featuresTitle: "Fonctionnalités",
     featuresIntro:
       "Un jeu de dés et de stratégie au tour par tour, rapide et se jouant en 20 à 30 minutes, sans téléchargement — jouez instantanément dans votre navigateur.",
-    featuresItem1: "Jeu de dés et de stratégie médiéval adapté au solo",
+    featuresItem1: "Jeu roll-n-write de développement d'une ville médiévale adapté au solo",
     featuresItem2:
       "8 défis solo qui racontent l'essor de votre fief, d'une humble colonie à un centre de savoir et de pouvoir florissant",
     featuresItem3: "Gratuit, fonctionne sur navigateur ordinateur et mobile",
@@ -87,7 +87,7 @@ export default {
     faqTitle: "Questions fréquentes",
     faqQ1: "Rolling Fiefdoms est-il gratuit ?",
     faqA1:
-      "Oui, Rolling Fiefdoms Online Solo est un jeu de stratégie et de dés médiéval gratuit qui se joue entièrement dans le navigateur, sans téléchargement ni installation.",
+      "Oui, Rolling Fiefdoms Online Solo est un roll-n-write de développement d'une ville médiévale gratuit qui se joue entièrement dans le navigateur, sans téléchargement ni installation.",
     faqQ2: "Puis-je jouer à ce jeu au tour par tour en solo ?",
     faqA2:
       "Oui, cette version navigateur est exclusivement solo, alternant les tours du Régent et du Destin, avec une campagne solo complète de défis en plus d'une partie solo normale.",

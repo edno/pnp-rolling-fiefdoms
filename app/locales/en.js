@@ -76,7 +76,7 @@ export default {
     featuresTitle: "Features",
     featuresIntro:
       "A fast-paced, turn-based dice and strategy game that plays in 20-30 minutes, with no download required — play instantly in your browser.",
-    featuresItem1: "Solo-friendly medieval dice and strategy gameplay",
+    featuresItem1: "Solo-friendly roll-n-write medieval city-building gameplay",
     featuresItem2:
       "8 solo challenges chronicling your fiefdom's rise from a humble settlement to a thriving center of learning and power",
     featuresItem3: "Free to play, works on desktop and mobile browsers",
@@ -87,7 +87,7 @@ export default {
     faqTitle: "Frequently Asked Questions",
     faqQ1: "Is Rolling Fiefdoms free to play?",
     faqA1:
-      "Yes, Rolling Fiefdoms Online Solo is a free medieval strategy and dice game that runs entirely in your browser — no download or install required.",
+      "Yes, Rolling Fiefdoms Online Solo is a free roll-n-write medieval city-building game that runs entirely in your browser — no download or install required.",
     faqQ2: "Can I play this turn-based browser game solo?",
     faqA2:
       "Yes, this browser version is solo-only, alternating Regent and Fate turns, with a full solo campaign of challenges in addition to a normal solo game.",
