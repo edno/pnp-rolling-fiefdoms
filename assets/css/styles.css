@@ -218,7 +218,8 @@ button.menu-item {
      never shift the page; see AGENTS.md Appendix. */
   --ab-banner-line-h: 30px;
   --ab-banner-h: 64px;
-  --ab-main-h: 72px;
+  --ab-die: clamp(44px, 9vw, 64px);
+  --ab-main-h: calc(var(--ab-die) + 20px);
   --ab-aux-h: 44px;
 }
 
@@ -237,6 +238,9 @@ button.menu-item {
   gap: 12px;
   height: var(--ab-main-h);
   min-height: var(--ab-main-h);
+  box-sizing: border-box;
+  /* Room inside the scroll clip for the selected-die ring, the ± badge and the swap pulse. */
+  padding: 10px 8px;
 }
 
 .action-bar-controls::-webkit-scrollbar {
@@ -302,8 +306,8 @@ button.menu-item {
 }
 
 .action-bar #diceView .die-badge {
-  width: clamp(44px, 9vw, 64px);
-  height: clamp(44px, 9vw, 64px);
+  width: var(--ab-die);
+  height: var(--ab-die);
 }
 
 .action-banner.bump {
@@ -2403,7 +2407,6 @@ button.secondary {
   .action-bar {
     --ab-banner-line-h: 26px;
     --ab-banner-h: 56px;
-    --ab-main-h: 60px;
     --ab-aux-h: 52px;
   }
 
@@ -2568,7 +2571,7 @@ button.secondary {
     column-gap: 12px;
     --ab-banner-line-h: 20px;
     --ab-banner-h: 24px;
-    --ab-main-h: 52px;
+    --ab-die: 44px;
     --ab-aux-h: 52px;
   }
 
@@ -2603,10 +2606,6 @@ button.secondary {
     gap: 6px 8px;
   }
 
-  .action-bar #diceView .die-badge {
-    width: 44px;
-    height: 44px;
-  }
 
   .action-bar-controls > button {
     min-height: 44px;
