@@ -1259,6 +1259,11 @@ button:disabled {
   cursor: default;
 }
 
+.action-bar:has(.btn-inline-action[data-target="rollBtn"]) #rollBtn,
+.action-bar:has(.btn-inline-action[data-target="finishActivation"]) #finishActivation {
+  display: none !important;
+}
+
 .link-btn {
   background: transparent;
   color: var(--accent);
@@ -2135,14 +2140,6 @@ button.secondary {
   .building-pick-pop {
     font-size: 0.85em;
     opacity: 0.8;
-  }
-
-  .action-bar:has(.btn-inline-action[data-target="rollBtn"]) #rollBtn {
-    display: none !important;
-  }
-
-  .action-bar:has(.btn-inline-action[data-target="finishActivation"]) #finishActivation {
-    display: none !important;
   }
 }
 
