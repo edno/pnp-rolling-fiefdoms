@@ -67,6 +67,12 @@ import {
   turnHintEl,
   locDicePreview,
   buildDicePreview,
+  influenceStepper,
+  influenceStepperFace,
+  influenceStepperValue,
+  influenceStepperMinus,
+  influenceStepperPlus,
+  influenceStepperReset,
   logEl,
   logDrawerEl,
   logUnreadBadge,
@@ -824,6 +830,24 @@ async function setupControls() {
     cancelPlotBtn.onclick = () => cancelPendingPlot();
     cancelPlotBtn.style.display = "none";
   }
+  if (influenceStepperMinus) {
+    influenceStepperMinus.onclick = () => {
+      const idx = influenceUiDieIndex();
+      if (idx >= 0) adjustDieWithInfluence(idx, -1);
+    };
+  }
+  if (influenceStepperPlus) {
+    influenceStepperPlus.onclick = () => {
+      const idx = influenceUiDieIndex();
+      if (idx >= 0) adjustDieWithInfluence(idx, 1);
+    };
+  }
+  if (influenceStepperReset) {
+    influenceStepperReset.onclick = () => {
+      const idx = influenceUiDieIndex();
+      if (idx >= 0) resetDieInfluence(idx);
+    };
+  }
 }
 
 // ============================================================================
@@ -837,6 +861,11 @@ let rollingInProgress = false;
 // starts a fresh turn.
 let lastGuidedStep = null;
 
+// UI-only selection of which die the influence stepper targets. This is distinct from
+// state.influenceTarget (which has rule meaning for location-pair rescue) and never
+// persists past a reroll or new game.
+let influenceUiDie = null;
+
 function guideToStep(stepKey, elGetter, options) {
   if (!stepKey || stepKey === lastGuidedStep) return;
   lastGuidedStep = stepKey;
@@ -849,6 +878,7 @@ function rollDice() {
   }
   rollingInProgress = true;
   lastGuidedStep = null;
+  influenceUiDie = null;
   clearPendingPlot();
 
   try {
@@ -1163,6 +1193,7 @@ function adjustDieWithInfluence(idx, direction) {
   } else if (!state.influenceTarget) {
     state.influenceTarget = die.label;
   }
+  influenceUiDie = die.label;
   state.influenceSelectionKey =
     state.locationSelection.length >= 1 ? canonicalSelectionKey(state.locationSelection) : null;
   log(t("influence.adjusted", { label: die.label, value: target }));
@@ -1193,6 +1224,68 @@ function resetDieInfluence(idx) {
   refreshDiceVisibility();
 }
 
+// Eligibility for showing the influence ± badge / being the stepper's target: same rules
+// as canAdjustDieValue (at most one die adjusted, influence available, not pestilence/
+// locked/activation), reused rather than duplicated.
+function influenceBadgeEligible(die) {
+  if (!isInfluenceEligibleDie(die)) return false;
+  const canDecrease = canAdjustDieValue(die, -1);
+  const canIncrease = canAdjustDieValue(die, 1);
+  const hasAdjustment = influenceAdjustmentDelta(die.label) !== 0;
+  return canDecrease || canIncrease || hasAdjustment;
+}
+
+function influenceUiDieIndex() {
+  if (!influenceUiDie || !state.dice) return -1;
+  return state.dice.findIndex((d) => d?.label === influenceUiDie);
+}
+
+// Resolves which die the stepper should target: a die with a nonzero adjustment wins,
+// otherwise the current UI selection if still eligible, otherwise auto-select when exactly
+// one die is eligible, otherwise none.
+function resolveInfluenceUiDie() {
+  if (!state.dice || !state.dice.length) return null;
+  const adjustedLabel = Object.keys(state.influenceAdjustments || {}).find(
+    (label) => influenceAdjustmentDelta(label) !== 0,
+  );
+  if (adjustedLabel && state.dice.some((d) => d?.label === adjustedLabel)) {
+    return adjustedLabel;
+  }
+  if (influenceUiDie) {
+    const current = state.dice.find((d) => d?.label === influenceUiDie);
+    if (current && influenceBadgeEligible(current)) return influenceUiDie;
+  }
+  const eligible = state.dice.filter((d) => influenceBadgeEligible(d));
+  if (eligible.length === 1) return eligible[0].label;
+  return null;
+}
+
+function renderInfluenceStepper() {
+  if (!influenceStepper) return;
+  influenceUiDie = resolveInfluenceUiDie();
+  const idx = influenceUiDieIndex();
+  const die = idx >= 0 ? state.dice[idx] : null;
+  if (!die) {
+    influenceStepper.hidden = true;
+    return;
+  }
+  influenceStepper.hidden = false;
+  const base = typeof die.resolved === "number" ? die.resolved : null;
+  const delta = influenceAdjustmentDelta(die.label);
+  const adjustedDie = applyInfluenceToDie(state, die) || die;
+  if (influenceStepperFace) {
+    clearElement(influenceStepperFace);
+    influenceStepperFace.appendChild(createDieFaceSVG(adjustedDie, { showLabel: false }));
+  }
+  if (influenceStepperValue) {
+    const adjusted = typeof adjustedDie.resolved === "number" ? adjustedDie.resolved : base;
+    influenceStepperValue.textContent = delta !== 0 ? `${base} → ${adjusted}` : `${base}`;
+  }
+  if (influenceStepperMinus) influenceStepperMinus.disabled = !canAdjustDieValue(die, -1);
+  if (influenceStepperPlus) influenceStepperPlus.disabled = !canAdjustDieValue(die, 1);
+  if (influenceStepperReset) influenceStepperReset.hidden = delta === 0;
+}
+
 // ============================================================================
 // RENDERING FUNCTIONS - UI rendering and DOM updates
 // ============================================================================
@@ -1201,7 +1294,10 @@ function renderDice() {
   if (!diceView) return;
   refreshDiceVisibility();
   const awaitingRoll = state.rollAvailable && (!state.dice || state.dice.length === 0);
-  if (state.activationMode || state.activationComplete || awaitingRoll) return;
+  if (state.activationMode || state.activationComplete || awaitingRoll) {
+    if (influenceStepper) influenceStepper.hidden = true;
+    return;
+  }
   clearElement(diceView);
   if (turnHintEl) {
     if (state.pestilence) {
@@ -1274,6 +1370,12 @@ function renderDice() {
   field.appendChild(row);
   diceView.appendChild(field);
   diceView.classList.toggle("dice-rolling", state.diceRolling);
+  if (turnLocked) {
+    influenceUiDie = null;
+    if (influenceStepper) influenceStepper.hidden = true;
+  } else {
+    renderInfluenceStepper();
+  }
 }
 
 function fillBuildings(buildDice) {
@@ -2387,6 +2489,7 @@ function handleCenterBuildingChoice(code) {
 
 function newGame(challengeId = null) {
   hasStartedAnyGame = true;
+  influenceUiDie = null;
   hideChallengeOutcomeOverlay();
   clearTimeout(barricadeAlertTimeout);
   if (barricadeAlertOverlay) barricadeAlertOverlay.hidden = true;
@@ -3214,22 +3317,14 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
   effectiveLoc = swapped.loc && swapped.loc.length ? swapped.loc : effectiveLoc;
   effectiveBuild = swapped.build && swapped.build.length ? swapped.build : effectiveBuild;
 
-  const hasInfluenceAdjustments = !influenceAdjustmentsEmpty();
-  const showInfluenceControls =
-    !ignoreState &&
-    !state.diceLocked &&
-    !state.activationMode &&
-    !state.pestilence &&
-    (!forceForfeitActive() || hasInfluenceAdjustments) &&
-    state.locationSelection.length === 2;
-
+  // The Pair & Build panel is a read-only preview: dice faces reflect influence
+  // adjustments made via the action-bar dice, but no influence controls render here.
   if (locDicePreview) {
     renderDicePreview(
       locDicePreview,
       clampDice(effectiveLoc),
       "location",
       t("location.selectTwoPreview"),
-      { allowInfluence: showInfluenceControls },
     );
   }
   if (buildDicePreview) {
@@ -3238,7 +3333,6 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
       clampDice(effectiveBuild),
       "build",
       t("location.remainingUsedForBuild"),
-      { allowInfluence: showInfluenceControls },
     );
   }
 }
@@ -3286,53 +3380,19 @@ function makeDieBadge(
       onDieClick(effectiveIdx);
     });
   }
-  if (allowInfluence && isInfluenceEligibleDie(die) && effectiveIdx >= 0) {
-    const canDecrease = canAdjustDieValue(die, -1);
-    const canIncrease = canAdjustDieValue(die, 1);
-    const hasAdjustment = influenceAdjustmentDelta(die.label) !== 0;
-    const showControls = canDecrease || canIncrease || hasAdjustment;
-    if (showControls) {
-      const controls = document.createElement("div");
-      controls.className = "die-influence-controls";
-      badge.classList.add("has-influence-controls");
-      if (canDecrease) {
-        const minusBtn = document.createElement("button");
-        minusBtn.type = "button";
-        minusBtn.className = "influence-btn minus";
-        minusBtn.textContent = "-";
-        minusBtn.title = t("influence.decreaseTitle");
-        minusBtn.addEventListener("click", (event) => {
-          event.stopPropagation();
-          adjustDieWithInfluence(effectiveIdx, -1);
-        });
-        controls.appendChild(minusBtn);
-      }
-      if (canIncrease) {
-        const plusBtn = document.createElement("button");
-        plusBtn.type = "button";
-        plusBtn.className = "influence-btn plus";
-        plusBtn.textContent = "+";
-        plusBtn.title = t("influence.increaseTitle");
-        plusBtn.addEventListener("click", (event) => {
-          event.stopPropagation();
-          adjustDieWithInfluence(effectiveIdx, 1);
-        });
-        controls.appendChild(plusBtn);
-      }
-      if (hasAdjustment) {
-        const resetBtn = document.createElement("button");
-        resetBtn.type = "button";
-        resetBtn.className = "influence-btn reset";
-        resetBtn.textContent = "↺";
-        resetBtn.title = t("influence.resetTitle");
-        resetBtn.addEventListener("click", (event) => {
-          event.stopPropagation();
-          resetDieInfluence(effectiveIdx);
-        });
-        controls.appendChild(resetBtn);
-      }
-      badge.appendChild(controls);
-    }
+  if (allowInfluence && influenceBadgeEligible(die) && effectiveIdx >= 0) {
+    badge.classList.add("has-influence-target");
+    const targetBtn = document.createElement("button");
+    targetBtn.type = "button";
+    targetBtn.className = "influence-target-btn";
+    targetBtn.textContent = "±";
+    targetBtn.setAttribute("aria-label", t("influence.useOnDie", { die: die.label }));
+    targetBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      influenceUiDie = die.label;
+      renderInfluenceStepper();
+    });
+    badge.appendChild(targetBtn);
   }
   return badge;
 }

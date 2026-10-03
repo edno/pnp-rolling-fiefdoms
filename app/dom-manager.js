@@ -17,6 +17,12 @@ export const diceView = document.getElementById("diceView");
 export const turnHintEl = document.getElementById("turnHint");
 export const locDicePreview = document.getElementById("locDicePreview");
 export const buildDicePreview = document.getElementById("buildDicePreview");
+export const influenceStepper = document.getElementById("influenceStepper");
+export const influenceStepperFace = document.getElementById("influenceStepperFace");
+export const influenceStepperValue = document.getElementById("influenceStepperValue");
+export const influenceStepperMinus = document.getElementById("influenceStepperMinus");
+export const influenceStepperPlus = document.getElementById("influenceStepperPlus");
+export const influenceStepperReset = document.getElementById("influenceStepperReset");
 
 // Log & Overlays
 export const logEl = document.getElementById("log");

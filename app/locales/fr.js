@@ -149,6 +149,8 @@ export default {
     decreaseTitle: "Dépensez 1 Influence pour diminuer ce dé de 1.",
     increaseTitle: "Dépensez 1 Influence pour augmenter ce dé de 1.",
     resetTitle: "Réinitialiser ce dé à sa valeur lancée.",
+    stepperLabel: "Influence",
+    useOnDie: "Utiliser l'influence sur le dé {die}",
     spentTitle: "Influence dépensée.",
     availableTitle: "Influence disponible.",
     startingSingle: "Débute avec 1 Influence.",

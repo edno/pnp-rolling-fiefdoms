@@ -47,6 +47,13 @@ const baseHtml = `
   <div id="turnHint"></div>
   <div id="locDicePreview"></div>
   <div id="buildDicePreview"></div>
+  <div id="influenceStepper" hidden>
+    <span id="influenceStepperFace"></span>
+    <span id="influenceStepperValue"></span>
+    <button id="influenceStepperMinus" type="button">-</button>
+    <button id="influenceStepperPlus" type="button">+</button>
+    <button id="influenceStepperReset" type="button" hidden>reset</button>
+  </div>
   <ul id="log"></ul>
   <details id="logDrawer"><span id="logUnreadBadge" class="hidden"></span></details>
   <div id="scoreOverlayBuildings"></div>
@@ -822,24 +829,103 @@ describe("plot confirm step (jsdom)", () => {
     }
   });
 
-  it("influence pill on the action-bar die matches the Pair & Build panel control", async () => {
-    await setupApp({
-      enableHooks: true,
-      numbered: [2, 3],
-      x: [{ face: 2, resolved: 2 }, { face: 3, resolved: 3 }],
-    });
+  it("influence stepper is hidden without influence available", async () => {
+    await setupApp({ enableHooks: true });
     const hooks = window.__rfTestHooks;
-    clickRoll();
+    hooks.state.dice = [
+      { label: "N1", face: 3, resolved: 3 },
+      { label: "N2", face: 4, resolved: 4 },
+      { label: "X1", face: 2, resolved: 2 },
+      { label: "X2", face: 3, resolved: 3 },
+    ];
+    hooks.state.locationSelection = [];
+    hooks.state.rollAvailable = false;
+    hooks.state.influence = { earned: 0, spent: 0, pending: 0 };
+    hooks.updateDiceAssignments();
     await flushMicrotasks();
+
+    const stepper = document.getElementById("influenceStepper");
+    expect(stepper.hidden).toBe(true);
+    expect(document.querySelectorAll("#diceView .influence-target-btn").length).toBe(0);
+  });
+
+  it("preselects the single eligible die when influence is available", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.state.dice = [
+      { label: "N1", face: 3, resolved: 3 },
+      { label: "N2", face: "windrose", resolved: null },
+      { label: "X1", face: "X", resolved: null },
+      { label: "X2", face: "X", resolved: null },
+    ];
+    hooks.state.locationSelection = [];
+    hooks.state.rollAvailable = false;
     hooks.state.influence = { earned: 2, spent: 0, pending: 0 };
     hooks.updateDiceAssignments();
     await flushMicrotasks();
 
-    const pillPlus = document.querySelector('#diceView .die-badge[data-idx="0"] .influence-btn.plus');
-    expect(pillPlus).toBeTruthy();
-    pillPlus.click();
+    const stepper = document.getElementById("influenceStepper");
+    expect(stepper.hidden).toBe(false);
+    expect(document.getElementById("influenceStepperValue").textContent).toContain("3");
+
+    document.getElementById("influenceStepperPlus").click();
+    await flushMicrotasks();
+    expect(hooks.state.influenceAdjustments?.N1?.delta).toBe(1);
+
+    document.getElementById("influenceStepperMinus").click();
+    await flushMicrotasks();
+    expect(hooks.state.influenceAdjustments?.N1?.delta ?? 0).toBe(0);
+  });
+
+  it("± badges target the stepper without changing location selection; only one control set exists", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.state.dice = [
+      { label: "N1", face: 2, resolved: 2 },
+      { label: "N2", face: 4, resolved: 4 },
+      { label: "X1", face: 2, resolved: 2 },
+      { label: "X2", face: 3, resolved: 3 },
+    ];
+    hooks.state.locationSelection = [0, 1];
+    hooks.state.rollAvailable = false;
+    hooks.state.influence = { earned: 2, spent: 0, pending: 0 };
+    hooks.updateDiceAssignments();
+    await flushMicrotasks();
+
+    // No die chosen yet (multiple eligible dice): stepper stays hidden until a badge is tapped.
+    const stepper = document.getElementById("influenceStepper");
+    expect(stepper.hidden).toBe(true);
+
+    expect(document.querySelectorAll("#diceView .die-influence-controls").length).toBe(0);
+    expect(document.querySelectorAll(".influence-btn").length).toBe(0);
+    expect(document.querySelectorAll("#locDicePreview .influence-target-btn").length).toBe(0);
+    expect(document.querySelectorAll("#buildDicePreview .influence-target-btn").length).toBe(0);
+
+    const badgeN2 = document.querySelector('#diceView .die-badge[data-idx="1"] .influence-target-btn');
+    expect(badgeN2).toBeTruthy();
+    const selectionBefore = hooks.state.locationSelection.slice();
+    badgeN2.click();
+    await flushMicrotasks();
+    expect(hooks.state.locationSelection).toEqual(selectionBefore);
+    expect(stepper.hidden).toBe(false);
+    expect(document.getElementById("influenceStepperValue").textContent).toContain("4");
+
+    // Tapping another die's badge moves the stepper target without touching selection.
+    const badgeN1 = document.querySelector('#diceView .die-badge[data-idx="0"] .influence-target-btn');
+    badgeN1.click();
+    await flushMicrotasks();
+    expect(hooks.state.locationSelection).toEqual(selectionBefore);
+    expect(document.getElementById("influenceStepperValue").textContent).toContain("2");
+
+    document.getElementById("influenceStepperPlus").click();
     await flushMicrotasks();
     expect(hooks.state.influenceAdjustments?.N1?.delta).toBeGreaterThan(0);
+
+    const resetBtn = document.getElementById("influenceStepperReset");
+    expect(resetBtn.hidden).toBe(false);
+    resetBtn.click();
+    await flushMicrotasks();
+    expect(hooks.state.influenceAdjustments?.N1?.delta ?? 0).toBe(0);
   });
 
   it("rolling again clears a stale pending-plot confirm prompt", async () => {

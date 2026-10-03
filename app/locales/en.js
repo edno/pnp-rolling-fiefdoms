@@ -149,6 +149,8 @@ export default {
     decreaseTitle: "Spend 1 Influence to decrease this die by 1.",
     increaseTitle: "Spend 1 Influence to increase this die by 1.",
     resetTitle: "Reset this die to its rolled value.",
+    stepperLabel: "Influence",
+    useOnDie: "Use influence on die {die}",
     spentTitle: "Influence spent.",
     availableTitle: "Influence available.",
     startingSingle: "Starts with 1 Influence.",
