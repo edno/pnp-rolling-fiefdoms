@@ -2547,8 +2547,28 @@ button.secondary {
     margin: 4px 0 8px 0;
   }
 
+  /* Centre the snapped card so it lines up with the card-width Start button below. */
+  .challenge-carousel {
+    padding-inline: calc((100% - min(250px, 100%)) / 2);
+    scroll-padding-inline: calc((100% - min(250px, 100%)) / 2);
+  }
+
   .challenge-card {
     height: min(300px, calc(85dvh - 140px));
+    scroll-snap-align: center;
+  }
+
+  /* Small screens: Start (and Cancel when shown) match a challenge card's width. */
+  .modal-actions {
+    flex-direction: column-reverse;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .modal-actions > button {
+    width: min(250px, 100%);
+    min-height: 44px;
+    font-size: 18px;
   }
 }
 
