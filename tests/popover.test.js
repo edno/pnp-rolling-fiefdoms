@@ -218,6 +218,39 @@ describe("initPopovers", () => {
     expect(popover.hidden).toBe(true);
   });
 
+  it("does not hide popover when pointer moves to a descendant of the same target", () => {
+    initPopovers(root);
+    const btn = document.createElement("button");
+    btn.dataset.popover = "Hover text";
+    const child = document.createElement("span");
+    btn.appendChild(child);
+    root.appendChild(btn);
+
+    const popover = document.querySelector(".rf-popover");
+
+    const enterEvent = new Event("pointerenter", { bubbles: true });
+    Object.defineProperty(enterEvent, "pointerType", { value: "mouse", enumerable: true });
+    btn.dispatchEvent(enterEvent);
+    expect(popover.hidden).toBe(false);
+
+    // Leaving the target towards a child it contains (relatedTarget is the
+    // descendant) must not hide the tooltip.
+    const leaveEvent = new Event("pointerleave", { bubbles: true });
+    Object.defineProperty(leaveEvent, "pointerType", { value: "mouse", enumerable: true });
+    Object.defineProperty(leaveEvent, "relatedTarget", { value: child, enumerable: true });
+    btn.dispatchEvent(leaveEvent);
+    expect(popover.hidden).toBe(false);
+
+    // Leaving the target entirely (relatedTarget outside) must hide it.
+    const outside = document.createElement("div");
+    root.appendChild(outside);
+    const leaveOutsideEvent = new Event("pointerleave", { bubbles: true });
+    Object.defineProperty(leaveOutsideEvent, "pointerType", { value: "mouse", enumerable: true });
+    Object.defineProperty(leaveOutsideEvent, "relatedTarget", { value: outside, enumerable: true });
+    btn.dispatchEvent(leaveOutsideEvent);
+    expect(popover.hidden).toBe(true);
+  });
+
   it("shows popover on focusin and hides on focusout", () => {
     initPopovers(root);
     const btn = document.createElement("button");

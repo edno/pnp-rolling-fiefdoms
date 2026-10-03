@@ -2670,6 +2670,13 @@ function openChallengePicker() {
       });
     }
   }
+  // The cards were measured while the modal was still [hidden] (all 0-height,
+  // so every card was marked is-at-end); re-measure now that the reveal has
+  // been applied, once layout has actually happened.
+  requestAnimationFrame(() => {
+    if (challengePickerEl.hidden) return;
+    challengeCardsEl.querySelectorAll(".challenge-card").forEach((card) => updateScrollCue(card));
+  });
 }
 
 function closeChallengePicker() {

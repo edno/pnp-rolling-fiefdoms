@@ -75,6 +75,17 @@ const baseHtml = `
   <div id="buildingPicker" hidden></div>
 `;
 
+const challengePickerHtml = `
+  <div id="challengePicker" class="modal-overlay" hidden>
+    <div class="modal-dialog">
+      <select id="challengePickerLocaleSelect"></select>
+      <button id="challengeCancelBtn"></button>
+      <div id="challengeCards" class="challenge-carousel"></div>
+      <button id="challengeConfirmBtn"></button>
+    </div>
+  </div>
+`;
+
 async function flushMicrotasks() {
   await Promise.resolve();
   if (vi.isFakeTimers()) {
@@ -84,8 +95,8 @@ async function flushMicrotasks() {
   }
 }
 
-function stubEnvironment() {
-  document.body.innerHTML = baseHtml;
+function stubEnvironment({ withChallengePicker = false } = {}) {
+  document.body.innerHTML = baseHtml + (withChallengePicker ? challengePickerHtml : "");
   document.body.classList.add("loading");
   if (!window.matchMedia) {
     window.matchMedia = () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} });
@@ -107,11 +118,11 @@ function stubEnvironment() {
   Image = InstantImage;
 }
 
-async function setupApp({ numbered = [], x = [], debug = false, enableHooks = false } = {}) {
+async function setupApp({ numbered = [], x = [], debug = false, enableHooks = false, withChallengePicker = false } = {}) {
   vi.resetModules();
   numberedQueue.length = 0;
   xQueue.length = 0;
-  stubEnvironment();
+  stubEnvironment({ withChallengePicker });
   const url = new URL("http://localhost/");
   if (debug) url.searchParams.set("debug", "");
   location = url;
@@ -1244,6 +1255,38 @@ describe("narrow-screen building picker (jsdom)", () => {
     expect(hooks.state.board[0][1].building).toBe("F");
     expect(document.getElementById("buildingPicker").hidden).toBe(true);
     expect(document.querySelectorAll("#buildingPicker .building-pick").length).toBe(0);
+  });
+});
+
+describe("challenge picker scroll cue (jsdom)", () => {
+  it("marks challenge cards as scrollable once the picker is revealed", async () => {
+    await setupApp({ enableHooks: true, withChallengePicker: true });
+
+    // The picker is already open from init(); re-open it (as clicking "New
+    // game" would) now that the cards can be stubbed as scrollable, since
+    // openChallengePicker() re-renders the cards into fresh DOM nodes.
+    document.getElementById("newGameBtn")?.click();
+
+    // Stub overflow metrics as if the card content is taller than its box,
+    // the way it would be once the modal is actually visible (jsdom always
+    // reports 0 for both, which the fix's requestAnimationFrame re-measure
+    // after reveal is meant to pick up). Must happen before the fix's own
+    // rAF callback fires.
+    const cards = Array.from(document.querySelectorAll("#challengeCards .challenge-card"));
+    expect(cards.length).toBeGreaterThan(0);
+    cards.forEach((card) => {
+      Object.defineProperty(card, "scrollHeight", { value: 400, configurable: true });
+      Object.defineProperty(card, "clientHeight", { value: 200, configurable: true });
+    });
+
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    await flushMicrotasks();
+
+    expect(document.getElementById("challengePicker").hidden).toBe(false);
+    cards.forEach((card) => {
+      expect(card.classList.contains("is-scrollable")).toBe(true);
+      expect(card.classList.contains("is-at-end")).toBe(false);
+    });
   });
 });
 

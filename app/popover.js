@@ -104,7 +104,9 @@ export function initPopovers(root = document) {
   const handlePointerEnter = (e) => {
     if (e.pointerType === "mouse") {
       const target = targetEl(e)?.closest("[data-popover]");
-      if (target) {
+      // Moving between descendants of the same target re-fires pointerenter
+      // (capture mode); skip re-showing to avoid flicker.
+      if (target && target !== currentTarget) {
         showPopover(target);
       }
     }
@@ -114,9 +116,14 @@ export function initPopovers(root = document) {
   const handlePointerLeave = (e) => {
     if (e.pointerType === "mouse") {
       const target = targetEl(e)?.closest("[data-popover]");
-      if (target && currentTarget === target) {
-        hidePopover();
-      }
+      if (!target || currentTarget !== target) return;
+      // In capture mode, pointerleave also fires when moving between a
+      // descendant and its ancestor target (e.g. a label/image inside the
+      // target back to the target itself); only hide once the pointer has
+      // actually left the whole target.
+      const related = e.relatedTarget;
+      if (related && target.contains(related)) return;
+      hidePopover();
     }
   };
 
