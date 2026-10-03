@@ -1630,7 +1630,7 @@ select {
 
 .influence-target-btn {
   position: absolute;
-  top: -4px;
+  top: -2px;
   right: -4px;
   width: 22px;
   height: 22px;
@@ -1646,13 +1646,26 @@ select {
 }
 
 .influence-target-btn::before {
+  /* The badge (22x22) sits at the die's top-right corner (top:-4px, right:-4px
+     on .influence-target-btn). .action-bar-controls is a scroll-clipped row
+     with only 6px of vertical padding, so a 44x44 hit area centered on the
+     badge (the old transform: translate(-50%, -50%) approach) extended ~15px
+     above the die's top edge - past the clip - and got cut off there,
+     shrinking the effective tap target on coarse pointers.
+     Anchoring the box by its bottom-right corner instead (right/bottom
+     instead of centering) keeps the box's top edge exactly level with the
+     badge's own top edge (badge-bottom + 44 - 44 = badge-top), so it never
+     reaches above the die into the clipped padding. The box grows inward
+     and downward into the die's top-right quarter instead, which is safe to
+     cover: the die's own tap handler selects the location/build pair, while
+     this badge picks the influence target, and doesn't conflict with a tap
+     slightly off-badge as long as it lands on the die the badge belongs to. */
   content: "";
   position: absolute;
-  top: 50%;
-  left: 50%;
   width: 44px;
   height: 44px;
-  transform: translate(-50%, -50%);
+  right: -11px;
+  bottom: -22px;
 }
 
 .influence-stepper:not([hidden]) {

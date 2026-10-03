@@ -1570,8 +1570,11 @@ function renderBuildingPicker() {
   if (!picker) return;
   const overlay = document.getElementById("buildingsOverlay");
   const availableHits = overlay ? Array.from(overlay.querySelectorAll(".building-hit.available")) : [];
+  const guildOverlayEl = document.getElementById("guildsOverlay");
+  const guildHitsAvailable = guildOverlayEl ? Array.from(guildOverlayEl.querySelectorAll(".guild-hit.available")) : [];
+  const awaitingCenterGuildType = Boolean(state.pendingCenterBuilding?.awaitingGuildType);
   clearElement(picker);
-  if (!availableHits.length) {
+  if (!availableHits.length && !(awaitingCenterGuildType && guildHitsAvailable.length)) {
     picker.hidden = true;
     return;
   }
@@ -1599,9 +1602,8 @@ function renderBuildingPicker() {
     btn.addEventListener("click", () => hit.click());
     picker.appendChild(btn);
   });
-  if (state.buildChoice?.code === "G") {
-    const guildOverlay = document.getElementById("guildsOverlay");
-    const guildHits = guildOverlay ? Array.from(guildOverlay.querySelectorAll(".guild-hit.available")) : [];
+  if (state.buildChoice?.code === "G" || awaitingCenterGuildType) {
+    const guildHits = guildHitsAvailable;
     guildHits.forEach((hit) => {
       const code = hit.dataset.code;
       const btn = document.createElement("button");

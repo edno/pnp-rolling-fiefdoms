@@ -18,11 +18,35 @@ Suggested CSS (coordinator will add to styles.css):
 let currentTarget = null;
 const listeners = new WeakMap();
 let windowListenersAdded = false;
+let descCounter = 0;
 
 /**
- * Stores text in el.dataset.popover, sets aria-label if not present,
- * removes title attribute, adds class "has-popover".
- * Empty/null text removes the popover data.
+ * Removes a popover-owned aria-describedby id (if any) from el, restoring
+ * any other ids that were present, and removes the associated hidden
+ * description span from the DOM.
+ *
+ * @param {Element} el
+ */
+function removePopoverDescription(el) {
+  const descId = el.dataset.popoverDescId;
+  if (!descId) return;
+  const ids = (el.getAttribute("aria-describedby") || "").split(/\s+/).filter((id) => id && id !== descId);
+  if (ids.length) {
+    el.setAttribute("aria-describedby", ids.join(" "));
+  } else {
+    el.removeAttribute("aria-describedby");
+  }
+  const descEl = document.getElementById(descId);
+  if (descEl) descEl.remove();
+  delete el.dataset.popoverDescId;
+}
+
+/**
+ * Stores text in el.dataset.popover, exposes it to assistive tech via a
+ * hidden description element referenced through aria-describedby (appended
+ * to any author-provided ids rather than overwriting them), removes the
+ * title attribute, adds class "has-popover". Empty/null text removes the
+ * popover data and the description this helper owns.
  *
  * @param {Element} el
  * @param {string|null} text
@@ -30,6 +54,14 @@ let windowListenersAdded = false;
  */
 export function setPopover(el, text, options = {}) {
   if (!el) return;
+
+  // Migrate away from the old behavior of setting aria-label: if a previous
+  // version of this helper added one, remove it now that we use a
+  // description element instead.
+  if (el.dataset.popoverAddedAriaLabel === "true") {
+    el.removeAttribute("aria-label");
+    delete el.dataset.popoverAddedAriaLabel;
+  }
 
   if (!text) {
     delete el.dataset.popover;
@@ -39,15 +71,29 @@ export function setPopover(el, text, options = {}) {
       el.removeAttribute("tabindex");
       delete el.dataset.popoverAddedTabindex;
     }
+    removePopoverDescription(el);
     return;
   }
 
   el.dataset.popover = text;
-  if (!el.getAttribute("aria-label")) {
-    el.setAttribute("aria-label", text);
-  }
   el.removeAttribute("title");
   el.classList.add("has-popover");
+
+  // Reuse the description span this helper owns (if any); otherwise create
+  // a new one and append its id to any existing aria-describedby ids.
+  let descId = el.dataset.popoverDescId;
+  let descEl = descId ? document.getElementById(descId) : null;
+  if (!descEl) {
+    descId = `rf-pop-desc-${++descCounter}`;
+    descEl = document.createElement("span");
+    descEl.id = descId;
+    descEl.className = "visually-hidden";
+    document.body.appendChild(descEl);
+    el.dataset.popoverDescId = descId;
+    const existing = (el.getAttribute("aria-describedby") || "").trim();
+    el.setAttribute("aria-describedby", existing ? `${existing} ${descId}` : descId);
+  }
+  descEl.textContent = text;
 
   // Ensure keyboard users can focus non-interactive elements (e.g. divs/spans)
   // so the existing focusin handler can show the popover.
@@ -215,8 +261,28 @@ function showPopover(target) {
     top = rect.bottom + 8;
   }
 
-  // Clamp to viewport horizontally
   const margin = 8;
+
+  // If the popover is taller than the viewport, cap its height instead of
+  // letting it render off-screen, and clamp its top so it always stays
+  // within [margin, innerHeight - height - margin].
+  const maxHeight = window.innerHeight - margin * 2;
+  if (popoverRect.height > maxHeight) {
+    popoverEl.style.maxHeight = maxHeight + "px";
+    popoverEl.style.overflow = "auto";
+  } else {
+    popoverEl.style.maxHeight = "";
+    popoverEl.style.overflow = "";
+  }
+  const maxTop = window.innerHeight - popoverRect.height - margin;
+  if (top > maxTop) {
+    top = maxTop;
+  }
+  if (top < margin) {
+    top = margin;
+  }
+
+  // Clamp to viewport horizontally
   const maxLeft = window.innerWidth - popoverRect.width - margin;
   if (left < margin) {
     left = margin;

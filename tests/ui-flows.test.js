@@ -227,6 +227,35 @@ describe("Social Contract center-building choices (jsdom)", () => {
     );
     expect(availableCodes).toEqual(["GF"]);
   });
+
+  it("mirrors guild-type options in the narrow-screen building picker while awaiting a guild type", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { state, handleCenterBuildingChoice } = hooks;
+    state.pendingCenterBuilding = { active: true, awaitingGuildType: false, choices: ["T", "GF", "GQ"] };
+
+    handleCenterBuildingChoice("G");
+    await flushMicrotasks();
+
+    const picker = document.getElementById("buildingPicker");
+    expect(picker.hidden).toBe(false);
+    const pickerCodes = Array.from(picker.querySelectorAll(".building-pick")).map((el) => el.dataset.code);
+    const overlayCodes = Array.from(document.querySelectorAll("#guildsOverlay .guild-hit.available")).map(
+      (el) => el.dataset.code,
+    );
+    expect(pickerCodes.sort()).toEqual(overlayCodes.sort());
+
+    const pickBtn = picker.querySelector('.building-pick[data-code="GF"]');
+    expect(pickBtn).toBeTruthy();
+    pickBtn.click();
+    await flushMicrotasks();
+
+    expect(document.querySelector('#guildsOverlay .guild-hit[data-code="GF"]').classList.contains("selected")).toBe(
+      false,
+    );
+    expect(state.pendingCenterBuilding).toBeNull();
+    expect(state.board[2][2]?.building).toBe("G");
+  });
 });
 
 describe("Unrest tally on turn completion (jsdom)", () => {
@@ -1263,63 +1292,49 @@ describe("narrow-screen building picker (jsdom)", () => {
     const { setConfirmStepOverride } = await import("../app/confirm-step.js");
     setConfirmStepOverride(true);
     try {
-      // Set up state with a guild building and pending plot
-      hooks.state.buildChoice = { code: "G" };
-      hooks.state.selectedGuildType = "GF";
-      hooks.state.pendingPlot = { r: 0, c: 1, kind: "build", code: "G" };
+      // Pair dice so the Guild building is a real, available option, then
+      // select it through the real `.building-hit` overlay click handler.
+      hooks.state.dice = [
+        { label: "N1", face: 1, resolved: 1 },
+        { label: "N2", face: 2, resolved: 2 },
+        { label: "B1", face: 5, resolved: 5 },
+        { label: "B2", face: 5, resolved: 5 },
+      ];
+      hooks.state.locationSelection = [0, 1];
+      hooks.state.rollAvailable = false;
+      hooks.state.board = createEmptyBoard();
+      hooks.state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+      hooks.updateDiceAssignments();
       await flushMicrotasks();
 
-      // Render the guild overlay to have DOM elements to click on
-      let overlay = document.getElementById("guildsOverlay");
-      if (!overlay) {
-        overlay = document.createElement("div");
-        overlay.id = "guildsOverlay";
-        document.body.appendChild(overlay);
-      }
-
-      const guildTypes = ["GF", "GQ", "GW", "GM"];
-      overlay.innerHTML = "";
-      guildTypes.forEach((gt) => {
-        const hit = document.createElement("div");
-        hit.className = "guild-hit";
-        hit.dataset.code = gt;
-        if (gt === "GF") {
-          hit.classList.add("selected");
-        }
-        overlay.appendChild(hit);
-      });
-
-      // Add click handlers to the guild-hit elements that match the fix
-      overlay.querySelectorAll(".guild-hit").forEach((el) => {
-        el.onclick = () => {
-          const oldType = hooks.state.selectedGuildType;
-          document.querySelectorAll(".guild-hit.selected").forEach((sel) => sel.classList.remove("selected"));
-          el.classList.add("selected");
-          hooks.state.selectedGuildType = el.dataset.code;
-          if (oldType !== el.dataset.code) {
-            // This simulates the fix: clearing pending plot when guild type changes
-            hooks.state.pendingPlot = null;
-          }
-        };
-      });
-
+      const buildingHit = document.querySelector('#buildingsOverlay .building-hit[data-code="G"]');
+      expect(buildingHit).toBeTruthy();
+      buildingHit.click();
       await flushMicrotasks();
 
-      // At this point we have a pending plot for guild type GF
-      expect(hooks.state.pendingPlot).toBeTruthy();
+      // Choose a guild type through the real rendered `.guild-hit` picker.
+      const guildHitGF = document.querySelector('#guildsOverlay .guild-hit[data-code="GF"]');
+      expect(guildHitGF).toBeTruthy();
+      guildHitGF.click();
+      await flushMicrotasks();
       expect(hooks.state.selectedGuildType).toBe("GF");
 
-      // Simulate changing guild type from GF to GR
-      // (with the fix that clears pending plot when type changes)
-      const oldType = hooks.state.selectedGuildType;
-      hooks.state.selectedGuildType = "GR";
-      if (oldType !== "GR") {
-        hooks.state.pendingPlot = null;
-      }
+      // Create a pending plot via the real touch-confirm path.
+      const targetCell = document.querySelector('.cell[data-row="0"][data-col="1"]');
+      expect(targetCell).toBeTruthy();
+      targetCell.click();
       await flushMicrotasks();
 
-      // Pending plot should be cleared and guild type changed
-      expect(hooks.state.selectedGuildType).toBe("GR");
+      expect(hooks.state.pendingPlot).toBeTruthy();
+      expect(document.getElementById("confirmPlotBtn").style.display).not.toBe("none");
+
+      // Click a different real rendered `.guild-hit` to change the guild type.
+      const guildHitGQ = document.querySelector('#guildsOverlay .guild-hit[data-code="GQ"]');
+      expect(guildHitGQ).toBeTruthy();
+      guildHitGQ.click();
+      await flushMicrotasks();
+
+      expect(hooks.state.selectedGuildType).toBe("GQ");
       expect(hooks.state.pendingPlot).toBeNull();
       expect(document.getElementById("confirmPlotBtn").style.display).toBe("none");
     } finally {

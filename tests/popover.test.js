@@ -4,12 +4,17 @@ import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { setPopover, initPopovers, hidePopover } from "../app/popover.js";
 
 describe("setPopover", () => {
-  it("sets data.popover, aria-label, and has-popover class", () => {
+  it("sets data.popover, a describedby description, and has-popover class", () => {
     const el = document.createElement("button");
     setPopover(el, "Test text");
 
     expect(el.dataset.popover).toBe("Test text");
-    expect(el.getAttribute("aria-label")).toBe("Test text");
+    expect(el.hasAttribute("aria-label")).toBe(false);
+    const descId = el.getAttribute("aria-describedby");
+    expect(descId).toBeTruthy();
+    const descEl = document.getElementById(descId);
+    expect(descEl.textContent).toBe("Test text");
+    expect(descEl.className).toBe("visually-hidden");
     expect(el.classList.contains("has-popover")).toBe(true);
   });
 
@@ -20,6 +25,45 @@ describe("setPopover", () => {
 
     expect(el.dataset.popover).toBe("Test text");
     expect(el.getAttribute("aria-label")).toBe("Existing label");
+  });
+
+  it("preserves an existing aria-describedby id and appends its own", () => {
+    const el = document.createElement("button");
+    const authorDesc = document.createElement("span");
+    authorDesc.id = "author-desc";
+    document.body.appendChild(authorDesc);
+    el.setAttribute("aria-describedby", "author-desc");
+    setPopover(el, "Test text");
+
+    const ids = el.getAttribute("aria-describedby").split(/\s+/);
+    expect(ids).toContain("author-desc");
+    expect(ids.length).toBe(2);
+    authorDesc.remove();
+  });
+
+  it("updates the description text in place without creating a new span", () => {
+    const el = document.createElement("button");
+    setPopover(el, "First text");
+    const descId = el.getAttribute("aria-describedby");
+
+    setPopover(el, "Second text");
+    expect(el.getAttribute("aria-describedby")).toBe(descId);
+    expect(document.getElementById(descId).textContent).toBe("Second text");
+  });
+
+  it("removes only the description span and id it owns when cleared", () => {
+    const el = document.createElement("button");
+    const authorDesc = document.createElement("span");
+    authorDesc.id = "author-desc";
+    document.body.appendChild(authorDesc);
+    el.setAttribute("aria-describedby", "author-desc");
+    setPopover(el, "Test text");
+    const ownedId = el.dataset.popoverDescId;
+
+    setPopover(el, null);
+    expect(el.getAttribute("aria-describedby")).toBe("author-desc");
+    expect(document.getElementById(ownedId)).toBeNull();
+    authorDesc.remove();
   });
 
   it("removes title attribute", () => {
@@ -395,6 +439,65 @@ describe("initPopovers", () => {
 
     // Popover should be hidden
     expect(popover.hidden).toBe(true);
+  });
+});
+
+describe("popover positioning clamp", () => {
+  let root;
+
+  beforeEach(() => {
+    const existing = document.querySelector(".rf-popover");
+    if (existing) existing.remove();
+    root = document.createElement("div");
+    document.body.appendChild(root);
+  });
+
+  afterEach(() => {
+    const popover = document.querySelector(".rf-popover");
+    if (popover) popover.remove();
+    if (root && root.parentNode) root.remove();
+  });
+
+  it("clamps the popover's top within the viewport when flipped below on a short screen", () => {
+    Object.defineProperty(window, "innerHeight", { value: 100, configurable: true });
+    Object.defineProperty(window, "innerWidth", { value: 400, configurable: true });
+
+    initPopovers(root);
+    const btn = document.createElement("button");
+    btn.dataset.popover = "Test text";
+    root.appendChild(btn);
+    const popover = document.querySelector(".rf-popover");
+
+    // Target near the top, so showPopover() flips below; stub rects so the
+    // flipped position would otherwise render off the bottom of a short
+    // viewport.
+    btn.getBoundingClientRect = () => ({ top: 5, bottom: 20, left: 10, right: 90, width: 80, height: 15 });
+    popover.getBoundingClientRect = () => ({ top: 0, bottom: 60, left: 0, right: 100, width: 100, height: 60 });
+
+    btn.click();
+
+    const top = parseFloat(popover.style.top);
+    expect(top).toBeGreaterThanOrEqual(8);
+    expect(top).toBeLessThanOrEqual(window.innerHeight - 60 - 8);
+  });
+
+  it("caps max-height and enables overflow auto when taller than the viewport", () => {
+    Object.defineProperty(window, "innerHeight", { value: 50, configurable: true });
+    Object.defineProperty(window, "innerWidth", { value: 400, configurable: true });
+
+    initPopovers(root);
+    const btn = document.createElement("button");
+    btn.dataset.popover = "Test text";
+    root.appendChild(btn);
+    const popover = document.querySelector(".rf-popover");
+
+    btn.getBoundingClientRect = () => ({ top: 5, bottom: 20, left: 10, right: 90, width: 80, height: 15 });
+    popover.getBoundingClientRect = () => ({ top: 0, bottom: 200, left: 0, right: 100, width: 100, height: 200 });
+
+    btn.click();
+
+    expect(popover.style.maxHeight).toBe("34px");
+    expect(popover.style.overflow).toBe("auto");
   });
 });
 
