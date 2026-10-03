@@ -263,16 +263,6 @@
       <div class="action-bar">
         <div id="actionBanner" class="action-banner" aria-live="polite"></div>
           <div class="action-bar-controls">
-            <span
-              id="unrestBadge"
-              class="status-chip unrest-badge hidden"
-              aria-live="polite"
-            ></span>
-            <span
-              id="challengeProgressBadge"
-              class="status-chip challenge-progress-badge hidden"
-              aria-live="polite"
-            ></span>
             <button id="rollBtn" data-i18n="html.rollDice">Roll Dice</button>
             <div id="diceView"></div>
             <button
@@ -389,11 +379,18 @@
                 aria-hidden="true"
               ></div>
             </div>
-            <span
-              id="turnStatusChip"
-              class="status-chip turn-status-chip"
-              aria-live="polite"
-            ></span>
+            <div class="sheet-status-row">
+              <span
+                id="challengeProgressBadge"
+                class="status-chip challenge-progress-badge hidden"
+                aria-live="polite"
+              ></span>
+              <span
+                id="unrestBadge"
+                class="status-chip unrest-badge hidden"
+                aria-live="polite"
+              ></span>
+            </div>
           </div>
           <div class="sheet-window sheet-window-middle" data-crop="539,0,174,764">
             <div class="sheet-canvas">
@@ -468,7 +465,14 @@
         </div>
 
         <div class="panel pair-build-panel">
-          <h2 data-i18n="html.splitAndBuild">Pair &amp; Build</h2>
+          <h2>
+            <span data-i18n="html.splitAndBuild">Pair &amp; Build</span>
+            <span
+              id="turnStatusChip"
+              class="status-chip turn-status-chip"
+              aria-live="polite"
+            ></span>
+          </h2>
           <div class="pair-build-fields">
             <div class="field">
               <label data-i18n="html.locationDiceLabel">Location Dice</label>

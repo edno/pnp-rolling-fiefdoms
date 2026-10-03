@@ -1327,13 +1327,29 @@ main {
   border-color: rgba(46, 134, 193, 0.4);
 }
 
-.turn-status-chip {
+.sheet-status-row {
   position: absolute;
   top: calc(4 / 764 * 100%);
   left: calc(280 / 539 * 100%);
-  transform: translate(-50%, 0);
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  align-items: center;
   z-index: 2;
   white-space: nowrap;
+  max-width: calc(100% - 2 * 140 / 539 * 100%);
+}
+
+/* Turn badge sits at the right of the Pair & Build title. */
+.pair-build-panel .turn-status-chip {
+  margin-left: auto;
+  font-size: 14px;
+}
+
+.sheet-status-row .status-chip {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .field label {
@@ -2727,10 +2743,13 @@ button.secondary {
     min-height: 44px;
   }
 
-  .turn-status-chip {
+  .sheet-status-row {
+    top: 0;
+  }
+
+  .sheet-status-row .status-chip {
     font-size: 11px;
     padding: 1px 8px;
-    top: 0;
   }
 
   .sheet {
