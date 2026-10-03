@@ -2469,6 +2469,19 @@ button.secondary {
   .action-bar-aux > #cancelPlotBtn {
     order: 3;
   }
+
+  /* Before the roll (the only action is the inline Roll Dice button in the
+     prompt) there are no dice yet: drop the empty dice row and centre the
+     prompt in the bar. The bar keeps its fixed height, so nothing jumps when
+     the dice appear. */
+  .action-bar:has(#actionBanner .btn-inline-action):not(:has(.die-badge)) {
+    justify-content: center;
+    padding-bottom: 0;
+  }
+
+  .action-bar:has(#actionBanner .btn-inline-action):not(:has(.die-badge)) .action-bar-controls {
+    display: none;
+  }
 }
 
 /* Desktop-specific overrides for the shared two-row bar above: #buildingPicker
@@ -2502,13 +2515,6 @@ button.secondary {
     font-size: 22px;
   }
 
-  /* Before the roll the only action is the inline Roll Dice button in the
-     prompt: hide the empty dice row's content without changing the bar's
-     fixed height (visibility, not display, so the two-row height never
-     jumps). */
-  .action-bar:has(#actionBanner .btn-inline-action) .action-bar-controls:not(:has(.die-badge)) {
-    visibility: hidden;
-  }
 }
 
 @media (orientation: portrait) and (max-width: 1024px) {
