@@ -9,12 +9,22 @@
   --panel: #ffffff;
   --border: #d0c6b8;
   --accent: #e67e22;
+  --accent-strong: #b35900;
   --text: #2c2c2c;
   --muted: #7a7a7a;
   --danger: #c0392b;
   --grid: #cfd4d8;
   --ink: #000794;
   --footer-height: 76px;
+  --success: #1e8449;
+  --success-bg: rgba(46, 204, 113, 0.15);
+  --info: #1b5f8c;
+  --info-bg: rgba(46, 134, 193, 0.15);
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+  --font-ui: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
 * {
@@ -95,7 +105,7 @@ button.menu-item {
 .menu-icon {
   width: 48px;
   height: 48px;
-  border-radius: 16px;
+  border-radius: 16px; /* deliberate exception: not on the radius scale, matches menu icon art */
   background: var(--bg);
   border: 2px solid var(--border);
   display: inline-flex;
@@ -179,7 +189,7 @@ button.menu-item {
   background: rgba(255, 255, 255, 0.5);
   border-bottom: 1px solid var(--border);
   font-weight: 900;
-  color: var(--accent);
+  color: var(--accent-strong);
   min-height: 28px;
   text-align: center;
   font-size: 24px;
@@ -1039,7 +1049,7 @@ main {
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 12px;
   overflow: hidden;
   display: flex;
@@ -1072,7 +1082,7 @@ main {
   background: var(--accent);
   color: #fff;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 6px 8px;
   cursor: pointer;
   display: inline-flex;
@@ -1143,9 +1153,9 @@ main {
   align-items: center;
   gap: 6px;
   padding: 2px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 13px;
-  font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: var(--font-ui);
   background: var(--muted-bg, rgba(0, 0, 0, 0.05));
   color: var(--text);
   border: 1px solid var(--border);
@@ -1160,8 +1170,8 @@ main {
 }
 
 .status-chip.status-active {
-  background: rgba(46, 204, 113, 0.12);
-  color: #1e8449;
+  background: var(--success-bg);
+  color: var(--success);
   border-color: rgba(46, 204, 113, 0.45);
 }
 
@@ -1178,8 +1188,8 @@ main {
 }
 
 .status-chip.challenge-progress-badge {
-  background: rgba(46, 134, 193, 0.12);
-  color: #1b5f8c;
+  background: var(--info-bg);
+  color: var(--info);
   border-color: rgba(46, 134, 193, 0.4);
 }
 
@@ -1188,12 +1198,15 @@ main {
 }
 
 button {
-  background: var(--accent);
+  background: var(--accent-strong);
   color: #fff;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 8px 12px;
+  font-family: var(--font-ui);
+  font-size: 16px;
   font-weight: 600;
+  line-height: 1.2;
   cursor: pointer;
 }
 
@@ -1202,13 +1215,31 @@ button:disabled {
   cursor: not-allowed;
 }
 
+:where(
+  button,
+  [role="button"],
+  summary,
+  a,
+  select,
+  input,
+  .die-badge,
+  .building-hit,
+  .guild-hit,
+  .cell,
+  .population-node,
+  .challenge-card
+):focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+
 .btn-label-inline {
   display: inline-block;
-  background: var(--accent);
+  background: var(--accent-strong);
   color: #fff;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 2px 8px;
-  font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: var(--font-ui);
   font-weight: 600;
   font-size: 0.85em;
   white-space: nowrap;
@@ -1263,7 +1294,7 @@ button:disabled {
 .guild-hit,
 .building-hit {
   border: 2px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   pointer-events: auto;
   box-sizing: border-box;
@@ -1274,8 +1305,8 @@ button:disabled {
 
 .guild-hit.selected,
 .building-hit.selected {
-  background-color: rgba(230, 126, 34, 0.35) !important;
-  border-color: rgba(230, 126, 34, 1) !important;
+  background-color: rgba(230, 126, 34, 0.2) !important;
+  border: 2px solid var(--accent) !important;
 }
 
 .guild-hit.available,
@@ -1315,9 +1346,9 @@ button:disabled {
 }
 
 .log-unread-badge {
-  background: var(--accent);
+  background: var(--accent-strong);
   color: #fff;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 11px;
   font-weight: 700;
   min-width: 18px;
@@ -1355,7 +1386,7 @@ button:disabled {
 
 select {
   padding: 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border);
 }
 
@@ -1364,7 +1395,7 @@ select {
   max-height: 200px;
   overflow-y: auto;
   background: var(--background);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   padding: 8px;
   font-size: 13px;
 }
@@ -1696,7 +1727,7 @@ select {
 .modal-dialog {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 20px;
   max-width: min(720px, calc(100vw - 16px));
   width: 100%;
@@ -1872,7 +1903,7 @@ select {
 
 
 .carousel-dot.active {
-  background: var(--accent);
+  background-color: var(--accent-strong);
   transform: scale(1.3);
 }
 
@@ -1894,8 +1925,9 @@ select {
 }
 
 .challenge-card {
-  flex: 0 0 250px;
-  height: 340px;
+  flex: 0 0 min(250px, 100%);
+  height: min(340px, calc(85dvh - 190px));
+  min-height: 220px;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -1903,11 +1935,11 @@ select {
   text-align: center;
   background: var(--bg);
   border: 2px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 16px 14px;
   cursor: pointer;
   color: var(--text);
-  font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: var(--font-ui);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
   transition:
     border-color 0.15s ease,
@@ -1915,6 +1947,14 @@ select {
     transform 0.15s ease;
 }
 
+
+.challenge-card.is-scrollable:not(.is-at-end) {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
+}
+
+.modal-dialog.is-scrollable:not(.is-at-end) {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
+}
 
 .challenge-card.selected {
   border-color: var(--accent);
@@ -1943,7 +1983,7 @@ select {
   background: var(--muted-bg, rgba(0, 0, 0, 0.06));
   color: var(--muted);
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 2px 8px;
   font-size: 10px;
   text-transform: uppercase;
@@ -2013,9 +2053,11 @@ button.secondary {
   max-width: min(280px, calc(100vw - 16px));
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 6px 10px;
+  font-family: var(--font-ui);
   font-size: 15px;
+  line-height: 1.35;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
   pointer-events: none;
 }
@@ -2063,10 +2105,12 @@ button.secondary {
   .building-pick {
     min-height: 44px;
     padding: 0 14px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: var(--panel);
     border: 1px solid var(--border);
     color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 13px;
   }
 
   .building-pick.selected {
@@ -2105,26 +2149,26 @@ button.secondary {
   .top-menu {
     flex-wrap: nowrap;
     overflow-x: auto;
-    gap: 8px;
+    gap: 4px;
     width: 100%;
     -webkit-overflow-scrolling: touch;
   }
 
   .menu-item {
-    width: 36px;
+    width: 44px;
     flex: 0 0 auto;
   }
 
   .menu-icon {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     border-radius: 12px;
     font-size: 20px;
   }
 
   .menu-icon img {
-    width: 22px;
-    height: 22px;
+    width: 26px;
+    height: 26px;
   }
 
   .menu-text {
@@ -2144,6 +2188,10 @@ button.secondary {
     position: static;
   }
 
+  .footer-inner {
+    padding-right: 64px;
+  }
+
   .back-to-top {
     bottom: 16px;
   }
@@ -2158,17 +2206,29 @@ button.secondary {
 }
 
 @media (pointer: coarse) {
-  #confirmPlotBtn {
-    background: var(--accent);
-    color: #fff;
-  }
-
   #diceView .influence-btn,
   #locDicePreview .influence-btn,
   #buildDicePreview .influence-btn {
     width: 36px;
     height: 36px;
     font-size: 16px;
+  }
+
+  .carousel-nav {
+    width: 44px;
+    height: 44px;
+  }
+
+  .carousel-dots {
+    gap: 0;
+  }
+
+  .carousel-dot {
+    box-sizing: content-box;
+    width: 7px;
+    height: 7px;
+    padding: 10px;
+    background-clip: content-box;
   }
 }
 
@@ -2199,6 +2259,14 @@ button.secondary {
 
   .action-bar-controls {
     gap: 6px 8px;
+  }
+
+  .carousel-nav {
+    display: none;
+  }
+
+  .challenge-carousel-wrapper {
+    gap: 0;
   }
 }
 
@@ -2233,6 +2301,10 @@ button.secondary {
     position: static;
   }
 
+  .footer-inner {
+    padding-right: 64px;
+  }
+
   body {
     padding-bottom: 0;
   }
@@ -2243,12 +2315,26 @@ button.secondary {
 
   .action-bar {
     padding: 0 8px 4px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    column-gap: 12px;
   }
 
   .action-bar .action-banner {
     padding: 2px 8px;
     font-size: 16px;
     line-height: 1.2;
+    flex: 1 0 100%;
+  }
+
+  .building-picker:not([hidden]) {
+    padding: 0;
+  }
+
+  .building-pick {
+    min-height: 40px;
   }
 
   .action-bar-controls {
@@ -2271,6 +2357,10 @@ button.secondary {
 }
 
 @media (hover: hover) {
+  button:not(:disabled):hover {
+    filter: brightness(0.92);
+  }
+
   .back-to-top:hover {
     background: var(--accent);
     color: #fff;
@@ -2311,7 +2401,7 @@ button.secondary {
   }
 
   .carousel-dot:hover {
-    background: var(--accent);
+    background-color: var(--accent);
   }
 
   .challenge-card:hover {

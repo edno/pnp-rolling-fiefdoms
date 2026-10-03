@@ -155,6 +155,7 @@ import { CHALLENGES, CHALLENGE_ORDER } from "./challenges.js";
 import { initSheetWindows } from "./sheet-layout.js";
 import { onMouseHover } from "./hover.js";
 import { initPopovers, setPopover } from "./popover.js";
+import { updateScrollCue } from "./scroll-cue.js";
 
 const BOARD_SIZE = 5;
 const POPULATION_GRID_SIZE = 4;
@@ -2541,6 +2542,17 @@ function openChallengePicker() {
   if (challengePickerLocaleSelect) challengePickerLocaleSelect.value = getLocale();
   if (challengeCancelBtn) challengeCancelBtn.style.display = hasStartedAnyGame ? "inline-block" : "none";
   challengePickerEl.hidden = false;
+  const dialog = challengePickerEl.querySelector(".modal-dialog");
+  if (dialog) {
+    updateScrollCue(dialog);
+    if (!dialog.dataset.scrollCueBound) {
+      dialog.dataset.scrollCueBound = "true";
+      dialog.addEventListener("scroll", () => updateScrollCue(dialog));
+      window.addEventListener("resize", () => {
+        if (!challengePickerEl.hidden) updateScrollCue(dialog);
+      });
+    }
+  }
 }
 
 function closeChallengePicker() {
@@ -2610,6 +2622,7 @@ function appendChallengePlaceholderCard(titleText, descText = null, difficulty =
     desc.textContent = descText;
     card.appendChild(desc);
   }
+  card.addEventListener("scroll", () => updateScrollCue(card));
   challengeCardsEl.appendChild(card);
 }
 
@@ -2661,12 +2674,20 @@ function renderChallengeCards() {
       card.classList.add("selected");
       card.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
     };
+    card.addEventListener("scroll", () => updateScrollCue(card));
     challengeCardsEl.appendChild(card);
   });
   UPCOMING_CHALLENGES.forEach((entry) => {
     appendChallengePlaceholderCard(t(entry.nameKey), t(entry.descKey), entry.difficulty);
   });
   renderChallengeCarouselDots(challengeCardsEl.children.length);
+  challengeCardsEl.querySelectorAll(".challenge-card").forEach((card) => updateScrollCue(card));
+  if (!window.__rfChallengeCardResizeBound) {
+    window.__rfChallengeCardResizeBound = true;
+    window.addEventListener("resize", () => {
+      challengeCardsEl.querySelectorAll(".challenge-card").forEach((card) => updateScrollCue(card));
+    });
+  }
 }
 
 function handleBuildingChoice() {
