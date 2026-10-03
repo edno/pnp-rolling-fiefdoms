@@ -6,6 +6,20 @@ import { describe, expect, it, vi } from "vitest";
 const numberedQueue = [];
 const xQueue = [];
 
+// Records every guideTo() target element so tests can assert which control a
+// guided scroll was aimed at, while still exercising the real scroll logic.
+const guideToCalls = [];
+vi.mock("../app/scroll-guide.js", async () => {
+  const actual = await vi.importActual("../app/scroll-guide.js");
+  return {
+    ...actual,
+    guideTo: (el, options) => {
+      guideToCalls.push(el);
+      return actual.guideTo(el, options);
+    },
+  };
+});
+
 vi.mock("../app/dice.js", () => {
   return {
     rollNumberedDie: vi.fn((label) => {
@@ -34,6 +48,7 @@ const baseHtml = `
   <div id="locDicePreview"></div>
   <div id="buildDicePreview"></div>
   <ul id="log"></ul>
+  <details id="logDrawer"><span id="logUnreadBadge" class="hidden"></span></details>
   <div id="scoreOverlayBuildings"></div>
   <div id="scoreOverlayGuilds"></div>
   <div id="scoreOverlayReputation"></div>
@@ -852,6 +867,61 @@ describe("plot confirm step (jsdom)", () => {
     }
   });
 
+  it("rolling again removes the stale pending-plot preview from the board", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { setConfirmStepOverride } = await import("../app/confirm-step.js");
+    setConfirmStepOverride(true);
+    try {
+      await setupBuildReady(hooks);
+      const targetCell = document.querySelector('.cell[data-row="0"][data-col="1"]');
+      targetCell.click();
+      await flushMicrotasks();
+
+      expect(hooks.state.pendingPlot).toBeTruthy();
+      expect(document.querySelector(".cell.cell-pending")).toBeTruthy();
+      expect(document.querySelector(".building-preview")).toBeTruthy();
+
+      hooks.state.rollAvailable = true;
+      hooks.rollDice();
+      await flushMicrotasks();
+
+      expect(hooks.state.pendingPlot).toBeNull();
+      expect(document.querySelector(".cell.cell-pending")).toBeNull();
+      expect(document.querySelector(".building-preview")).toBeNull();
+    } finally {
+      setConfirmStepOverride(null);
+    }
+  });
+
+  it("a dice-selection change removes the stale pending-plot preview from the board", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { setConfirmStepOverride } = await import("../app/confirm-step.js");
+    setConfirmStepOverride(true);
+    try {
+      await setupBuildReady(hooks);
+      const targetCell = document.querySelector('.cell[data-row="0"][data-col="1"]');
+      targetCell.click();
+      await flushMicrotasks();
+
+      expect(hooks.state.pendingPlot).toBeTruthy();
+      expect(document.querySelector(".cell.cell-pending")).toBeTruthy();
+      expect(document.querySelector(".building-preview")).toBeTruthy();
+
+      // Re-running updateDiceAssignments (as onDieClick does on a dice/pair change)
+      // should clear the pending plot and its stale DOM preview.
+      hooks.updateDiceAssignments();
+      await flushMicrotasks();
+
+      expect(hooks.state.pendingPlot).toBeNull();
+      expect(document.querySelector(".cell.cell-pending")).toBeNull();
+      expect(document.querySelector(".building-preview")).toBeNull();
+    } finally {
+      setConfirmStepOverride(null);
+    }
+  });
+
   it("guided scroll targets population node, not buildings, after Confirm on a build that grants population (narrow viewport)", async () => {
     await setupApp({ enableHooks: true });
     const hooks = window.__rfTestHooks;
@@ -877,10 +947,11 @@ describe("plot confirm step (jsdom)", () => {
       });
 
       try {
-        // Set up state for a building with population grant
+        // Set up state for a building with population grant. Doubled location
+        // dice (1,1) make (row 0, col 0) a valid plot for onCellClick's pair match.
         hooks.state.dice = [
           { label: "N1", face: 1, resolved: 1 },
-          { label: "N2", face: 4, resolved: 4 },
+          { label: "N2", face: 1, resolved: 1 },
           { label: "X1", face: 2, resolved: 2 },
           { label: "X2", face: 3, resolved: 3 },
         ];
@@ -890,22 +961,29 @@ describe("plot confirm step (jsdom)", () => {
         hooks.state.rollAvailable = false;
         hooks.state.board = createEmptyBoard();
         hooks.state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
-
-        // Place building with population grant
-        hooks.placeBuilding(0, 0, "F");
+        hooks.updateDiceAssignments();
         await flushMicrotasks();
 
-        // Verify population is pending
-        expect(hooks.state.pendingPopulation?.remaining).toBeGreaterThan(0);
+        // Go through the real touch confirm path: tap the plot (sets a pending
+        // build, does NOT place it yet), then Confirm.
+        const targetCell = document.querySelector('.cell[data-row="0"][data-col="0"]');
+        targetCell.click();
+        await flushMicrotasks();
 
-        // Clear previous scroll calls from placeBuilding
+        expect(hooks.state.board[0][0].building).toBeFalsy();
+        expect(hooks.state.pendingPlot).toMatchObject({ r: 0, c: 0, kind: "build", code: "F" });
+
+        guideToCalls.length = 0;
         scrollToCalls.length = 0;
 
-        // Confirm the pending plot (which was created during placeBuilding)
         hooks.confirmPendingPlot();
         await flushMicrotasks();
 
-        // Wait for requestAnimationFrame to complete
+        // The building is now placed and should have granted pending population.
+        expect(hooks.state.board[0][0].building).toBe("F");
+        expect(hooks.state.pendingPopulation?.remaining).toBeGreaterThan(0);
+
+        // The population guide is deferred via requestAnimationFrame; flush it.
         if (vi.isFakeTimers()) {
           await vi.runOnlyPendingTimersAsync();
         } else {
@@ -913,17 +991,17 @@ describe("plot confirm step (jsdom)", () => {
         }
         await flushMicrotasks();
 
-        // Verify that scrollTo was called for population (last call should target the population node)
-        // The population node element should exist in the DOM after placement
         const populationNode = document.querySelector(".population-node.highlight");
         expect(populationNode).toBeTruthy();
 
-        // If scrollTo was called, the last call should have been triggered by the population guide
-        // (not by the buildings guide which should have been skipped)
-        if (scrollToCalls.length > 0) {
-          // Last scroll call should be for the population node area
-          expect(scrollToCalls.length).toBeGreaterThan(0);
-        }
+        // The last guided-scroll target must be the population node, not the
+        // buildings picker/sheet, and it must have actually triggered a scroll.
+        expect(guideToCalls.length).toBeGreaterThan(0);
+        const lastTarget = guideToCalls[guideToCalls.length - 1];
+        expect(lastTarget).toBeTruthy();
+        expect(lastTarget.classList.contains("population-node")).toBe(true);
+        expect(lastTarget.closest(".building-picker, #buildingsOverlay, #guildsOverlay")).toBeNull();
+        expect(scrollToCalls.length).toBeGreaterThan(0);
       } finally {
         window.scrollTo = originalScrollTo;
         window.matchMedia = undefined;
@@ -1026,6 +1104,47 @@ describe("narrow-screen building picker (jsdom)", () => {
     expect(guildHit.classList.contains("selected")).toBe(true);
   });
 
+  it("selecting a guild type updates the picker button and advances the banner to the plot prompt", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    stubNarrowMatchMedia();
+    hooks.state.dice = [
+      { label: "N1", face: 1, resolved: 1 },
+      { label: "N2", face: 2, resolved: 2 },
+      { label: "B1", face: 5, resolved: 5 },
+      { label: "B2", face: 5, resolved: 5 },
+    ];
+    hooks.state.locationSelection = [0, 1];
+    hooks.state.rollAvailable = false;
+    hooks.state.board = createEmptyBoard();
+    hooks.state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    hooks.updateDiceAssignments();
+    await flushMicrotasks();
+
+    const guildPick = document.querySelector('#buildingPicker .building-pick[data-code="G"]');
+    guildPick.click();
+    await flushMicrotasks();
+
+    const bannerBefore = document.getElementById("actionBanner").textContent;
+
+    // Click the guild-type hitbox directly (not the picker delegate) to exercise
+    // the overlay's own click handler.
+    const guildHit = document.querySelector('#guildsOverlay .guild-hit[data-code="GF"]');
+    guildHit.click();
+    await flushMicrotasks();
+
+    expect(hooks.state.selectedGuildType).toBe("GF");
+    expect(guildHit.classList.contains("selected")).toBe(true);
+
+    const pickerBtn = document.querySelector('#buildingPicker .building-pick[data-code="GF"]');
+    expect(pickerBtn).toBeTruthy();
+    expect(pickerBtn.classList.contains("selected")).toBe(true);
+    expect(pickerBtn.getAttribute("aria-pressed")).toBe("true");
+
+    const bannerAfter = document.getElementById("actionBanner").textContent;
+    expect(bannerAfter).not.toBe(bannerBefore);
+  });
+
   it("hides the picker once the building has been placed", async () => {
     await setupApp({ enableHooks: true });
     const hooks = window.__rfTestHooks;
@@ -1039,5 +1158,107 @@ describe("narrow-screen building picker (jsdom)", () => {
     expect(hooks.state.board[0][1].building).toBe("F");
     expect(document.getElementById("buildingPicker").hidden).toBe(true);
     expect(document.querySelectorAll("#buildingPicker .building-pick").length).toBe(0);
+  });
+});
+
+describe("unread log badge (jsdom)", () => {
+  it("resets the unread log counter and badge when starting a new game", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+
+    hooks.log("First test log entry");
+    hooks.log("Second test log entry");
+    await flushMicrotasks();
+
+    const badge = document.getElementById("logUnreadBadge");
+    expect(badge.classList.contains("hidden")).toBe(false);
+    expect(Number(badge.textContent)).toBeGreaterThan(0);
+
+    const countBeforeNewGame = Number(badge.textContent);
+    hooks.newGame();
+    await flushMicrotasks();
+
+    // newGame() resets the counter (rather than leaving the stale count from the
+    // previous game) and then logs its own "game started" message, so the badge
+    // should reflect only that fresh entry, not the old unread count.
+    const countAfterNewGame = Number(badge.textContent);
+    expect(countAfterNewGame).toBeLessThan(countBeforeNewGame);
+    expect(countAfterNewGame).toBeGreaterThan(0);
+  });
+});
+
+describe("locale-only re-render preserves pending plot (jsdom)", () => {
+  it("updateDiceAssignments(true) (locale switch) does not cancel a pending touch confirmation", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { setConfirmStepOverride } = await import("../app/confirm-step.js");
+    setConfirmStepOverride(true);
+    try {
+      hooks.state.dice = [
+        { label: "N1", face: 1, resolved: 1 },
+        { label: "N2", face: 2, resolved: 2 },
+        { label: "B1", face: 7, resolved: 7 },
+        { label: "B2", face: 7, resolved: 7 },
+      ];
+      hooks.state.locationSelection = [0, 1];
+      hooks.state.rollAvailable = false;
+      hooks.state.board = createEmptyBoard();
+      hooks.updateDiceAssignments();
+      await flushMicrotasks();
+      hooks.state.buildChoice = { code: "F" };
+
+      const targetCell = document.querySelector('.cell[data-row="0"][data-col="1"]');
+      targetCell.click();
+      await flushMicrotasks();
+
+      expect(hooks.state.pendingPlot).toMatchObject({ r: 0, c: 1, kind: "build", code: "F" });
+      expect(document.getElementById("confirmPlotBtn").style.display).not.toBe("none");
+
+      // Simulate a locale switch, which re-renders via updateDiceAssignments(true)
+      // without mutating game state.
+      hooks.updateDiceAssignments(true);
+      await flushMicrotasks();
+
+      expect(hooks.state.pendingPlot).toMatchObject({ r: 0, c: 1, kind: "build", code: "F" });
+      expect(document.getElementById("confirmPlotBtn").style.display).not.toBe("none");
+    } finally {
+      setConfirmStepOverride(null);
+    }
+  });
+});
+
+describe("flashHint / updateActionBanner interplay (jsdom)", () => {
+  it("a stale flashHint restore timer does not overwrite a newer banner rendered in the meantime", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.resetModules();
+      document.body.innerHTML = '<div id="actionBanner"></div>';
+      const uiFeedback = await import("../app/ui-feedback.js");
+      const banner = document.getElementById("actionBanner");
+
+      banner.dataset.msg = "Original prompt";
+      banner.textContent = "Original prompt";
+
+      uiFeedback.flashHint("Transient hint");
+      expect(banner.textContent).toBe("Transient hint");
+
+      // Before the 3s restore timer fires, a real banner update happens (e.g.
+      // the player advances to a new step). Simulate updateActionBanner()
+      // update (e.g. the player advanced a step) - this should clear the
+      // stale flash-restore timer so it can't fire later and clobber this.
+      const state = { activeTurn: true };
+      uiFeedback.updateActionBanner(state, undefined, {});
+      const rendered = banner.textContent;
+      expect(rendered).not.toBe("Transient hint");
+      expect(rendered).not.toBe("Original prompt");
+
+      await vi.runOnlyPendingTimersAsync();
+
+      // The now-stale flash timer must not have fired and restored the old
+      // "Original prompt" text over the freshly rendered banner.
+      expect(banner.textContent).toBe(rendered);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

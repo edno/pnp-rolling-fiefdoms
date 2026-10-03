@@ -2305,6 +2305,13 @@ button.secondary {
     font-size: 24px;
   }
 
+  .menu-item {
+    min-width: 44px;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+  }
+
   .menu-icon {
     width: 32px;
     height: 32px;
@@ -2359,22 +2366,18 @@ button.secondary {
     padding: 0;
   }
 
-  .building-pick {
-    min-height: 40px;
-  }
-
   .action-bar-controls {
     gap: 6px 8px;
     flex-wrap: nowrap;
   }
 
   .action-bar #diceView .die-badge {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
   }
 
   .action-bar-controls button {
-    min-height: 40px;
+    min-height: 44px;
   }
 
   .sheet {

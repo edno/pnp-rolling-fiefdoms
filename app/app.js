@@ -584,6 +584,8 @@ function resetState(challengeId = null) {
   state.lastStatusTurnIndex = 0;
   state.finalScore = null;
   state.log = [];
+  unreadLogCount = 0;
+  updateLogUnreadBadge();
   state.rollAvailable = true;
   state.pendingTurnIndex = null;
   state.pendingActiveTurn = null;
@@ -1764,6 +1766,7 @@ function clearPendingPlot() {
   if (!state.pendingPlot) return;
   state.pendingPlot = null;
   hidePlotConfirmControls();
+  renderBoard();
 }
 
 function pendingPlotBannerText(pending) {
@@ -2789,6 +2792,8 @@ function renderGuildOverlay(available = []) {
       document.querySelectorAll(".guild-hit.selected").forEach((el) => el.classList.remove("selected"));
       div.classList.add("selected");
       state.selectedGuildType = hit.code;
+      renderBuildingPicker();
+      updateActionBanner();
       guideToStep("plot:G:" + hit.code, () => document.querySelector(".cell.highlight"));
     };
     div.setAttribute("aria-label", hit.code);
@@ -3384,7 +3389,13 @@ function onDieClick(idx) {
 // state and log messages) and just re-renders from the existing state — used when
 // refreshing the UI for a locale switch, which must not alter game state.
 function updateDiceAssignments(renderOnly = false) {
-  clearPendingPlot();
+  if (renderOnly) {
+    if (state.pendingPlot) {
+      showPlotConfirmControls();
+    }
+  } else {
+    clearPendingPlot();
+  }
   if (!state.dice || !state.dice.length) {
     if (!renderOnly) {
       state.forceForfeit = false;
@@ -3919,5 +3930,7 @@ function autoForfeitUnfillable(finalize = false) {
       confirmPendingPlot,
       cancelPendingPlot,
       rollDice,
+      newGame,
+      log,
     };
   }

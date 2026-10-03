@@ -178,6 +178,11 @@ export function actionMessage(state, currentPhase, options = {}) {
  */
 export function updateActionBanner(state, currentPhase, options = {}) {
   if (!actionBannerEl) return;
+  if (flashHintTimer) {
+    clearTimeout(flashHintTimer);
+    flashHintTimer = null;
+    flashHintText = null;
+  }
   const newText = actionMessage(state, currentPhase, options);
   const prevText = actionBannerEl.dataset.msg || "";
   const changed = prevText !== newText;
@@ -196,6 +201,7 @@ export function updateActionBanner(state, currentPhase, options = {}) {
 }
 
 let flashHintTimer = null;
+let flashHintText = null;
 
 /**
  * Briefly show a transient hint message in the action banner, without
@@ -204,6 +210,8 @@ let flashHintTimer = null;
  */
 export function flashHint(text) {
   if (!actionBannerEl || !text) return;
+  if (flashHintTimer) clearTimeout(flashHintTimer);
+  flashHintText = text;
   const restoreText = actionBannerEl.dataset.msg || "";
   if (text.includes("<")) {
     actionBannerEl.innerHTML = text;
@@ -214,10 +222,13 @@ export function flashHint(text) {
   void actionBannerEl.offsetWidth; // restart animation
   actionBannerEl.classList.add("bump");
   syncInlineActionButtons();
-  if (flashHintTimer) clearTimeout(flashHintTimer);
   flashHintTimer = setTimeout(() => {
     flashHintTimer = null;
     if (!actionBannerEl) return;
+    // Only restore if the banner is still showing this flash's text - if
+    // updateActionBanner() rendered a newer prompt in the meantime, leave it alone.
+    if (flashHintText !== text) return;
+    flashHintText = null;
     actionBannerEl.dataset.msg = restoreText;
     if (restoreText && restoreText.includes("<")) {
       actionBannerEl.innerHTML = restoreText;
