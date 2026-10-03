@@ -195,12 +195,13 @@ button.menu-item {
   text-align: center;
   font-size: 24px;
   line-height: var(--ab-banner-line-h, 30px);
-  height: var(--ab-banner-h, 64px);
+  max-height: var(--ab-banner-max, 60px);
   width: 100%;
   box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
   align-content: center;
+  align-items: center;
   justify-content: center;
   column-gap: 0.3em;
   overflow: hidden;
@@ -216,13 +217,20 @@ button.menu-item {
   border-bottom: 1px solid var(--border);
   padding: 0 max(16px, env(safe-area-inset-right)) 8px
     max(16px, env(safe-area-inset-left));
-  /* Fixed-height action-bar slots (banner / main row / aux row) so actions
-     never shift the page; see AGENTS.md Appendix. */
+  /* Fixed-height action bar: one fixed height per breakpoint (via --ab-h) so
+     actions never shift the page, with its slots centered as a group.
+     Banner clamps to 2 lines; see AGENTS.md Appendix. */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: var(--ab-h);
+  box-sizing: border-box;
   --ab-banner-line-h: 30px;
-  --ab-banner-h: 64px;
+  --ab-banner-max: max(calc(var(--ab-banner-line-h) * 2), calc(44px + 4px));
   --ab-die: clamp(44px, 9vw, 64px);
-  --ab-main-h: calc(var(--ab-die) + 20px);
-  --ab-aux-h: 44px;
+  --ab-main-h: calc(var(--ab-die) + 12px);
+  --ab-aux-h: 36px;
+  --ab-h: calc(var(--ab-banner-max) + var(--ab-main-h) + var(--ab-aux-h) + 8px);
 }
 
 .action-bar .action-banner {
@@ -242,7 +250,7 @@ button.menu-item {
   min-height: var(--ab-main-h);
   box-sizing: border-box;
   /* Room inside the scroll clip for the selected-die ring, the ± badge and the swap pulse. */
-  padding: 10px 8px;
+  padding: 6px 8px;
 }
 
 .action-bar-controls::-webkit-scrollbar {
@@ -296,6 +304,13 @@ button.menu-item {
 .action-bar-aux:has(> #confirmPlotBtn:not([style*="display: none"])) > #buildingPicker,
 .action-bar-aux:has(> #confirmPlotBtn:not([style*="display: none"])) > #influenceStepper {
   display: none !important;
+}
+
+/* Collapse the aux row entirely (no reserved height) when none of its
+   possible contents are visible, so the bar's fixed --ab-h isn't padded
+   with empty space. */
+.action-bar-aux:not(:has(> #confirmPlotBtn:not([style*="display: none"]))):not(:has(> #buildingPicker:not([hidden]))):not(:has(> #influenceStepper:not([hidden]))) {
+  display: none;
 }
 
 #buildingPicker,
@@ -1372,6 +1387,7 @@ button:disabled {
   padding: 4px 14px;
   font-size: 0.8em;
   vertical-align: middle;
+  margin-block: 0;
   cursor: pointer;
   min-height: 36px;
 }
@@ -1592,13 +1608,13 @@ select {
 
 .influence-target-btn {
   position: absolute;
-  top: -6px;
-  right: -6px;
+  top: -4px;
+  right: -4px;
   width: 22px;
   height: 22px;
   border-radius: 50%;
   border: 1px solid rgba(0, 0, 0, 0.3);
-  background: var(--accent);
+  background: var(--accent-strong);
   color: white;
   font-size: 12px;
   line-height: 1;
@@ -2268,7 +2284,6 @@ button.secondary {
 
   .action-bar {
     order: 0;
-    --ab-aux-h: 52px;
   }
 
   .board-panel {
@@ -2409,9 +2424,7 @@ button.secondary {
 
 @media (pointer: coarse) {
   .action-bar {
-    --ab-banner-line-h: 26px;
-    --ab-banner-h: 56px;
-    --ab-aux-h: 52px;
+    --ab-aux-h: 44px;
   }
 
   .btn-inline-action {
@@ -2493,6 +2506,7 @@ button.secondary {
 
   .action-bar {
     padding: 0 8px 6px;
+    --ab-banner-line-h: 23px;
   }
 
   .action-bar .action-banner {
@@ -2511,6 +2525,30 @@ button.secondary {
 
   .challenge-carousel-wrapper {
     gap: 0;
+    margin: 10px 0;
+  }
+
+  /* Save vertical space in the challenge picker so the Start button is
+     reachable without scrolling the dialog on small screens. */
+  #challengePicker p[data-i18n="challenges.picker.description"] {
+    display: none;
+  }
+
+  .modal-dialog {
+    padding: 12px 16px;
+  }
+
+  .modal-dialog h2 {
+    margin: 0 0 6px 0;
+    padding-top: 4px;
+  }
+
+  .carousel-dots {
+    margin: 4px 0 8px 0;
+  }
+
+  .challenge-card {
+    height: min(300px, calc(85dvh - 140px));
   }
 }
 
@@ -2521,6 +2559,35 @@ button.secondary {
 
   header h1 {
     font-size: 24px;
+  }
+
+  /* Save vertical space in the challenge picker so the Start button is
+     reachable without scrolling the dialog in short-landscape viewports. */
+  #challengePicker p[data-i18n="challenges.picker.description"] {
+    display: none;
+  }
+
+  .modal-dialog {
+    padding: 10px 16px;
+  }
+
+  .modal-dialog h2 {
+    margin: 0 0 4px 0;
+    padding-top: 2px;
+  }
+
+  .challenge-carousel-wrapper {
+    margin: 8px 0;
+  }
+
+  .carousel-dots {
+    margin: 2px 0 8px 0;
+  }
+
+  .challenge-card {
+    height: min(160px, calc(85dvh - 170px));
+    min-height: 140px;
+    padding: 10px 10px;
   }
 
   .menu-item {
@@ -2571,12 +2638,14 @@ button.secondary {
     grid-template-rows: var(--ab-banner-h) var(--ab-main-h);
     grid-template-areas: "banner banner" "controls aux";
     align-items: center;
+    align-content: center;
     justify-content: center;
     column-gap: 12px;
     --ab-banner-line-h: 20px;
     --ab-banner-h: 24px;
     --ab-die: 44px;
     --ab-aux-h: 52px;
+    --ab-h: calc(var(--ab-banner-h) + var(--ab-main-h) + 4px);
   }
 
   /* Compact short-landscape bar: banner clamps to one line, and the main
@@ -2623,6 +2692,15 @@ button.secondary {
 
   .sheet {
     max-width: min(100%, calc((100dvh - 60px) * 1076 / 764));
+  }
+}
+
+/* Short landscape + touch: the inline banner action button is 44px tall
+   (see the (pointer: coarse) rules below), so the banner row needs room
+   for it or it clips; grow the row (and the bar's fixed --ab-h follows). */
+@media (max-height: 500px) and (pointer: coarse) {
+  .action-bar {
+    --ab-banner-h: max(var(--ab-banner-line-h), 48px);
   }
 }
 
