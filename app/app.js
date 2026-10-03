@@ -1320,6 +1320,20 @@ function renderDice() {
   row.className = "dice-row";
   const turnLocked = state.diceLocked || state.activationMode || state.pestilence || forceForfeitActive();
   if (turnLocked) row.classList.add("dice-locked");
+  const hasInfluenceAdjustments = !influenceAdjustmentsEmpty();
+  // During a forced forfeit, keep the stepper/± badges available if an influence
+  // adjustment already exists so the player can undo (reset) the move that caused
+  // the forced forfeit; selection/clicking stays locked as usual.
+  // Like main's Pair & Build controls, influence is only offered once both location
+  // dice are chosen (otherwise picking the 2nd die would wipe the adjustment); an
+  // existing adjustment stays reachable so it can still be reset.
+  const pairChosen = Array.isArray(state.locationSelection) && state.locationSelection.length === 2;
+  const influenceLocked =
+    state.diceLocked ||
+    state.activationMode ||
+    state.pestilence ||
+    (forceForfeitActive() && !hasInfluenceAdjustments) ||
+    (!pairChosen && !hasInfluenceAdjustments);
   const baseSelection = Array.isArray(state.locationSelection) ? state.locationSelection.slice() : [];
   const storedLocationDice = turnLocked
     ? state.diceLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2
@@ -1362,7 +1376,7 @@ function renderDice() {
       clickable: !turnLocked,
       showRoleStyle: !turnLocked,
       forcedLocation: (state.forcedLocationDice || []).includes(idx),
-      allowInfluence: !turnLocked,
+      allowInfluence: !influenceLocked,
       useAdjustedFace: !state.diceRolling,
     });
     row.appendChild(badge);
@@ -1370,7 +1384,7 @@ function renderDice() {
   field.appendChild(row);
   diceView.appendChild(field);
   diceView.classList.toggle("dice-rolling", state.diceRolling);
-  if (turnLocked) {
+  if (influenceLocked) {
     influenceUiDie = null;
     if (influenceStepper) influenceStepper.hidden = true;
   } else {
@@ -1441,27 +1455,6 @@ function fillBuildings(buildDice) {
   }
   renderBuildingOverlay(options);
   updateActionBanner();
-  // Only guide to buildings while the player is actively choosing a building.
-  // Skip if: dice locked, buildChoice already set, pending population/plot,
-  // pestilence/forfeit, or activation mode.
-  const shouldGuideToBuildings =
-    !state.diceLocked &&
-    !state.buildChoice &&
-    !(state.pendingPopulation?.remaining > 0) &&
-    !state.pendingPlot &&
-    !state.pestilence &&
-    !state.forceForfeit &&
-    !state.forceForfeitAdvisory &&
-    !state.activationMode;
-  // On narrow screens the building choice is offered as buttons in the sticky
-  // action bar (see renderBuildingPicker), so no need to scroll to the sheet.
-  if (shouldGuideToBuildings && !isCompactLayout()) {
-    guideToStep(
-      "buildings:" + options.map((o) => o.code).join(","),
-      () => document.querySelector(".sheet-window-buildings"),
-      { block: "start", minVisible: 0.6 },
-    );
-  }
 }
 
 function enforceBuildingSelection(options = []) {
@@ -1676,7 +1669,6 @@ function renderBoard() {
         }
         // Add market hover to highlight claimed nodes
         if (data.building === "M") {
-          cell._hoverDispose?.();
           cell._hoverDispose = onMouseHover(
             cell,
             () => highlightMarketClaims(r, c),
@@ -1886,8 +1878,11 @@ function pendingPlotBannerText(pending) {
 }
 
 // Tracks the exact banner text the confirm-step prompt set, so hidePlotConfirmControls()
-// only clears state.bannerOverride if nothing else has since overwritten it.
+// only clears state.bannerOverride if nothing else has since overwritten it, and the
+// override that was in place before the prompt ran (e.g. 'build.noValidBuilds'), so hiding
+// the prompt restores it instead of losing it.
 let confirmPromptBannerText = null;
+let previousBannerOverride = null;
 
 function showPlotConfirmControls() {
   if (!state.pendingPlot) return hidePlotConfirmControls();
@@ -1898,6 +1893,12 @@ function showPlotConfirmControls() {
       state.pendingPlot.kind === "population" ? t("confirm.changeSquare") : t("confirm.changePlot");
   }
   const text = pendingPlotBannerText(state.pendingPlot);
+  // Only capture the "previous" override the first time the prompt shows (i.e. it
+  // isn't already showing its own text), so repeated re-renders of the same prompt
+  // don't clobber the saved value with the prompt's own text.
+  if (state.bannerOverride !== confirmPromptBannerText) {
+    previousBannerOverride = state.bannerOverride ?? null;
+  }
   state.bannerOverride = text;
   confirmPromptBannerText = text;
   updateActionBanner();
@@ -1907,9 +1908,10 @@ function hidePlotConfirmControls() {
   if (confirmPlotBtn) confirmPlotBtn.style.display = "none";
   if (cancelPlotBtn) cancelPlotBtn.style.display = "none";
   if (confirmPromptBannerText && state.bannerOverride === confirmPromptBannerText) {
-    state.bannerOverride = null;
+    state.bannerOverride = previousBannerOverride;
   }
   confirmPromptBannerText = null;
+  previousBannerOverride = null;
 }
 
 function confirmPendingPlot() {
@@ -3046,6 +3048,18 @@ function updateActionBanner() {
     currentScore,
     lockedPairChoice,
   });
+  syncPlotConfirmControls();
+}
+
+// Confirm/Change plot buttons are normally shown/hidden via showPlotConfirmControls()/
+// hidePlotConfirmControls(), but some reset paths (e.g. resetTurnState(), called from a new
+// roll or a new game) clear state.pendingPlot directly without going through either, which
+// would otherwise leave the buttons stuck visible. Derive their visibility here, from
+// updateActionBanner() (part of every render path), so any reset path hides them.
+function syncPlotConfirmControls() {
+  if (state.pendingPlot) return;
+  if (confirmPlotBtn && confirmPlotBtn.style.display !== "none") confirmPlotBtn.style.display = "none";
+  if (cancelPlotBtn && cancelPlotBtn.style.display !== "none") cancelPlotBtn.style.display = "none";
 }
 
 function updateSwapButton() {

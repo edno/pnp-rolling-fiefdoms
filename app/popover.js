@@ -19,6 +19,30 @@ let currentTarget = null;
 const listeners = new WeakMap();
 let windowListenersAdded = false;
 let descCounter = 0;
+// Tracks description spans this helper owns, keyed by id, via a WeakRef to the
+// owning element so re-renders that discard the old element (e.g. clearElement
+// + rebuild) don't leak a description span per target forever: each setPopover
+// call sweeps entries whose owner has been disconnected from the document.
+const descOwners = new Map();
+
+function sweepDisconnectedDescriptions(exceptEl = null) {
+  for (const [descId, ref] of descOwners) {
+    const owner = ref.deref();
+    if (owner === exceptEl) continue;
+    if (!owner || !owner.isConnected) {
+      const descEl = document.getElementById(descId);
+      if (descEl) descEl.remove();
+      descOwners.delete(descId);
+    }
+  }
+}
+// Tracks the target/time a focusin just showed the popover for, so the click
+// that follows a tap (pointerdown -> focusin -> click) doesn't immediately
+// toggle it back off. A second, deliberate click (outside this window) still
+// toggles normally.
+let lastFocusShowTarget = null;
+let lastFocusShowTime = 0;
+const FOCUS_CLICK_IGNORE_MS = 300;
 
 /**
  * Removes a popover-owned aria-describedby id (if any) from el, restoring
@@ -38,6 +62,7 @@ function removePopoverDescription(el) {
   }
   const descEl = document.getElementById(descId);
   if (descEl) descEl.remove();
+  descOwners.delete(descId);
   delete el.dataset.popoverDescId;
 }
 
@@ -54,6 +79,15 @@ function removePopoverDescription(el) {
  */
 export function setPopover(el, text, options = {}) {
   if (!el) return;
+
+  // setPopover is called throughout each render pass; piggyback on that to
+  // notice when the currently-shown popover's target was replaced (e.g.
+  // renderBoard rebuilding cells) without ever calling hidePopover/setPopover
+  // (null) on the stale element, which would otherwise leave the popover
+  // stuck open pointing at a detached element.
+  if (currentTarget && !currentTarget.isConnected) {
+    hidePopover();
+  }
 
   // Migrate away from the old behavior of setting aria-label: if a previous
   // version of this helper added one, remove it now that we use a
@@ -79,6 +113,11 @@ export function setPopover(el, text, options = {}) {
   el.removeAttribute("title");
   el.classList.add("has-popover");
 
+  // Re-renders (clearElement + rebuild) discard the old target elements without
+  // ever calling setPopover(el, null) on them, so sweep description spans whose
+  // owner is no longer connected before creating a new one.
+  sweepDisconnectedDescriptions(el);
+
   // Reuse the description span this helper owns (if any); otherwise create
   // a new one and append its id to any existing aria-describedby ids.
   let descId = el.dataset.popoverDescId;
@@ -93,21 +132,25 @@ export function setPopover(el, text, options = {}) {
     const existing = (el.getAttribute("aria-describedby") || "").trim();
     el.setAttribute("aria-describedby", existing ? `${existing} ${descId}` : descId);
   }
+  descOwners.set(descId, new WeakRef(el));
   descEl.textContent = text;
-
-  // Ensure keyboard users can focus non-interactive elements (e.g. divs/spans)
-  // so the existing focusin handler can show the popover.
-  const isNativelyFocusable = /^(button|a|input|select|textarea)$/i.test(el.tagName);
-  if (!isNativelyFocusable && !el.hasAttribute("tabindex")) {
-    el.setAttribute("tabindex", "0");
-    el.dataset.popoverAddedTabindex = "true";
-  }
 
   // Store tap option (default true)
   if (options.tap === false) {
     el.dataset.popoverTap = "false";
   } else {
     delete el.dataset.popoverTap;
+  }
+
+  // Ensure keyboard users can focus non-interactive elements (e.g. divs/spans)
+  // so the existing focusin handler can show the popover. Targets with
+  // tap:false (e.g. board cells that are already interactive via click, not
+  // via this popover) don't need this: adding tabindex there would make a
+  // plain tap focus the cell and pop the tooltip open unexpectedly.
+  const isNativelyFocusable = /^(button|a|input|select|textarea)$/i.test(el.tagName);
+  if (options.tap !== false && !isNativelyFocusable && !el.hasAttribute("tabindex")) {
+    el.setAttribute("tabindex", "0");
+    el.dataset.popoverAddedTabindex = "true";
   }
 }
 
@@ -146,9 +189,15 @@ export function initPopovers(root = document) {
   // Delegated click handler on root
   const handleClick = (e) => {
     const target = targetEl(e)?.closest("[data-popover]");
-    if (target && target.dataset.popoverTap !== "false") {
-      togglePopover(target);
+    if (!target || target.dataset.popoverTap === "false") return;
+    if (target === lastFocusShowTarget && Date.now() - lastFocusShowTime < FOCUS_CLICK_IGNORE_MS) {
+      // This click is the tail end of a tap that already showed the popover
+      // via focusin; treat it as a no-op instead of toggling it closed, but
+      // consume the flag so a deliberate second click toggles normally.
+      lastFocusShowTarget = null;
+      return;
     }
+    togglePopover(target);
   };
 
   // Click outside handler - hide popover on any document click not on a popover element
@@ -190,6 +239,8 @@ export function initPopovers(root = document) {
   const handleFocusIn = (e) => {
     const target = targetEl(e)?.closest("[data-popover]");
     if (target) {
+      lastFocusShowTarget = target;
+      lastFocusShowTime = Date.now();
       showPopover(target);
     }
   };

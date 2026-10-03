@@ -51,6 +51,20 @@ describe("setPopover", () => {
     expect(document.getElementById(descId).textContent).toBe("Second text");
   });
 
+  it("doesn't leak description spans when targets are replaced across re-renders", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    for (let i = 0; i < 100; i += 1) {
+      container.innerHTML = ""; // simulate clearElement() discarding the old target
+      const el = document.createElement("button");
+      container.appendChild(el);
+      setPopover(el, `Text ${i}`);
+    }
+    const spans = document.querySelectorAll("[id^='rf-pop-desc-']");
+    expect(spans.length).toBe(1);
+    container.remove();
+  });
+
   it("removes only the description span and id it owns when cleared", () => {
     const el = document.createElement("button");
     const authorDesc = document.createElement("span");
@@ -126,6 +140,13 @@ describe("setPopover", () => {
     setPopover(el, "Test text");
 
     expect(el.getAttribute("tabindex")).toBe("0");
+  });
+
+  it("does not add tabindex to a non-focusable element when tap is false (e.g. board cells)", () => {
+    const el = document.createElement("div");
+    setPopover(el, "Test text", { tap: false });
+
+    expect(el.hasAttribute("tabindex")).toBe(false);
   });
 
   it("does not add tabindex to a naturally focusable element like a button", () => {
@@ -248,6 +269,48 @@ describe("initPopovers", () => {
 
     expect(popover.hidden).toBe(true);
     outside.remove();
+  });
+
+  it("tap-to-show works: pointerdown -> focusin -> click shows (not hides) the popover; a second click toggles it off", () => {
+    initPopovers(root);
+    const btn = document.createElement("button");
+    btn.dataset.popover = "Tap text";
+    root.appendChild(btn);
+
+    const popover = document.querySelector(".rf-popover");
+
+    // Realistic touch-tap sequence on a target made focusable by setPopover.
+    btn.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    btn.dispatchEvent(new Event("focusin", { bubbles: true }));
+    expect(popover.hidden).toBe(false);
+    btn.click();
+    expect(popover.hidden).toBe(false);
+
+    // A later, deliberate click toggles it off.
+    btn.click();
+    expect(popover.hidden).toBe(true);
+  });
+
+  it("hides a stale popover whose target was removed by a re-render (e.g. renderBoard rebuilding cells)", () => {
+    initPopovers(root);
+    const btn = document.createElement("button");
+    btn.dataset.popover = "Stale text";
+    root.appendChild(btn);
+
+    const popover = document.querySelector(".rf-popover");
+    btn.click();
+    expect(popover.hidden).toBe(false);
+
+    // Simulate a render replacing the target element entirely, without ever
+    // calling hidePopover/setPopover(null) on the old one.
+    btn.remove();
+
+    // The next setPopover call elsewhere in that render pass should notice the
+    // stale target and hide the popover.
+    const other = document.createElement("button");
+    setPopover(other, "Other text");
+
+    expect(popover.hidden).toBe(true);
   });
 
   it("hides popover on Escape key", () => {

@@ -1646,26 +1646,16 @@ select {
 }
 
 .influence-target-btn::before {
-  /* The badge (22x22) sits at the die's top-right corner (top:-4px, right:-4px
-     on .influence-target-btn). .action-bar-controls is a scroll-clipped row
-     with only 6px of vertical padding, so a 44x44 hit area centered on the
-     badge (the old transform: translate(-50%, -50%) approach) extended ~15px
-     above the die's top edge - past the clip - and got cut off there,
-     shrinking the effective tap target on coarse pointers.
-     Anchoring the box by its bottom-right corner instead (right/bottom
-     instead of centering) keeps the box's top edge exactly level with the
-     badge's own top edge (badge-bottom + 44 - 44 = badge-top), so it never
-     reaches above the die into the clipped padding. The box grows inward
-     and downward into the die's top-right quarter instead, which is safe to
-     cover: the die's own tap handler selects the location/build pair, while
-     this badge picks the influence target, and doesn't conflict with a tap
-     slightly off-badge as long as it lands on the die the badge belongs to. */
+  /* 32x32 hit area centred on the 22px badge (badge sits at top:-2px/right:-4px):
+     it reaches 5px above the badge, inside the dice row's 6px clip padding, and
+     covers well under half of a 44px die so taps on the die still select it.
+     32px stays above the 24px WCAG 2.2 AA minimum target size. */
   content: "";
   position: absolute;
-  width: 44px;
-  height: 44px;
-  right: -11px;
-  bottom: -22px;
+  width: 32px;
+  height: 32px;
+  top: -5px;
+  right: -5px;
 }
 
 .influence-stepper:not([hidden]) {
@@ -2294,6 +2284,7 @@ button.secondary {
 }
 
 .rf-popover {
+  white-space: pre-line;
   position: fixed;
   z-index: 1000;
   max-width: min(280px, calc(100vw - 16px));
@@ -2322,48 +2313,6 @@ button.secondary {
   .controls {
     max-height: calc(100dvh - var(--footer-height) - 100px);
   }
-
-  /* On wide layouts #buildingPicker is never shown (.building-picker is
-     display: none here regardless of its [hidden] attribute), so ignore it
-     when deciding whether the aux row has any visible content, otherwise
-     an empty 36px aux row appears whenever JS removes the picker's
-     [hidden] attribute. */
-  .action-bar-aux:not(:has(> #confirmPlotBtn:not([style*="display: none"]))):not(:has(> #influenceStepper:not([hidden]))) {
-    display: none;
-  }
-
-  /* Wide screens: prompt, dice and aux controls share ONE row, centred as a group
-     (empty pieces take no space), so the fixed-height bar stays short. */
-  .action-bar {
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
-    column-gap: 24px;
-    padding-bottom: 0;
-    --ab-h: calc(max(var(--ab-main-h), var(--ab-banner-max)) + 8px);
-  }
-
-  .action-bar .action-banner {
-    flex: 0 1 auto;
-    width: auto;
-    max-width: 45%;
-    padding: 0;
-    font-size: 22px;
-    /* Handwritten glyphs overflow a tight line box; 32px keeps them unclipped. */
-    line-height: 32px;
-    max-height: var(--ab-main-h);
-  }
-
-  .action-bar-controls,
-  .action-bar-aux {
-    flex: 0 0 auto;
-  }
-
-  /* Before the roll the only action is the inline Roll Dice button in the prompt:
-     drop the empty dice row so the prompt sits centred on its own. */
-  .action-bar:has(#actionBanner .btn-inline-action) .action-bar-controls:not(:has(.die-badge)) {
-    display: none;
-  }
 }
 
 @media (max-width: 1100px) {
@@ -2373,9 +2322,6 @@ button.secondary {
 
   .action-bar {
     order: 0;
-    /* The aux row becomes an overlay drawer (below) instead of a row in the
-       flow, so the bar's fixed height only covers the banner + main row. */
-    --ab-h: calc(var(--ab-banner-max) + var(--ab-main-h) + 8px);
   }
 
   .board-panel {
@@ -2385,47 +2331,6 @@ button.secondary {
   .controls {
     order: 2;
     grid-template-rows: auto auto auto;
-  }
-
-  /* Aux "drawer": anchored to the sticky bar's bottom edge, overlapping the
-     sheet below rather than pushing it, with an open/close slide+fade so the
-     bar never jumps height. Collapsed state replaces the base display:none
-     (see the :not(:has(...)) rule above) so the transition can animate. */
-  .action-bar-aux {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 100%;
-    z-index: 15;
-    display: flex;
-    background: var(--panel);
-    border-bottom: 1px solid var(--border);
-    box-shadow: 0 6px 12px -4px rgba(0, 0, 0, 0.25);
-    padding: 4px max(16px, env(safe-area-inset-right)) 4px
-      max(16px, env(safe-area-inset-left));
-    height: calc(var(--ab-aux-h) + 8px);
-    min-height: 0;
-    box-sizing: border-box;
-    transform: translateY(-8px);
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transition: transform 180ms ease, opacity 180ms ease,
-      visibility 0s linear 180ms;
-  }
-
-  .action-bar-aux:not(:has(> #confirmPlotBtn:not([style*="display: none"]))):not(:has(> #buildingPicker:not([hidden]))):not(:has(> #influenceStepper:not([hidden]))) {
-    display: flex;
-  }
-
-  .action-bar-aux:has(> #confirmPlotBtn:not([style*="display: none"])),
-  .action-bar-aux:has(> #buildingPicker:not([hidden])),
-  .action-bar-aux:has(> #influenceStepper:not([hidden])) {
-    transform: none;
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
-    transition: transform 180ms ease, opacity 180ms ease, visibility 0s linear 0s;
   }
 
   .pair-build-fields {
@@ -2471,6 +2376,138 @@ button.secondary {
   .building-pick-pop {
     font-size: 0.85em;
     opacity: 0.8;
+  }
+}
+
+/* The action bar's two-row layout (banner above a centred dice row, with the
+   aux row as an overlay drawer underneath) is shared at every width except
+   short landscape, which keeps its own compact single-row grid below. */
+@media not (max-height: 500px) {
+  .action-bar {
+    /* The aux row is an overlay drawer (below), not a row in the flow, so
+       the bar's fixed height only covers the banner + main row. The banner
+       slot has a fixed height (text centred inside it), so the dice row always
+       sits at the same place, right above the drawer. */
+    --ab-h: calc(var(--ab-banner-max) + var(--ab-main-h) + 8px);
+    justify-content: flex-start;
+  }
+
+  .action-bar .action-banner {
+    height: var(--ab-banner-max);
+  }
+
+  /* Aux "drawer": anchored to the sticky bar's bottom edge, overlapping the
+     sheet below rather than pushing it, with an open/close slide+fade so the
+     bar never jumps height. Collapsed state replaces the base display:none
+     (see the :not(:has(...)) rule above) so the transition can animate. */
+  .action-bar-aux {
+    position: absolute;
+    left: 0;
+    right: 0;
+    /* Only as wide as its content, centred under the bar, so it doesn't cover
+       more of the page (e.g. the side panels on desktop) than needed. */
+    width: fit-content;
+    max-width: 100%;
+    margin-inline: auto;
+    /* Tuck up under the bar's 8px bottom padding and the dice row's padding so
+       the gap below the dice matches the gap between drawer rows. */
+    top: calc(100% - 12px);
+    z-index: 15;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 6px 8px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    box-shadow: 0 6px 12px -4px rgba(0, 0, 0, 0.25);
+    padding: 0 max(16px, env(safe-area-inset-right)) 6px
+      max(16px, env(safe-area-inset-left));
+    /* Rows stack (stepper, then building buttons, then confirm), so the drawer
+       grows with its content; it overlays the sheet, so nothing below moves. */
+    height: auto;
+    min-height: 0;
+    box-sizing: border-box;
+    transform: translateY(-8px);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: transform 180ms ease, opacity 180ms ease,
+      visibility 0s linear 180ms;
+  }
+
+  .action-bar-aux:not(:has(> #confirmPlotBtn:not([style*="display: none"]))):not(:has(> #buildingPicker:not([hidden]))):not(:has(> #influenceStepper:not([hidden]))) {
+    display: flex;
+  }
+
+  .action-bar-aux:has(> #confirmPlotBtn:not([style*="display: none"])),
+  .action-bar-aux:has(> #buildingPicker:not([hidden])),
+  .action-bar-aux:has(> #influenceStepper:not([hidden])) {
+    transform: none;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition: transform 180ms ease, opacity 180ms ease, visibility 0s linear 0s;
+  }
+
+  /* Drawer rows: influence stepper first (right under the dice), then the
+     building picker; each takes a full row. Confirm/Change stay side by side. */
+  .action-bar-aux > #influenceStepper {
+    order: 1;
+    flex: 0 0 100%;
+  }
+
+  .action-bar-aux > #buildingPicker {
+    order: 2;
+    flex: 0 0 100%;
+    min-width: 0;
+  }
+
+  .action-bar-aux > #confirmPlotBtn,
+  .action-bar-aux > #cancelPlotBtn {
+    order: 3;
+  }
+}
+
+/* Desktop-specific overrides for the shared two-row bar above: #buildingPicker
+   is never shown here (.building-picker is display: none regardless of its
+   [hidden] attribute), so the drawer's open/closed state must ignore it
+   (otherwise an empty drawer flashes open whenever JS removes the picker's
+   [hidden] attribute), and the banner can afford a larger, still 2-line-max
+   font. This block is intentionally separate from (and placed after) the
+   earlier `@media (min-width: 1101px)` block above so these rules win over
+   the shared drawer open-state rule just above (equal specificity, later
+   source order) without duplicating its other declarations. */
+@media (min-width: 1101px) {
+  /* Closed state override: with the picker ignored, the drawer is "open"
+     only when the confirm step or the influence stepper is visible. */
+  .action-bar-aux:not(:has(> #confirmPlotBtn:not([style*="display: none"]))):not(:has(> #influenceStepper:not([hidden]))) {
+    transform: translateY(-8px);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .action-bar {
+    /* Desktop prompts fit on one line, so the banner reserves one 32px line
+       (48px keeps room for the 36px inline button); --ab-h (shared rule above)
+       then resolves to 48 + 76 + 8 = 132px. */
+    --ab-banner-line-h: 32px;
+    --ab-banner-max: 48px;
+  }
+
+  .action-bar .action-banner {
+    font-size: 22px;
+  }
+
+  /* Before the roll the only action is the inline Roll Dice button in the
+     prompt: hide the empty dice row's content without changing the bar's
+     fixed height (visibility, not display, so the two-row height never
+     jumps). */
+  .action-bar:has(#actionBanner .btn-inline-action) .action-bar-controls:not(:has(.die-badge)) {
+    visibility: hidden;
   }
 }
 

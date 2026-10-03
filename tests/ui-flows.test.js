@@ -741,6 +741,57 @@ describe("plot confirm step (jsdom)", () => {
     }
   });
 
+  it("restores a pre-existing banner override after the confirm prompt is cancelled", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { setConfirmStepOverride } = await import("../app/confirm-step.js");
+    setConfirmStepOverride(true);
+    try {
+      await setupBuildReady(hooks);
+      hooks.state.bannerOverride = "CUSTOM OVERRIDE";
+
+      document.querySelector('.cell[data-row="0"][data-col="1"]').click();
+      await flushMicrotasks();
+      expect(hooks.state.pendingPlot).toBeTruthy();
+      // The confirm prompt took over the banner...
+      expect(hooks.state.bannerOverride).not.toBe("CUSTOM OVERRIDE");
+
+      hooks.cancelPendingPlot();
+      await flushMicrotasks();
+
+      // ...but cancelling restores the override that was showing before it.
+      expect(hooks.state.bannerOverride).toBe("CUSTOM OVERRIDE");
+    } finally {
+      setConfirmStepOverride(null);
+    }
+  });
+
+  it("hides stale Confirm/Change buttons when a reset path (new roll/new game) clears pendingPlot directly", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { setConfirmStepOverride } = await import("../app/confirm-step.js");
+    setConfirmStepOverride(true);
+    try {
+      await setupBuildReady(hooks);
+      document.querySelector('.cell[data-row="0"][data-col="1"]').click();
+      await flushMicrotasks();
+      expect(hooks.state.pendingPlot).toBeTruthy();
+      expect(document.getElementById("confirmPlotBtn").style.display).not.toBe("none");
+      expect(document.getElementById("cancelPlotBtn").style.display).not.toBe("none");
+
+      // newGame() -> resetState() -> resetTurnState() clears state.pendingPlot
+      // directly, without going through hidePlotConfirmControls().
+      hooks.newGame();
+      await flushMicrotasks();
+
+      expect(hooks.state.pendingPlot).toBeNull();
+      expect(document.getElementById("confirmPlotBtn").style.display).toBe("none");
+      expect(document.getElementById("cancelPlotBtn").style.display).toBe("none");
+    } finally {
+      setConfirmStepOverride(null);
+    }
+  });
+
   it("Change plot clears the pending preview without building", async () => {
     await setupApp({ enableHooks: true });
     const hooks = window.__rfTestHooks;
@@ -889,21 +940,23 @@ describe("plot confirm step (jsdom)", () => {
     expect(document.querySelectorAll("#diceView .influence-target-btn").length).toBe(0);
   });
 
-  it("preselects the single eligible die when influence is available", async () => {
+  it("stepper adjusts the die chosen with its ± badge", async () => {
     await setupApp({ enableHooks: true });
     const hooks = window.__rfTestHooks;
     hooks.state.dice = [
       { label: "N1", face: 3, resolved: 3 },
-      { label: "N2", face: "windrose", resolved: null },
-      { label: "X1", face: "X", resolved: null },
-      { label: "X2", face: "X", resolved: null },
+      { label: "N2", face: 4, resolved: 4 },
+      { label: "X1", face: 2, resolved: 2 },
+      { label: "X2", face: 5, resolved: 5 },
     ];
-    hooks.state.locationSelection = [];
+    hooks.state.locationSelection = [0, 1];
     hooks.state.rollAvailable = false;
     hooks.state.influence = { earned: 2, spent: 0, pending: 0 };
-    hooks.updateDiceAssignments();
+    hooks.updateDiceAssignments(true);
     await flushMicrotasks();
 
+    document.querySelector('#diceView .die-badge[data-idx="0"] .influence-target-btn').click();
+    await flushMicrotasks();
     const stepper = document.getElementById("influenceStepper");
     expect(stepper.hidden).toBe(false);
     expect(document.getElementById("influenceStepperValue").textContent).toContain("3");
@@ -915,6 +968,29 @@ describe("plot confirm step (jsdom)", () => {
     document.getElementById("influenceStepperMinus").click();
     await flushMicrotasks();
     expect(hooks.state.influenceAdjustments?.N1?.delta ?? 0).toBe(0);
+  });
+
+  it("offers influence only once both location dice are chosen", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.state.dice = [
+      { label: "N1", face: 2, resolved: 2 },
+      { label: "N2", face: 4, resolved: 4 },
+      { label: "X1", face: 2, resolved: 2 },
+      { label: "X2", face: 3, resolved: 3 },
+    ];
+    hooks.state.locationSelection = [0];
+    hooks.state.rollAvailable = false;
+    hooks.state.influence = { earned: 2, spent: 0, pending: 0 };
+    hooks.updateDiceAssignments(true);
+    await flushMicrotasks();
+    expect(document.getElementById("influenceStepper").hidden).toBe(true);
+    expect(document.querySelectorAll("#diceView .influence-target-btn").length).toBe(0);
+
+    hooks.state.locationSelection = [0, 1];
+    hooks.updateDiceAssignments(true);
+    await flushMicrotasks();
+    expect(document.querySelectorAll("#diceView .influence-target-btn").length).toBeGreaterThan(0);
   });
 
   it("± badges target the stepper without changing location selection; only one control set exists", async () => {
@@ -960,6 +1036,36 @@ describe("plot confirm step (jsdom)", () => {
     document.getElementById("influenceStepperPlus").click();
     await flushMicrotasks();
     expect(hooks.state.influenceAdjustments?.N1?.delta).toBeGreaterThan(0);
+
+    const resetBtn = document.getElementById("influenceStepperReset");
+    expect(resetBtn.hidden).toBe(false);
+    resetBtn.click();
+    await flushMicrotasks();
+    expect(hooks.state.influenceAdjustments?.N1?.delta ?? 0).toBe(0);
+  });
+
+  it("keeps the influence stepper/badges available during a forced forfeit when an adjustment already exists", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.state.dice = [
+      { label: "N1", face: 2, resolved: 2 },
+      { label: "N2", face: 4, resolved: 4 },
+      { label: "X1", face: 2, resolved: 2 },
+      { label: "X2", face: 3, resolved: 3 },
+    ];
+    hooks.state.locationSelection = [];
+    hooks.state.rollAvailable = false;
+    hooks.state.influence = { earned: 2, spent: 0, pending: 0 };
+    hooks.state.forceForfeit = true;
+    hooks.state.forceForfeitAdvisory = false;
+    hooks.state.influenceAdjustments = { N1: { delta: 1 } };
+    hooks.state.influenceTarget = "N1";
+    hooks.updateDiceAssignments();
+    await flushMicrotasks();
+
+    const stepper = document.getElementById("influenceStepper");
+    expect(stepper.hidden).toBe(false);
+    expect(document.querySelectorAll("#diceView .influence-target-btn").length).toBeGreaterThan(0);
 
     const resetBtn = document.getElementById("influenceStepperReset");
     expect(resetBtn.hidden).toBe(false);

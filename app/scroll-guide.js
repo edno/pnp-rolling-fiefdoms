@@ -5,11 +5,13 @@
  * so the player doesn't have to hunt for the next control.
  */
 
+import { isCompactLayout } from "./layout-mode.js";
+
 export function guideTo(el, { block = "center", minVisible = 1 } = {}) {
   if (!el) return;
   try {
     if (typeof window === "undefined" || !window.matchMedia) return;
-    if (!window.matchMedia("(max-width: 1100px)").matches) return;
+    if (!isCompactLayout()) return;
 
     const rect = el.getBoundingClientRect();
     const actionBar = document.querySelector(".action-bar");
