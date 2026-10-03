@@ -2163,6 +2163,74 @@ button.secondary {
   }
 }
 
+@media (max-height: 500px) {
+  header {
+    padding: 4px 12px;
+  }
+
+  header h1 {
+    font-size: 24px;
+  }
+
+  .menu-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .menu-icon img {
+    width: 22px;
+  }
+
+  .menu-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .site-footer {
+    position: static;
+  }
+
+  body {
+    padding-bottom: 0;
+  }
+
+  .back-to-top {
+    bottom: 16px;
+  }
+
+  .action-bar {
+    padding: 0 8px 4px;
+  }
+
+  .action-bar .action-banner {
+    padding: 2px 8px;
+    font-size: 16px;
+    line-height: 1.2;
+  }
+
+  .action-bar-controls {
+    gap: 6px 8px;
+    flex-wrap: nowrap;
+  }
+
+  .action-bar #diceView .die-badge {
+    width: 40px;
+    height: 40px;
+  }
+
+  .action-bar-controls button {
+    min-height: 40px;
+  }
+
+  .sheet {
+    max-width: min(100%, calc((100dvh - 60px) * 1076 / 764));
+  }
+}
+
 @media (hover: hover) {
   .back-to-top:hover {
     background: var(--accent);
