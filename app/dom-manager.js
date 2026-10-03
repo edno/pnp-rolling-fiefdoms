@@ -54,6 +54,7 @@ export const challengeInfoSetup = document.getElementById("challengeInfoSetup");
 export const challengeInfoCloseBtn = document.getElementById("challengeInfoCloseBtn");
 export const loadingOverlay = document.getElementById("loadingOverlay");
 export const sheetBaseImage = document.getElementById("sheetBaseImage");
+export const sheetBaseImages = Array.from(document.querySelectorAll(".sheet-base"));
 export const challengePickerEl = document.getElementById("challengePicker");
 export const challengeCardsEl = document.getElementById("challengeCards");
 export const challengeConfirmBtn = document.getElementById("challengeConfirmBtn");

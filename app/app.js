@@ -93,6 +93,7 @@ import {
   challengeInfoCloseBtn,
   loadingOverlay,
   sheetBaseImage,
+  sheetBaseImages,
   challengePickerEl,
   challengeCardsEl,
   challengeConfirmBtn,
@@ -142,6 +143,7 @@ import {
   escapeHtml,
 } from "./i18n.js";
 import { CHALLENGES, CHALLENGE_ORDER } from "./challenges.js";
+import { initSheetWindows } from "./sheet-layout.js";
 
 const BOARD_SIZE = 5;
 const POPULATION_GRID_SIZE = 4;
@@ -236,7 +238,7 @@ function applyLocaleChange(locale) {
   applyStaticDom();
   if (localeSelect) localeSelect.value = getLocale();
   updateLocaleFlagIcon();
-  setSheetImageSources(sheetBaseImage);
+  setAllSheetImageSources();
   updateSfxToggleButton();
   updateRollButton();
   renderBoard();
@@ -613,8 +615,14 @@ function setSheetImageSources(el) {
     el.srcset = `${standardSrc} 1x, ${highSrc} 2x`;
   }
   if ("sizes" in el) {
-    el.sizes = "(max-width: 1100px) 100vw, 1100px";
+    el.sizes = "100vw";
   }
+}
+
+function setAllSheetImageSources() {
+  (sheetBaseImages && sheetBaseImages.length ? sheetBaseImages : [sheetBaseImage]).forEach((el) =>
+    setSheetImageSources(el),
+  );
 }
 
 function preloadSheet() {
@@ -633,7 +641,7 @@ function preloadSheet() {
         cleanup();
         resolve(false);
       };
-      setSheetImageSources(imgEl);
+      setAllSheetImageSources();
       if (imgEl.complete) {
         cleanup();
         resolve(true);
@@ -684,7 +692,10 @@ async function initializeApp() {
     
     // Initialize the game
     await init();
-    
+
+    // Scale the sheet crop windows to fit their rendered width
+    initSheetWindows();
+
     // Remove loading state only after everything is ready
     document.body.classList.remove("loading");
     if (loadingOverlay) loadingOverlay.remove();
@@ -2101,7 +2112,7 @@ function newGame(challengeId = null) {
   clearTimeout(barricadeAlertTimeout);
   if (barricadeAlertOverlay) barricadeAlertOverlay.hidden = true;
   resetState(challengeId);
-  setSheetImageSources(sheetBaseImage);
+  setAllSheetImageSources();
   renderBoard();
   prepareNextRoll();
   renderSelectionDice([], []);

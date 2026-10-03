@@ -264,63 +264,105 @@
     <main>
       <section class="board-panel">
         <div class="sheet" id="sheet">
-          <img
-            id="sheetBaseImage"
-            class="sheet-base"
-            src="resources/rolling-fiefdoms-player-sheet.webp?v=v2.0"
-            srcset="
-              resources/rolling-fiefdoms-player-sheet.webp?v=v2.0    1x,
-              resources/rolling-fiefdoms-player-sheet@2x.webp?v=v2.0 2x
-            "
-            sizes="(max-width: 1100px) 100vw, 1100px"
-            alt="Rolling Fiefdoms player sheet showing the 5x5 board, tracks, and overlays."
-            data-i18n-attr="alt:html.sheetAlt"
-            loading="lazy"
-            decoding="async"
-            width="1086"
-            height="767"
-          />
-          <div class="fiefdom-overlay">
-            <input
-              id="fiefdomInput"
-              type="text"
-              maxlength="20"
-              placeholder="Fiefdom name"
-              data-i18n-attr="placeholder:html.fiefdomNamePlaceholder"
-            />
+          <div class="sheet-window sheet-window-board" data-crop="0,0,539,764">
+            <div class="sheet-canvas">
+              <img
+                id="sheetBaseImage"
+                class="sheet-base"
+                src="resources/rolling-fiefdoms-player-sheet.webp?v=v2.0"
+                srcset="
+                  resources/rolling-fiefdoms-player-sheet.webp?v=v2.0    1x,
+                  resources/rolling-fiefdoms-player-sheet@2x.webp?v=v2.0 2x
+                "
+                sizes="100vw"
+                alt="Rolling Fiefdoms player sheet showing the 5x5 board, tracks, and overlays."
+                data-i18n-attr="alt:html.sheetAlt"
+                loading="lazy"
+                decoding="async"
+                width="1086"
+                height="767"
+              />
+              <div class="fiefdom-overlay">
+                <input
+                  id="fiefdomInput"
+                  type="text"
+                  maxlength="20"
+                  placeholder="Fiefdom name"
+                  data-i18n-attr="placeholder:html.fiefdomNamePlaceholder"
+                />
+              </div>
+              <div class="board" id="board"></div>
+              <div
+                id="turnTrackOverlay"
+                class="turn-track-overlay"
+                aria-hidden="true"
+              ></div>
+            </div>
           </div>
-          <div class="board" id="board"></div>
-          <div
-            id="scoreOverlayBuildings"
-            class="score-overlay score-overlay-buildings"
-          ></div>
-          <div
-            id="scoreOverlayGuilds"
-            class="score-overlay score-overlay-guilds"
-          ></div>
-          <div
-            id="scoreOverlayReputation"
-            class="score-overlay score-overlay-reputation"
-          ></div>
-          <div
-            id="turnTrackOverlay"
-            class="turn-track-overlay"
-            aria-hidden="true"
-          ></div>
-          <div id="influenceOverlay" class="influence-overlay"></div>
-          <div id="popHousingOverlay" class="pop-housing-overlay"></div>
-          <div
-            id="buildingsOverlay"
-            class="buildings-overlay"
-            aria-label="Select building"
-            data-i18n-attr="aria-label:html.selectBuilding"
-          ></div>
-          <div
-            id="guildsOverlay"
-            class="guilds-overlay"
-            aria-label="Select guild"
-            data-i18n-attr="aria-label:html.selectGuild"
-          ></div>
+          <div class="sheet-window sheet-window-middle" data-crop="539,0,174,764">
+            <div class="sheet-canvas">
+              <img
+                class="sheet-base"
+                src="resources/rolling-fiefdoms-player-sheet.webp?v=v2.0"
+                srcset="
+                  resources/rolling-fiefdoms-player-sheet.webp?v=v2.0    1x,
+                  resources/rolling-fiefdoms-player-sheet@2x.webp?v=v2.0 2x
+                "
+                sizes="100vw"
+                aria-hidden="true"
+                alt=""
+                loading="lazy"
+                decoding="async"
+                width="1086"
+                height="767"
+              />
+              <div id="influenceOverlay" class="influence-overlay"></div>
+              <div id="popHousingOverlay" class="pop-housing-overlay"></div>
+              <div
+                id="scoreOverlayReputation"
+                class="score-overlay score-overlay-reputation"
+              ></div>
+            </div>
+          </div>
+          <div class="sheet-window sheet-window-buildings" data-crop="713,0,363,764">
+            <div class="sheet-canvas">
+              <img
+                class="sheet-base"
+                src="resources/rolling-fiefdoms-player-sheet.webp?v=v2.0"
+                srcset="
+                  resources/rolling-fiefdoms-player-sheet.webp?v=v2.0    1x,
+                  resources/rolling-fiefdoms-player-sheet@2x.webp?v=v2.0 2x
+                "
+                sizes="100vw"
+                aria-hidden="true"
+                alt=""
+                loading="lazy"
+                decoding="async"
+                width="1086"
+                height="767"
+              />
+              <div
+                id="buildingsOverlay"
+                class="buildings-overlay"
+                aria-label="Select building"
+                data-i18n-attr="aria-label:html.selectBuilding"
+              ></div>
+              <div
+                id="guildsOverlay"
+                class="guilds-overlay"
+                aria-label="Select guild"
+                data-i18n-attr="aria-label:html.selectGuild"
+              ></div>
+              <div
+                id="scoreOverlayBuildings"
+                class="score-overlay score-overlay-buildings"
+              ></div>
+              <div
+                id="scoreOverlayGuilds"
+                class="score-overlay score-overlay-guilds"
+              ></div>
+            </div>
+          </div>
         </div>
       </section>
 
