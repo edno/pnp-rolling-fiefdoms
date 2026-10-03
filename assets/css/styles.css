@@ -615,8 +615,8 @@ main {
 }
 
 .cell-pending {
-  outline: 2px dashed var(--accent);
-  outline-offset: -2px;
+  --ring-color: var(--accent-strong);
+  --ring-b: 5px;
 }
 
 /* While a plot/forfeit placement is pending confirm, dim the other tappable
@@ -715,8 +715,9 @@ main {
   background-image: url("../img/pip-fill.svg");
 }
 
-.selected-building {
-  border: 2px solid var(--accent) !important;
+.cell.selected-building {
+  --ring-color: var(--accent);
+  --ring-b: 6px;
 }
 
 .population-node.selected-pop {
@@ -775,10 +776,39 @@ main {
 }
 
 .cell.highlight {
-  box-shadow: none;
-  border-radius: 0;
-  outline: 3px dashed var(--accent);
-  outline-offset: -4px;
+  --ring-color: var(--accent);
+}
+
+/* Shared octagon ring for cell state markers (highlight, pending, selected
+   building) to match the printed octagon plots instead of a square outline. */
+.cell.highlight::after,
+.cell-pending::after,
+.cell.selected-building::after {
+  content: "";
+  position: absolute;
+  inset: var(--ring-inset, 0);
+  pointer-events: none;
+  --b: var(--ring-b, 4px);
+  --o: calc(50% * tan(-22.5deg));
+  --x: calc(var(--b) * cos(22.5deg));
+  --y: calc(var(--b) * sin(22.5deg));
+  background: var(--ring-color, var(--accent));
+  clip-path: polygon(
+    var(--o) 50%,
+    50% var(--o),
+    calc(100% - var(--o)) 50%,
+    50% calc(100% - var(--o)),
+    var(--o) 50%,
+    calc(50% + var(--o) + var(--y)) var(--x),
+    var(--x) calc(50% + var(--o) + var(--y)),
+    var(--x) calc(50% - var(--o) - var(--y)),
+    calc(50% + var(--o) + var(--y)) calc(100% - var(--x)),
+    calc(50% - var(--o) - var(--y)) calc(100% - var(--x)),
+    calc(100% - var(--x)) calc(50% - var(--o) - var(--y)),
+    calc(100% - var(--x)) calc(50% + var(--o) + var(--y)),
+    calc(50% - var(--o) - var(--y)) var(--x),
+    calc(50% + var(--o) + var(--y)) var(--x)
+  );
 }
 
 .cell.disabled {
@@ -2651,5 +2681,9 @@ button.secondary {
     border-color: var(--border);
     box-shadow: none;
     transform: none;
+  }
+
+  .cell.highlight:hover::after {
+    --ring-b: 6px;
   }
 }
