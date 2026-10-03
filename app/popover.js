@@ -17,6 +17,7 @@ Suggested CSS (coordinator will add to styles.css):
 
 let currentTarget = null;
 const listeners = new WeakMap();
+let windowListenersAdded = false;
 
 /**
  * Stores text in el.dataset.popover, sets aria-label if not present,
@@ -169,6 +170,13 @@ export function initPopovers(root = document) {
   root.addEventListener("focusin", handleFocusIn);
   root.addEventListener("focusout", handleFocusOut);
   document.addEventListener("keydown", handleEscape);
+
+  // Add window scroll and resize listeners (idempotent, once globally)
+  if (!windowListenersAdded) {
+    window.addEventListener("scroll", hidePopover, { capture: true, passive: true });
+    window.addEventListener("resize", hidePopover, { passive: true });
+    windowListenersAdded = true;
+  }
 
   // Store listener references for tracking initialization
   listeners.set(root, {

@@ -332,6 +332,70 @@ describe("initPopovers", () => {
       document.dispatchEvent(event);
     }).not.toThrow();
   });
+
+  it("hides popover on window scroll event", () => {
+    initPopovers(root);
+    const btn = document.createElement("button");
+    btn.dataset.popover = "Test text";
+    root.appendChild(btn);
+
+    const popover = document.querySelector(".rf-popover");
+
+    // Show popover
+    btn.click();
+    expect(popover.hidden).toBe(false);
+
+    // Dispatch scroll event on window
+    window.dispatchEvent(new Event("scroll"));
+
+    // Popover should be hidden
+    expect(popover.hidden).toBe(true);
+  });
+
+  it("hides popover on scroll of nested scrollable element (capture phase)", () => {
+    initPopovers(root);
+    const btn = document.createElement("button");
+    btn.dataset.popover = "Test text";
+    root.appendChild(btn);
+
+    // Create a nested scrollable container
+    const scrollContainer = document.createElement("div");
+    scrollContainer.style.overflow = "auto";
+    scrollContainer.style.height = "100px";
+    root.appendChild(scrollContainer);
+
+    const popover = document.querySelector(".rf-popover");
+
+    // Show popover
+    btn.click();
+    expect(popover.hidden).toBe(false);
+
+    // Dispatch scroll event on the nested container (bubbles: false by default)
+    // This tests that capture phase listening catches it
+    scrollContainer.dispatchEvent(new Event("scroll", { bubbles: false }));
+
+    // Popover should be hidden
+    expect(popover.hidden).toBe(true);
+  });
+
+  it("hides popover on window resize event", () => {
+    initPopovers(root);
+    const btn = document.createElement("button");
+    btn.dataset.popover = "Test text";
+    root.appendChild(btn);
+
+    const popover = document.querySelector(".rf-popover");
+
+    // Show popover
+    btn.click();
+    expect(popover.hidden).toBe(false);
+
+    // Dispatch resize event on window
+    window.dispatchEvent(new Event("resize"));
+
+    // Popover should be hidden
+    expect(popover.hidden).toBe(true);
+  });
 });
 
 describe("hidePopover", () => {

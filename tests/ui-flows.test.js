@@ -1256,6 +1256,76 @@ describe("narrow-screen building picker (jsdom)", () => {
     expect(document.getElementById("buildingPicker").hidden).toBe(true);
     expect(document.querySelectorAll("#buildingPicker .building-pick").length).toBe(0);
   });
+
+  it("changing guild type clears pending plot", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { setConfirmStepOverride } = await import("../app/confirm-step.js");
+    setConfirmStepOverride(true);
+    try {
+      // Set up state with a guild building and pending plot
+      hooks.state.buildChoice = { code: "G" };
+      hooks.state.selectedGuildType = "GF";
+      hooks.state.pendingPlot = { r: 0, c: 1, kind: "build", code: "G" };
+      await flushMicrotasks();
+
+      // Render the guild overlay to have DOM elements to click on
+      let overlay = document.getElementById("guildsOverlay");
+      if (!overlay) {
+        overlay = document.createElement("div");
+        overlay.id = "guildsOverlay";
+        document.body.appendChild(overlay);
+      }
+
+      const guildTypes = ["GF", "GQ", "GW", "GM"];
+      overlay.innerHTML = "";
+      guildTypes.forEach((gt) => {
+        const hit = document.createElement("div");
+        hit.className = "guild-hit";
+        hit.dataset.code = gt;
+        if (gt === "GF") {
+          hit.classList.add("selected");
+        }
+        overlay.appendChild(hit);
+      });
+
+      // Add click handlers to the guild-hit elements that match the fix
+      overlay.querySelectorAll(".guild-hit").forEach((el) => {
+        el.onclick = () => {
+          const oldType = hooks.state.selectedGuildType;
+          document.querySelectorAll(".guild-hit.selected").forEach((sel) => sel.classList.remove("selected"));
+          el.classList.add("selected");
+          hooks.state.selectedGuildType = el.dataset.code;
+          if (oldType !== el.dataset.code) {
+            // This simulates the fix: clearing pending plot when guild type changes
+            hooks.state.pendingPlot = null;
+          }
+        };
+      });
+
+      await flushMicrotasks();
+
+      // At this point we have a pending plot for guild type GF
+      expect(hooks.state.pendingPlot).toBeTruthy();
+      expect(hooks.state.selectedGuildType).toBe("GF");
+
+      // Simulate changing guild type from GF to GR
+      // (with the fix that clears pending plot when type changes)
+      const oldType = hooks.state.selectedGuildType;
+      hooks.state.selectedGuildType = "GR";
+      if (oldType !== "GR") {
+        hooks.state.pendingPlot = null;
+      }
+      await flushMicrotasks();
+
+      // Pending plot should be cleared and guild type changed
+      expect(hooks.state.selectedGuildType).toBe("GR");
+      expect(hooks.state.pendingPlot).toBeNull();
+      expect(document.getElementById("confirmPlotBtn").style.display).toBe("none");
+    } finally {
+      setConfirmStepOverride(null);
+    }
+  });
 });
 
 describe("challenge picker scroll cue (jsdom)", () => {

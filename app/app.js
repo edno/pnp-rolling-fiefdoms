@@ -2899,9 +2899,13 @@ function renderGuildOverlay(available = []) {
         placeCenterBuilding("G", hit.code);
         return;
       }
+      const oldType = state.selectedGuildType;
       document.querySelectorAll(".guild-hit.selected").forEach((el) => el.classList.remove("selected"));
       div.classList.add("selected");
       state.selectedGuildType = hit.code;
+      if (oldType !== hit.code) {
+        clearPendingPlot();
+      }
       renderBuildingPicker();
       updateActionBanner();
       guideToStep("plot:G:" + hit.code, () => document.querySelector(".cell.highlight"));

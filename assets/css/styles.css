@@ -2325,6 +2325,39 @@ button.secondary {
   .action-bar-aux:not(:has(> #confirmPlotBtn:not([style*="display: none"]))):not(:has(> #influenceStepper:not([hidden]))) {
     display: none;
   }
+
+  /* Wide screens: prompt, dice and aux controls share ONE row, centred as a group
+     (empty pieces take no space), so the fixed-height bar stays short. */
+  .action-bar {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    column-gap: 24px;
+    padding-bottom: 0;
+    --ab-h: calc(max(var(--ab-main-h), var(--ab-banner-max)) + 8px);
+  }
+
+  .action-bar .action-banner {
+    flex: 0 1 auto;
+    width: auto;
+    max-width: 45%;
+    padding: 0;
+    font-size: 22px;
+    /* Handwritten glyphs overflow a tight line box; 32px keeps them unclipped. */
+    line-height: 32px;
+    max-height: var(--ab-main-h);
+  }
+
+  .action-bar-controls,
+  .action-bar-aux {
+    flex: 0 0 auto;
+  }
+
+  /* Before the roll the only action is the inline Roll Dice button in the prompt:
+     drop the empty dice row so the prompt sits centred on its own. */
+  .action-bar:has(#actionBanner .btn-inline-action) .action-bar-controls:not(:has(.die-badge)) {
+    display: none;
+  }
 }
 
 @media (max-width: 1100px) {
