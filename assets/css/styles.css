@@ -198,6 +198,7 @@ button.menu-item {
 }
 
 .action-bar {
+  grid-column: 1 / -1;
   position: sticky;
   top: 0;
   z-index: 15;
@@ -1058,10 +1059,13 @@ main {
   content-visibility: auto;
 }
 
-.panel h2 {
+.panel h2,
+.panel-title {
   margin: 0 0 8px 0;
   font-size: calc(20px + 4pt);
   font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-weight: 700;
+  color: inherit;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1356,12 +1360,28 @@ button:disabled {
 
 .log-drawer summary {
   cursor: pointer;
-  font-size: calc(20px + 4pt);
-  font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
+  list-style: none;
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
+}
+
+.log-drawer summary::-webkit-details-marker {
+  display: none;
+}
+
+.log-drawer summary .panel-title {
+  margin-bottom: 0;
+}
+
+.log-drawer summary::after {
+  content: "\25BE";
+  margin-left: auto;
+  transition: transform 0.15s ease;
+}
+
+.log-drawer:not([open]) summary::after {
+  transform: rotate(-90deg);
 }
 
 .log-unread-badge {
@@ -2092,6 +2112,10 @@ button.secondary {
 @media (max-width: 1100px) {
   main {
     grid-template-columns: 1fr;
+  }
+
+  .action-bar {
+    order: 0;
   }
 
   .board-panel {

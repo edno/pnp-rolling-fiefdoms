@@ -260,9 +260,8 @@
     </div>
 
     <main>
-      <section class="board-panel">
-        <div class="action-bar">
-          <div id="actionBanner" class="action-banner" aria-live="polite"></div>
+      <div class="action-bar">
+        <div id="actionBanner" class="action-banner" aria-live="polite"></div>
           <div class="action-bar-controls">
             <span
               id="turnStatusChip"
@@ -322,7 +321,9 @@
             data-i18n-attr="aria-label:html.buildingPickerLabel"
             aria-label="Choose a building"
           ></div>
-        </div>
+      </div>
+
+      <section class="board-panel">
         <div class="sheet" id="sheet">
           <div class="sheet-window sheet-window-board" data-crop="0,0,539,764">
             <div class="sheet-canvas">
@@ -448,8 +449,10 @@
         <div class="panel log-panel">
           <details class="log-drawer" id="logDrawer" open>
             <summary>
-              <span data-i18n="html.logTitle">Log</span>
-              <span id="logUnreadBadge" class="log-unread-badge hidden"></span>
+              <h2 class="panel-title">
+                <span data-i18n="html.logTitle">Log</span>
+                <span id="logUnreadBadge" class="log-unread-badge hidden"></span>
+              </h2>
             </summary>
             <div class="log-body">
               <ul id="log"></ul>
