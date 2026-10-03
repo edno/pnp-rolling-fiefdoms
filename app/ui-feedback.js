@@ -173,3 +173,34 @@ export function updateActionBanner(state, currentPhase, options = {}) {
     actionBannerEl.classList.add("bump");
   }
 }
+
+let flashHintTimer = null;
+
+/**
+ * Briefly show a transient hint message in the action banner, without
+ * permanently replacing the phase banner. The previous banner text is
+ * restored after ~3s (or overwritten sooner by the next updateActionBanner()).
+ */
+export function flashHint(text) {
+  if (!actionBannerEl || !text) return;
+  const restoreText = actionBannerEl.dataset.msg || "";
+  if (text.includes("<")) {
+    actionBannerEl.innerHTML = text;
+  } else {
+    actionBannerEl.textContent = text;
+  }
+  actionBannerEl.classList.remove("bump");
+  void actionBannerEl.offsetWidth; // restart animation
+  actionBannerEl.classList.add("bump");
+  if (flashHintTimer) clearTimeout(flashHintTimer);
+  flashHintTimer = setTimeout(() => {
+    flashHintTimer = null;
+    if (!actionBannerEl) return;
+    actionBannerEl.dataset.msg = restoreText;
+    if (restoreText && restoreText.includes("<")) {
+      actionBannerEl.innerHTML = restoreText;
+    } else {
+      actionBannerEl.textContent = restoreText;
+    }
+  }, 3000);
+}

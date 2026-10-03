@@ -20,6 +20,8 @@ export const buildDicePreview = document.getElementById("buildDicePreview");
 
 // Log & Overlays
 export const logEl = document.getElementById("log");
+export const logDrawerEl = document.getElementById("logDrawer");
+export const logUnreadBadge = document.getElementById("logUnreadBadge");
 export const scoreOverlayBuildingsEl = document.getElementById("scoreOverlayBuildings");
 export const scoreOverlayGuildsEl = document.getElementById("scoreOverlayGuilds");
 export const scoreOverlayReputationEl = document.getElementById("scoreOverlayReputation");

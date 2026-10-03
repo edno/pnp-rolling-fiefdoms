@@ -64,6 +64,8 @@ import {
   locDicePreview,
   buildDicePreview,
   logEl,
+  logDrawerEl,
+  logUnreadBadge,
   scoreOverlayBuildingsEl,
   scoreOverlayGuildsEl,
   scoreOverlayReputationEl,
@@ -127,6 +129,7 @@ import {
   actionMessage as generateActionMessage,
   updateActionBanner as updateBannerUI,
   formatButtonLabelHtml,
+  flashHint,
   TURN_PHASE,
 } from "./ui-feedback.js";
 import {
@@ -729,6 +732,17 @@ async function setupControls() {
     newGameBtn.style.display = "none";
   }
   setupChallengePicker();
+  if (logDrawerEl) {
+    if (window.matchMedia && window.matchMedia("(max-width: 1099px)").matches) {
+      logDrawerEl.open = false;
+    }
+    logDrawerEl.addEventListener("toggle", () => {
+      if (logDrawerEl.open) {
+        unreadLogCount = 0;
+        updateLogUnreadBadge();
+      }
+    });
+  }
   if (fullscreenBtn) {
     fullscreenBtn.onclick = () => toggleFullscreen();
   }
@@ -1504,16 +1518,19 @@ function onCellClick(r, c) {
   const phase = currentTurnPhase();
   if (state.locationSelection.length < 2 && !hasLockedLocation && !state.pestilence && !forceForfeitActive() && !state.activationMode) {
     log(t("build.splitFirst"));
+    flashHint(t("build.splitFirst"));
     return;
   }
   if (state.pendingPopulation?.remaining > 0) {
     log(t("population.placePendingFirst"));
+    flashHint(t("population.placePendingFirst"));
     return;
   }
   if (state.activationMode) {
     const popSel = state.activationSelection.pop;
     if (!popSel) {
       log(t("population.selectNodeFirst"));
+      flashHint(t("population.selectNodeFirst"));
       return;
     }
     allocateWorkersFromPop(popSel, [r, c]);
@@ -1524,6 +1541,7 @@ function onCellClick(r, c) {
     const isOption = options.some(([or, oc]) => or === r && oc === c);
     if (!isOption) {
       log(t("springhouse.chooseAdjacentBeforeBuilding"));
+    flashHint(t("springhouse.chooseAdjacentBeforeBuilding"));
       return;
     }
     applySpringhouseTarget([r, c]);
@@ -1533,6 +1551,7 @@ function onCellClick(r, c) {
     const cell = state.board[r][c];
     if (cell.building || cell.forfeited) {
       log(t("forfeit.chooseEmptyPlot"));
+    flashHint(t("forfeit.chooseEmptyPlot"));
       return;
     }
     forfeitCell(r, c);
@@ -1931,11 +1950,28 @@ function updateTracks() {
   updateChallengeProgressBadge();
 }
 
+let unreadLogCount = 0;
+
+function updateLogUnreadBadge() {
+  if (!logUnreadBadge) return;
+  if (unreadLogCount > 0) {
+    logUnreadBadge.textContent = String(unreadLogCount);
+    logUnreadBadge.classList.remove("hidden");
+  } else {
+    logUnreadBadge.textContent = "";
+    logUnreadBadge.classList.add("hidden");
+  }
+}
+
 function log(msg) {
   const formatted = formatDiceLabelsInMessage(msg);
   state.log.unshift(formatted);
   if (logEl) {
     logEl.innerHTML = state.log.map((m) => `<li>${m}</li>`).join("");
+  }
+  if (logDrawerEl && !logDrawerEl.open) {
+    unreadLogCount += 1;
+    updateLogUnreadBadge();
   }
 }
 
@@ -2434,6 +2470,7 @@ function handleBuildingChoice() {
     }
     if (!state.selectedGuildType) {
       log(t("build.selectGuildTypeFromOverlay"));
+      flashHint(t("build.selectGuildTypeFromOverlay"));
       return;
     }
   } else {

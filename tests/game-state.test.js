@@ -686,9 +686,9 @@ describe("influence integration", () => {
     expect(forceForfeit).toBe(false);
     expect(state.forceForfeitAdvisory).toBe(true);
     expect(state.invalidSelection).toBe(true);
-    expect(message).toBe('Select two location dice in the <span class="panel-title-font">Turn</span> panel.');
+    expect(message).toBe('Select two location dice above the sheet.');
     expect(state.invalidSelectionMessage).toBe(
-      'Select two location dice in the <span class="panel-title-font">Turn</span> panel.',
+      'Select two location dice above the sheet.',
     );
     expect(state.forceForfeitHighlight).toBe(false);
   });

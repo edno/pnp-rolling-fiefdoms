@@ -209,8 +209,6 @@
       <div class="spinner" aria-hidden="true"></div>
       <div class="loading-text" data-i18n="html.loadingBoard">Loading board…</div>
     </div>
-    <div id="actionBanner" class="action-banner" aria-live="polite"></div>
-
     <div id="challengePicker" class="modal-overlay" hidden>
       <div
         class="modal-dialog"
@@ -263,6 +261,43 @@
 
     <main>
       <section class="board-panel">
+        <div class="action-bar">
+          <div id="actionBanner" class="action-banner" aria-live="polite"></div>
+          <div class="action-bar-controls">
+            <span
+              id="turnStatusChip"
+              class="status-chip"
+              aria-live="polite"
+            ></span>
+            <span
+              id="unrestBadge"
+              class="status-chip unrest-badge hidden"
+              aria-live="polite"
+            ></span>
+            <span
+              id="challengeProgressBadge"
+              class="status-chip challenge-progress-badge hidden"
+              aria-live="polite"
+            ></span>
+            <button id="rollBtn" data-i18n="html.rollDice">Roll Dice</button>
+            <div id="diceView"></div>
+            <button
+              id="swapPairBtn"
+              class="icon-btn"
+              type="button"
+              title="Click to swap dice pairs allocation"
+              aria-label="Swap location/build dice pairs"
+              data-i18n-attr="title:html.swapTitle;aria-label:html.swapAriaLabel"
+              style="display: none"
+            >
+              <img src="assets/img/swap.svg" alt="" class="swap-icon" />
+            </button>
+            <button id="finishActivation" style="display: none" data-i18n="html.finishActivation">
+              Finish Activation
+            </button>
+            <button id="newGameBtn" style="display: none" data-i18n="html.playAgain">Play again</button>
+          </div>
+        </div>
         <div class="sheet" id="sheet">
           <div class="sheet-window sheet-window-board" data-crop="0,0,539,764">
             <div class="sheet-canvas">
@@ -367,49 +402,12 @@
       </section>
 
       <section class="controls">
-        <div class="panel">
-          <h2>
-            <span data-i18n="html.turnTitle">Turn</span>
-            <span
-              id="turnStatusChip"
-              class="status-chip"
-              aria-live="polite"
-            ></span>
-            <span
-              id="unrestBadge"
-              class="status-chip unrest-badge hidden"
-              aria-live="polite"
-            ></span>
-            <span
-              id="challengeProgressBadge"
-              class="status-chip challenge-progress-badge hidden"
-              aria-live="polite"
-            ></span>
-          </h2>
-          <button id="rollBtn" data-i18n="html.rollDice">Roll Dice</button>
-          <div id="diceView"></div>
+        <div class="panel" id="turnHintPanel">
           <div id="turnHint" class="hint"></div>
-          <button id="finishActivation" style="display: none" data-i18n="html.finishActivation">
-            Finish Activation
-          </button>
-          <button id="newGameBtn" style="display: none" data-i18n="html.playAgain">Play again</button>
         </div>
 
-        <div class="panel">
-          <h2 class="panel-title-with-action">
-            <span data-i18n="html.splitAndBuild">Pair &amp; Build</span>
-            <button
-              id="swapPairBtn"
-              class="icon-btn"
-              type="button"
-              title="Click to swap dice pairs allocation"
-              aria-label="Swap location/build dice pairs"
-              data-i18n-attr="title:html.swapTitle;aria-label:html.swapAriaLabel"
-              style="display: none"
-            >
-              <img src="assets/img/swap.svg" alt="" class="swap-icon" />
-            </button>
-          </h2>
+        <div class="panel pair-build-panel">
+          <h2 data-i18n="html.splitAndBuild">Pair &amp; Build</h2>
           <div class="field">
             <label data-i18n="html.locationDiceLabel">Location Dice</label>
             <div class="dice-row" id="locDicePreview"></div>
@@ -421,10 +419,15 @@
         </div>
 
         <div class="panel log-panel">
-          <h2 data-i18n="html.logTitle">Log</h2>
-          <div class="log-body">
-            <ul id="log"></ul>
-          </div>
+          <details class="log-drawer" id="logDrawer" open>
+            <summary>
+              <span data-i18n="html.logTitle">Log</span>
+              <span id="logUnreadBadge" class="log-unread-badge hidden"></span>
+            </summary>
+            <div class="log-body">
+              <ul id="log"></ul>
+            </div>
+          </details>
         </div>
       </section>
     </main>
