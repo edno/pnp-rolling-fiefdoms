@@ -192,6 +192,14 @@ export default {
     selectBuiltNonForfeited: "Select a built, non-forfeited building for the Springhouse effect.",
     reduced: "Springhouse reduced worker requirement for row {row}, col {col} by 1.",
   },
+  confirm: {
+    confirm: "Confirm",
+    changePlot: "Change plot",
+    changeSquare: "Change square",
+    pendingBuild: "Confirm building {building} at row {row}, col {col}?",
+    pendingForfeit: "Confirm forfeiting row {row}, col {col}?",
+    pendingPopulation: "Confirm placing population on row {row}, col {col}?",
+  },
   forfeit: {
     chooseEmptyPlot: "Choose an empty plot to forfeit.",
     forfeitedAlt: "Forfeit",

@@ -292,6 +292,23 @@
             >
               <img src="assets/img/swap.svg" alt="" class="swap-icon" />
             </button>
+            <button
+              id="confirmPlotBtn"
+              type="button"
+              style="display: none"
+              data-i18n="confirm.confirm"
+            >
+              Confirm
+            </button>
+            <button
+              id="cancelPlotBtn"
+              type="button"
+              class="secondary"
+              style="display: none"
+              data-i18n="confirm.changePlot"
+            >
+              Change plot
+            </button>
             <button id="finishActivation" style="display: none" data-i18n="html.finishActivation">
               Finish Activation
             </button>
@@ -408,13 +425,15 @@
 
         <div class="panel pair-build-panel">
           <h2 data-i18n="html.splitAndBuild">Pair &amp; Build</h2>
-          <div class="field">
-            <label data-i18n="html.locationDiceLabel">Location Dice</label>
-            <div class="dice-row" id="locDicePreview"></div>
-          </div>
-          <div class="field">
-            <label data-i18n="html.buildDiceLabel">Build Dice</label>
-            <div class="dice-row" id="buildDicePreview"></div>
+          <div class="pair-build-fields">
+            <div class="field">
+              <label data-i18n="html.locationDiceLabel">Location Dice</label>
+              <div class="dice-row" id="locDicePreview"></div>
+            </div>
+            <div class="field">
+              <label data-i18n="html.buildDiceLabel">Build Dice</label>
+              <div class="dice-row" id="buildDicePreview"></div>
+            </div>
           </div>
         </div>
 

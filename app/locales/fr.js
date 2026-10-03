@@ -192,6 +192,14 @@ export default {
     selectBuiltNonForfeited: "Sélectionnez un bâtiment construit et non renoncé pour l'effet de la Source.",
     reduced: "La Source a réduit le besoin en ouvriers de la ligne {row}, colonne {col} de 1.",
   },
+  confirm: {
+    confirm: "Confirmer",
+    changePlot: "Changer de parcelle",
+    changeSquare: "Changer de case",
+    pendingBuild: "Confirmer le bâtiment {building} ligne {row}, colonne {col} ?",
+    pendingForfeit: "Confirmer le renoncement ligne {row}, colonne {col} ?",
+    pendingPopulation: "Confirmer le placement de population ligne {row}, colonne {col} ?",
+  },
   forfeit: {
     chooseEmptyPlot: "Choisissez une parcelle vide à renoncer.",
     forfeitedAlt: "Renoncé",

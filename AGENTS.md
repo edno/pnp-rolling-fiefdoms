@@ -28,6 +28,7 @@
 - Adjacency is cardinal-only, matching the printed square grid.
 - PWA behavior: a cache-first service worker (cache name `rf-cache-v1`) precaches the core shell (HTML, JS, CSS, fonts, images including `assets/img/forfeit.svg`) and serves navigation offline. Bump the cache version when changing core assets. Manifest icon uses `assets/img/forfeit.svg`.
 - Influence application: Can be applied to any die with a resolved numeric value (1-5) if: (1) influence points are available, (2) no other die currently has influence applied, (3) not during pestilence. This includes N dice and X dice with resolved values. When influence is applied to adjust an X die's value, that die is included in location pair calculations via `state.influenceTarget` in `game-state.js` to properly enable rescue from forfeit situations.
+- Touch confirm step: on coarse-pointer (touch) devices, plot, forfeit and population placements require a Confirm step (with Change plot/Change square to back out) before committing; mouse devices commit immediately on click as before. Game rules and resulting state are unchanged either way (`app/confirm-step.js`'s `needsConfirmStep()`).
 
 ## Appendix: TODO / Known Gaps
 

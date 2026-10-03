@@ -12,6 +12,7 @@ const baseState = {
   influenceSelectionKey: null,
   dice: [],
   pendingPopulation: null,
+  pendingPlot: null,
   buildChoice: null,
   pestilence: false,
   pestilenceInfo: null,
@@ -85,6 +86,7 @@ export function resetTurnState(state) {
   commitPendingInfluence(state);
   state.pendingSpringhouseTarget = null;
   state.pendingPopulation = null;
+  state.pendingPlot = null;
   state.buildChoice = null;
   state.selectedGuildType = null;
   state.locationSelection = [];

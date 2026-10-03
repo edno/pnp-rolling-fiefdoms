@@ -41,6 +41,8 @@ const baseHtml = `
   <div id="popHousingOverlay"></div>
   <button id="finishActivation"></button>
   <button id="newGameBtn"></button>
+  <button id="confirmPlotBtn" style="display: none"></button>
+  <button id="cancelPlotBtn" style="display: none"></button>
   <button id="fullscreenToggle"></button>
   <div id="actionBanner"></div>
   <span id="turnStatusChip"></span>
@@ -548,5 +550,197 @@ describe("pestilence windrose reroll (jsdom)", () => {
     clickRoll();
     const logs = latestLogs();
     expect(logs.some((m) => m.toLowerCase().includes("double windrose rolled"))).toBe(true);
+  });
+});
+
+describe("plot confirm step (jsdom)", () => {
+  async function setupBuildReady(hooks) {
+    hooks.state.dice = [
+      { label: "N1", face: 1, resolved: 1 },
+      { label: "N2", face: 2, resolved: 2 },
+      { label: "B1", face: 7, resolved: 7 },
+      { label: "B2", face: 7, resolved: 7 },
+    ];
+    hooks.state.locationSelection = [0, 1];
+    hooks.state.rollAvailable = false;
+    hooks.state.board = createEmptyBoard();
+    hooks.updateDiceAssignments();
+    await flushMicrotasks();
+    hooks.state.buildChoice = { code: "F" };
+  }
+
+  it("does not place a building until Confirm is tapped (coarse pointer)", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { setConfirmStepOverride } = await import("../app/confirm-step.js");
+    setConfirmStepOverride(true);
+    try {
+      await setupBuildReady(hooks);
+      const targetCell = document.querySelector('.cell[data-row="0"][data-col="1"]');
+      targetCell.click();
+      await flushMicrotasks();
+
+      expect(hooks.state.board[0][1].building).toBeFalsy();
+      expect(hooks.state.pendingPlot).toMatchObject({ r: 0, c: 1, kind: "build", code: "F" });
+      const refreshedCell = document.querySelector('.cell[data-row="0"][data-col="1"]');
+      expect(refreshedCell.classList.contains("cell-pending")).toBe(true);
+      expect(document.getElementById("confirmPlotBtn").style.display).not.toBe("none");
+
+      hooks.confirmPendingPlot();
+      await flushMicrotasks();
+
+      expect(hooks.state.pendingPlot).toBeNull();
+      expect(hooks.state.board[0][1].building).toBe("F");
+    } finally {
+      setConfirmStepOverride(null);
+    }
+  });
+
+  it("Change plot clears the pending preview without building", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { setConfirmStepOverride } = await import("../app/confirm-step.js");
+    setConfirmStepOverride(true);
+    try {
+      await setupBuildReady(hooks);
+      document.querySelector('.cell[data-row="0"][data-col="1"]').click();
+      await flushMicrotasks();
+      expect(hooks.state.pendingPlot).toBeTruthy();
+
+      hooks.cancelPendingPlot();
+      await flushMicrotasks();
+
+      expect(hooks.state.pendingPlot).toBeNull();
+      expect(hooks.state.board[0][1].building).toBeFalsy();
+      expect(document.getElementById("confirmPlotBtn").style.display).toBe("none");
+    } finally {
+      setConfirmStepOverride(null);
+    }
+  });
+
+  it("tapping another valid plot moves the pending plot", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { setConfirmStepOverride } = await import("../app/confirm-step.js");
+    setConfirmStepOverride(true);
+    try {
+      await setupBuildReady(hooks);
+      document.querySelector('.cell[data-row="0"][data-col="1"]').click();
+      await flushMicrotasks();
+      expect(hooks.state.pendingPlot).toMatchObject({ r: 0, c: 1 });
+
+      document.querySelector('.cell[data-row="1"][data-col="0"]').click();
+      await flushMicrotasks();
+      expect(hooks.state.pendingPlot).toMatchObject({ r: 1, c: 0 });
+
+      hooks.confirmPendingPlot();
+      await flushMicrotasks();
+      expect(hooks.state.board[0][1].building).toBeFalsy();
+      expect(hooks.state.board[1][0].building).toBe("F");
+    } finally {
+      setConfirmStepOverride(null);
+    }
+  });
+
+  it("confirming the pending plot results in the same board state as a direct click", async () => {
+    await setupApp({ enableHooks: true });
+    const hooksCoarse = window.__rfTestHooks;
+    const { setConfirmStepOverride } = await import("../app/confirm-step.js");
+    setConfirmStepOverride(true);
+    await setupBuildReady(hooksCoarse);
+    document.querySelector('.cell[data-row="0"][data-col="1"]').click();
+    await flushMicrotasks();
+    hooksCoarse.confirmPendingPlot();
+    await flushMicrotasks();
+    const coarseBuilding = hooksCoarse.state.board[0][1].building;
+    setConfirmStepOverride(null);
+
+    await setupApp({ enableHooks: true });
+    const hooksMouse = window.__rfTestHooks;
+    setConfirmStepOverride(false);
+    try {
+      await setupBuildReady(hooksMouse);
+      document.querySelector('.cell[data-row="0"][data-col="1"]').click();
+      await flushMicrotasks();
+      expect(hooksMouse.state.board[0][1].building).toBe(coarseBuilding);
+    } finally {
+      setConfirmStepOverride(null);
+    }
+  });
+
+  it("forfeit requires Confirm on coarse pointers", async () => {
+    await setupApp({ enableHooks: true, numbered: [3, 3, 1, 1], x: ["X", "X", 2, 2] });
+    const hooks = window.__rfTestHooks;
+    const { setConfirmStepOverride } = await import("../app/confirm-step.js");
+    setConfirmStepOverride(true);
+    try {
+      clickRoll();
+      await flushMicrotasks();
+      const targetCell = document.querySelector('.cell[data-row="0"][data-col="0"]');
+
+      targetCell.click();
+      await flushMicrotasks();
+      expect(hooks.state.board[0][0].forfeited).toBeFalsy();
+      expect(hooks.state.pendingPlot).toMatchObject({ r: 0, c: 0, kind: "forfeit" });
+
+      hooks.confirmPendingPlot();
+      await flushMicrotasks();
+      expect(hooks.state.board[0][0].forfeited).toBe(true);
+    } finally {
+      setConfirmStepOverride(null);
+    }
+  });
+
+  it("population placement requires Confirm on coarse pointers", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { placeBuilding, onPopulationNodeClick } = hooks;
+    const { setConfirmStepOverride } = await import("../app/confirm-step.js");
+    hooks.state.dice = [
+      { label: "N1", face: 1, resolved: 1 },
+      { label: "N2", face: 4, resolved: 4 },
+      { label: "X1", face: 2, resolved: 2 },
+      { label: "X2", face: 3, resolved: 3 },
+    ];
+    hooks.state.locationSelection = [0, 1];
+    hooks.state.buildDice = [hooks.state.dice[2], hooks.state.dice[3]];
+    hooks.state.buildChoice = { code: "F", source: "die1" };
+    hooks.state.rollAvailable = false;
+    placeBuilding(0, 0, "F");
+    expect(hooks.state.pendingPopulation?.remaining).toBeGreaterThan(0);
+
+    setConfirmStepOverride(true);
+    try {
+      onPopulationNodeClick(0, 0);
+      await flushMicrotasks();
+      expect(hooks.state.pendingPopulation?.remaining).toBeGreaterThan(0);
+      expect(hooks.state.pendingPlot).toMatchObject({ r: 0, c: 0, kind: "population" });
+
+      hooks.confirmPendingPlot();
+      await flushMicrotasks();
+      expect(hooks.state.pendingPlot).toBeNull();
+    } finally {
+      setConfirmStepOverride(null);
+    }
+  });
+
+  it("influence pill on the action-bar die matches the Pair & Build panel control", async () => {
+    await setupApp({
+      enableHooks: true,
+      numbered: [2, 3],
+      x: [{ face: 2, resolved: 2 }, { face: 3, resolved: 3 }],
+    });
+    const hooks = window.__rfTestHooks;
+    clickRoll();
+    await flushMicrotasks();
+    hooks.state.influence = { earned: 2, spent: 0, pending: 0 };
+    hooks.updateDiceAssignments();
+    await flushMicrotasks();
+
+    const pillPlus = document.querySelector('#diceView .die-badge[data-idx="0"] .influence-btn.plus');
+    expect(pillPlus).toBeTruthy();
+    pillPlus.click();
+    await flushMicrotasks();
+    expect(hooks.state.influenceAdjustments?.N1?.delta).toBeGreaterThan(0);
   });
 });

@@ -57,6 +57,7 @@ import {
 } from "./influence.js";
 import { splitForcedDice } from "./dice-display.js";
 import { createDieFaceSVG } from "./dice-face.js";
+import { needsConfirmStep } from "./confirm-step.js";
 import {
   boardEl,
   diceView,
@@ -75,6 +76,8 @@ import {
   finishActivationBtn,
   newGameBtn,
   swapPairBtn,
+  confirmPlotBtn,
+  cancelPlotBtn,
   fullscreenBtn,
   sfxToggleBtn,
   sfxToggleLabel,
@@ -796,6 +799,14 @@ async function setupControls() {
     swapPairBtn.onclick = () => toggleLockedPairChoice();
     swapPairBtn.style.display = "none";
   }
+  if (confirmPlotBtn) {
+    confirmPlotBtn.onclick = () => confirmPendingPlot();
+    confirmPlotBtn.style.display = "none";
+  }
+  if (cancelPlotBtn) {
+    cancelPlotBtn.onclick = () => cancelPendingPlot();
+    cancelPlotBtn.style.display = "none";
+  }
 }
 
 // ============================================================================
@@ -809,7 +820,8 @@ function rollDice() {
     return;
   }
   rollingInProgress = true;
-  
+  clearPendingPlot();
+
   try {
     if (state.activationMode) return;
     if (state.pendingCenterBuilding?.active) return;
@@ -1224,7 +1236,7 @@ function renderDice() {
       clickable: !turnLocked,
       showRoleStyle: !turnLocked,
       forcedLocation: (state.forcedLocationDice || []).includes(idx),
-      allowInfluence: false,
+      allowInfluence: !turnLocked,
       useAdjustedFace: false,
     });
     row.appendChild(badge);
@@ -1507,6 +1519,16 @@ function renderBoard() {
         }
       } else {
         cell.classList.add("terrain");
+        const pending = state.pendingPlot;
+        if (pending && (pending.kind === "build" || pending.kind === "forfeit") && pending.r === r && pending.c === c) {
+          cell.classList.add("cell-pending");
+          if (pending.kind === "build") {
+            const label = document.createElement("div");
+            label.className = "label building building-preview";
+            label.textContent = buildingDisplayLetter(pending.code);
+            cell.appendChild(label);
+          }
+        }
       }
       cell.onclick = () => onCellClick(r, c);
       boardEl.appendChild(cell);
@@ -1563,7 +1585,7 @@ function onCellClick(r, c) {
     flashHint(t("forfeit.chooseEmptyPlot"));
       return;
     }
-    forfeitCell(r, c);
+    commitOrPendPlot(r, c, "forfeit");
     return;
   }
   if (state.locationSelection.length !== 2 || !state.locationPairs.length) {
@@ -1597,7 +1619,92 @@ function onCellClick(r, c) {
     log(t("build.finishStepBeforeBuilding"));
     return;
   }
-  placeBuilding(r, c, state.buildChoice.code);
+  commitOrPendPlot(r, c, "build", state.buildChoice.code);
+}
+
+/**
+ * Shared commit path for plot taps that place a building or forfeit a cell.
+ * On coarse pointers (needsConfirmStep()) this only sets a preview and shows
+ * Confirm/Change plot controls; the actual placeBuilding()/forfeitCell() call
+ * happens from confirmPendingPlot(). On mouse devices it commits immediately,
+ * matching the original one-click behavior exactly.
+ */
+function commitOrPendPlot(r, c, kind, code) {
+  if (needsConfirmStep()) {
+    state.pendingPlot = { r, c, kind, code };
+    renderBoard();
+    updateActionBanner();
+    showPlotConfirmControls();
+    return;
+  }
+  if (kind === "build") {
+    placeBuilding(r, c, code);
+  } else if (kind === "forfeit") {
+    forfeitCell(r, c);
+  }
+}
+
+/**
+ * Clears any pending plot/forfeit/population preview and hides the
+ * Confirm/Change plot controls. Called whenever the player changes dice
+ * selection, building choice, swaps pairs, applies influence, or rolls again.
+ */
+function clearPendingPlot() {
+  if (!state.pendingPlot) return;
+  state.pendingPlot = null;
+  hidePlotConfirmControls();
+}
+
+function pendingPlotBannerText(pending) {
+  const row = pending.r + 1;
+  const col = pending.c + 1;
+  if (pending.kind === "build") {
+    return t("confirm.pendingBuild", { building: t(`buildings.${pending.code}`), row, col });
+  }
+  if (pending.kind === "forfeit") {
+    return t("confirm.pendingForfeit", { row, col });
+  }
+  return t("confirm.pendingPopulation", { row, col });
+}
+
+function showPlotConfirmControls() {
+  if (!state.pendingPlot) return hidePlotConfirmControls();
+  if (confirmPlotBtn) confirmPlotBtn.style.display = "inline-block";
+  if (cancelPlotBtn) {
+    cancelPlotBtn.style.display = "inline-block";
+    cancelPlotBtn.textContent =
+      state.pendingPlot.kind === "population" ? t("confirm.changeSquare") : t("confirm.changePlot");
+  }
+  state.bannerOverride = pendingPlotBannerText(state.pendingPlot);
+  updateActionBanner();
+}
+
+function hidePlotConfirmControls() {
+  if (confirmPlotBtn) confirmPlotBtn.style.display = "none";
+  if (cancelPlotBtn) cancelPlotBtn.style.display = "none";
+  if (state.bannerOverride) state.bannerOverride = null;
+}
+
+function confirmPendingPlot() {
+  const pending = state.pendingPlot;
+  if (!pending) return;
+  state.pendingPlot = null;
+  hidePlotConfirmControls();
+  if (pending.kind === "build") {
+    placeBuilding(pending.r, pending.c, pending.code);
+  } else if (pending.kind === "forfeit") {
+    forfeitCell(pending.r, pending.c);
+  } else if (pending.kind === "population") {
+    doPlacePopulationNode(pending.r, pending.c);
+  }
+}
+
+function cancelPendingPlot() {
+  if (!state.pendingPlot) return;
+  state.pendingPlot = null;
+  hidePlotConfirmControls();
+  renderBoard();
+  updateActionBanner();
 }
 
 function highlightLocations() {
@@ -2455,6 +2562,7 @@ function renderChallengeCards() {
 }
 
 function handleBuildingChoice() {
+  clearPendingPlot();
   const selected = document.querySelector(".building-hit.selected");
   const hasLockedLocation = Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
   const diceLockedForBuild = state.diceLocked;
@@ -2608,6 +2716,32 @@ function onPopulationNodeClick(nr, nc) {
     return;
   }
   if (!state.pendingPopulation || state.pendingPopulation.remaining <= 0) return;
+  if (needsConfirmStep()) {
+    const eligible = nodesForCell(state.pendingPopulation.cell[0], state.pendingPopulation.cell[1]).some(
+      ([r, c]) => r === nr && c === nc,
+    );
+    const alreadyUsed =
+      (state.populationNodes[nr]?.[nc] || 0) > 0 || state.barricadedNodes?.[nr]?.[nc];
+    if (!eligible || alreadyUsed) {
+      // Invalid taps fall through to the real function so the existing
+      // message/log behavior stays identical; nothing to preview here.
+      doPlacePopulationNode(nr, nc);
+      return;
+    }
+    state.pendingPlot = { r: nr, c: nc, kind: "population" };
+    renderBoard();
+    updateActionBanner();
+    showPlotConfirmControls();
+    return;
+  }
+  doPlacePopulationNode(nr, nc);
+}
+
+/**
+ * Actual population placement commit, shared by the direct (mouse) click
+ * path and confirmPendingPlot() on coarse-pointer devices.
+ */
+function doPlacePopulationNode(nr, nc) {
   const result = placePopulationNode(state, nr, nc, {
     nodesForCell,
     allocatePopulationToNode,
@@ -2772,6 +2906,9 @@ function renderPopulationNodes() {
       node.dataset.nodeCol = c;
       if (isBarricaded) {
         node.classList.add("barricaded");
+      }
+      if (state.pendingPlot?.kind === "population" && state.pendingPlot.r === r && state.pendingPlot.c === c) {
+        node.classList.add("cell-pending");
       }
       if (state.pendingBarricade?.active) {
         if (!isBarricaded && val === 0) {
@@ -3095,6 +3232,7 @@ function onDieClick(idx) {
 // state and log messages) and just re-renders from the existing state — used when
 // refreshing the UI for a locale switch, which must not alter game state.
 function updateDiceAssignments(renderOnly = false) {
+  clearPendingPlot();
   if (!state.dice || !state.dice.length) {
     if (!renderOnly) {
       state.forceForfeit = false;
@@ -3624,5 +3762,9 @@ function autoForfeitUnfillable(finalize = false) {
       onPopulationNodeClick,
       adjustDieWithInfluence,
       handleCenterBuildingChoice,
+      onCellClick,
+      forfeitCell,
+      confirmPendingPlot,
+      cancelPendingPlot,
     };
   }
