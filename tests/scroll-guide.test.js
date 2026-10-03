@@ -20,6 +20,15 @@ function stubActionBar(height = 50) {
   return bar;
 }
 
+function stubActionBarAux(bottom, { visible = true } = {}) {
+  const aux = document.createElement("div");
+  aux.className = "action-bar-aux";
+  aux.getBoundingClientRect = () => ({ top: 0, bottom, height: bottom });
+  if (!visible) aux.style.visibility = "hidden";
+  document.body.appendChild(aux);
+  return aux;
+}
+
 describe("guideTo", () => {
   let originalMatchMedia;
   let originalInnerHeight;
@@ -217,6 +226,37 @@ describe("guideTo", () => {
         top: 909,
       }),
     );
+  });
+
+  it("treats an open aux drawer as part of the obstruction when deciding visibility", () => {
+    stubMatchMedia({ narrow: true });
+    stubActionBar(50);
+    stubActionBarAux(90, { visible: true });
+    const el = document.createElement("div");
+    // Element sits below the bar (50) but under the open drawer (bottom 90).
+    el.getBoundingClientRect = () => ({ top: 60, bottom: 150, height: 90 });
+    document.body.appendChild(el);
+    Object.defineProperty(window, "innerHeight", { value: 800, configurable: true });
+
+    guideTo(el);
+
+    expect(window.scrollTo).toHaveBeenCalled();
+  });
+
+  it("ignores a closed (hidden) aux drawer when deciding visibility", () => {
+    stubMatchMedia({ narrow: true });
+    stubActionBar(50);
+    stubActionBarAux(90, { visible: false });
+    const el = document.createElement("div");
+    // Element is clear of the bar (50) and would only be obstructed if the
+    // hidden drawer's bottom (90) were (wrongly) counted.
+    el.getBoundingClientRect = () => ({ top: 60, bottom: 150, height: 90 });
+    document.body.appendChild(el);
+    Object.defineProperty(window, "innerHeight", { value: 800, configurable: true });
+
+    guideTo(el);
+
+    expect(window.scrollTo).not.toHaveBeenCalled();
   });
 
   it("short element centering never places top under the bar", () => {

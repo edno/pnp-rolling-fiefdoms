@@ -1816,13 +1816,6 @@ select {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .dice-rolling .die-badge,
-  #diceView.dice-rolling .die-badge {
-    animation: dice-bounce 0.45s ease;
-  }
-}
-
 .dice-row {
   display: flex;
   align-items: flex-end;
@@ -2367,6 +2360,9 @@ button.secondary {
 
   .action-bar {
     order: 0;
+    /* The aux row becomes an overlay drawer (below) instead of a row in the
+       flow, so the bar's fixed height only covers the banner + main row. */
+    --ab-h: calc(var(--ab-banner-max) + var(--ab-main-h) + 8px);
   }
 
   .board-panel {
@@ -2376,6 +2372,47 @@ button.secondary {
   .controls {
     order: 2;
     grid-template-rows: auto auto auto;
+  }
+
+  /* Aux "drawer": anchored to the sticky bar's bottom edge, overlapping the
+     sheet below rather than pushing it, with an open/close slide+fade so the
+     bar never jumps height. Collapsed state replaces the base display:none
+     (see the :not(:has(...)) rule above) so the transition can animate. */
+  .action-bar-aux {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    z-index: 15;
+    display: flex;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 6px 12px -4px rgba(0, 0, 0, 0.25);
+    padding: 4px max(16px, env(safe-area-inset-right)) 4px
+      max(16px, env(safe-area-inset-left));
+    height: calc(var(--ab-aux-h) + 8px);
+    min-height: 0;
+    box-sizing: border-box;
+    transform: translateY(-8px);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: transform 180ms ease, opacity 180ms ease,
+      visibility 0s linear 180ms;
+  }
+
+  .action-bar-aux:not(:has(> #confirmPlotBtn:not([style*="display: none"]))):not(:has(> #buildingPicker:not([hidden]))):not(:has(> #influenceStepper:not([hidden]))) {
+    display: flex;
+  }
+
+  .action-bar-aux:has(> #confirmPlotBtn:not([style*="display: none"])),
+  .action-bar-aux:has(> #buildingPicker:not([hidden])),
+  .action-bar-aux:has(> #influenceStepper:not([hidden])) {
+    transform: none;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition: transform 180ms ease, opacity 180ms ease, visibility 0s linear 0s;
   }
 
   .pair-build-fields {
@@ -2784,6 +2821,26 @@ button.secondary {
     justify-self: stretch;
     justify-content: safe center;
     gap: 6px 8px;
+    /* Short landscape keeps the aux row inline (grid cell) rather than the
+       narrow-width overlay drawer; undo the drawer's positioning/animation. */
+    position: static;
+    top: auto;
+    left: auto;
+    right: auto;
+    z-index: auto;
+    box-shadow: none;
+    border-bottom: none;
+    padding: 0;
+    height: auto;
+    transform: none;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition: none;
+  }
+
+  .action-bar-aux:not(:has(> #confirmPlotBtn:not([style*="display: none"]))):not(:has(> #buildingPicker:not([hidden]))):not(:has(> #influenceStepper:not([hidden]))) {
+    display: none;
   }
 
 
@@ -2876,5 +2933,18 @@ button.secondary {
 
   .cell.highlight:hover::after {
     --ring-b: 6px;
+  }
+}
+
+/* Kept last so it wins over the earlier breakpoint rules above, notably the
+   aux-drawer open/close transition (max-width: 1100px). */
+@media (prefers-reduced-motion: reduce) {
+  .dice-rolling .die-badge,
+  #diceView.dice-rolling .die-badge {
+    animation: dice-bounce 0.45s ease;
+  }
+
+  .action-bar-aux {
+    transition: none;
   }
 }

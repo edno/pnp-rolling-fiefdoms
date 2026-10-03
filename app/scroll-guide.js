@@ -13,7 +13,18 @@ export function guideTo(el, { block = "center", minVisible = 1 } = {}) {
 
     const rect = el.getBoundingClientRect();
     const actionBar = document.querySelector(".action-bar");
-    const barHeight = actionBar ? actionBar.getBoundingClientRect().height : 0;
+    let barHeight = actionBar ? actionBar.getBoundingClientRect().bottom : 0;
+    // On narrow widths the aux row (Confirm/building picker/influence stepper)
+    // is an overlay drawer below the bar (see styles.css); when open it
+    // obstructs the viewport too, so targets must clear it as well.
+    const aux = document.querySelector(".action-bar-aux");
+    if (aux && window.getComputedStyle) {
+      const auxStyle = window.getComputedStyle(aux);
+      if (auxStyle.visibility === "visible") {
+        const auxBottom = aux.getBoundingClientRect().bottom;
+        if (auxBottom > barHeight) barHeight = auxBottom;
+      }
+    }
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
 
     // Comfort zone: element must be at least 8px away from bar and viewport edges
