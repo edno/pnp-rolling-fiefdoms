@@ -372,10 +372,6 @@ button.menu-item {
   pointer-events: auto;
 }
 
-.back-to-top:hover {
-  background: var(--accent);
-  color: #fff;
-}
 
 .loading-overlay {
   position: fixed;
@@ -555,6 +551,12 @@ main {
   transform: rotate(45deg);
 }
 
+.population-node::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+
 .population-node.highlight {
   border: 2px solid var(--accent) !important;
 }
@@ -672,6 +674,8 @@ main {
 .cell.highlight {
   box-shadow: none;
   border-radius: 0;
+  outline: 3px dashed var(--accent);
+  outline-offset: -4px;
 }
 
 .cell.disabled {
@@ -814,9 +818,6 @@ main {
   padding: 0;
 }
 
-.challenge-outcome-close-btn:hover {
-  background: var(--panel);
-}
 
 #turnHintPanel:has(#turnHint:empty) {
   display: none;
@@ -1112,13 +1113,8 @@ main {
   animation: swap-btn-pulse 4s ease-in-out;
 }
 
-.icon-btn:hover {
-  background: var(--accent);
-  filter: brightness(0.95);
-}
 
-.icon-btn-disabled,
-.icon-btn-disabled:hover {
+.icon-btn-disabled {
   background: var(--muted);
   filter: none;
 }
@@ -1205,9 +1201,6 @@ button:disabled {
   border: 1px solid var(--border);
 }
 
-.link-btn:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.05);
-}
 
 .field {
   display: flex;
@@ -1259,11 +1252,6 @@ button:disabled {
   height: 100%;
 }
 
-.guild-hit.available:hover,
-.building-hit.available:hover {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(60, 110, 113, 0.2);
-}
 
 .guild-hit.selected,
 .building-hit.selected {
@@ -1797,9 +1785,6 @@ select {
   opacity: 0.75;
 }
 
-.challenge-badge:hover .challenge-badge-info-icon {
-  opacity: 1;
-}
 
 .modal-locale-switcher {
   flex-shrink: 0;
@@ -1844,11 +1829,6 @@ select {
     transform 0.15s ease;
 }
 
-.carousel-nav:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  transform: scale(1.06);
-}
 
 .carousel-dots {
   display: flex;
@@ -1871,9 +1851,6 @@ select {
     transform 0.15s ease;
 }
 
-.carousel-dot:hover {
-  background: var(--accent);
-}
 
 .carousel-dot.active {
   background: var(--accent);
@@ -1919,11 +1896,6 @@ select {
     transform 0.15s ease;
 }
 
-.challenge-card:hover {
-  border-color: var(--accent);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-  transform: translateY(-2px);
-}
 
 .challenge-card.selected {
   border-color: var(--accent);
@@ -1944,11 +1916,6 @@ select {
   box-shadow: none;
 }
 
-.challenge-card-disabled:hover {
-  border-color: var(--border);
-  box-shadow: none;
-  transform: none;
-}
 
 .challenge-card-badge {
   position: absolute;
@@ -2161,5 +2128,62 @@ button.secondary {
 
   .action-bar-controls {
     gap: 6px 8px;
+  }
+}
+
+@media (hover: hover) {
+  .back-to-top:hover {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .challenge-outcome-close-btn:hover {
+    background: var(--panel);
+  }
+
+  .icon-btn:hover {
+    background: var(--accent);
+    filter: brightness(0.95);
+  }
+
+  .icon-btn-disabled:hover {
+    background: var(--muted);
+    filter: none;
+  }
+
+  .link-btn:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.05);
+  }
+
+  .guild-hit.available:hover,
+  .building-hit.available:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(60, 110, 113, 0.2);
+  }
+
+  .challenge-badge:hover .challenge-badge-info-icon {
+    opacity: 1;
+  }
+
+  .carousel-nav:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    transform: scale(1.06);
+  }
+
+  .carousel-dot:hover {
+    background: var(--accent);
+  }
+
+  .challenge-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+  }
+
+  .challenge-card-disabled:hover {
+    border-color: var(--border);
+    box-shadow: none;
+    transform: none;
   }
 }

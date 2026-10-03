@@ -25,13 +25,15 @@ const listeners = new WeakMap();
  *
  * @param {Element} el
  * @param {string|null} text
+ * @param {Object} options - { tap: boolean } - if tap is false, popover won't show on click
  */
-export function setPopover(el, text) {
+export function setPopover(el, text, options = {}) {
   if (!el) return;
 
   if (!text) {
     delete el.dataset.popover;
     el.classList.remove("has-popover");
+    delete el.dataset.popoverTap;
     return;
   }
 
@@ -41,6 +43,13 @@ export function setPopover(el, text) {
   }
   el.removeAttribute("title");
   el.classList.add("has-popover");
+
+  // Store tap option (default true)
+  if (options.tap === false) {
+    el.dataset.popoverTap = "false";
+  } else {
+    delete el.dataset.popoverTap;
+  }
 }
 
 /**
@@ -75,7 +84,7 @@ export function initPopovers(root = document) {
   // Delegated click handler on root
   const handleClick = (e) => {
     const target = e.target.closest("[data-popover]");
-    if (target) {
+    if (target && target.dataset.popoverTap !== "false") {
       togglePopover(target);
     }
   };

@@ -147,6 +147,8 @@ import {
 } from "./i18n.js";
 import { CHALLENGES, CHALLENGE_ORDER } from "./challenges.js";
 import { initSheetWindows } from "./sheet-layout.js";
+import { onMouseHover } from "./hover.js";
+import { initPopovers, setPopover } from "./popover.js";
 
 const BOARD_SIZE = 5;
 const POPULATION_GRID_SIZE = 4;
@@ -698,6 +700,9 @@ async function initializeApp() {
 
     // Scale the sheet crop windows to fit their rendered width
     initSheetWindows();
+
+    // Initialize popovers for tooltips
+    initPopovers();
 
     // Remove loading state only after everything is ready
     document.body.classList.remove("loading");
@@ -1442,8 +1447,12 @@ function renderBoard() {
         }
         // Add market hover to highlight claimed nodes
         if (data.building === "M") {
-          cell.onmouseenter = () => highlightMarketClaims(r, c);
-          cell.onmouseleave = () => clearMarketHighlights();
+          cell._hoverDispose?.();
+          cell._hoverDispose = onMouseHover(
+            cell,
+            () => highlightMarketClaims(r, c),
+            () => clearMarketHighlights()
+          );
         }
         if (state.activationMode && state.activationSelection.building?.[0] === r && state.activationSelection.building?.[1] === c) {
           cell.classList.add("selected-building");
@@ -1629,13 +1638,17 @@ function highlightLocations() {
             : true);
         if (canSelect) {
           cell.classList.add("highlight");
-          cell.title = t("build.workersTitle", { filled, req });
+          setPopover(cell, t("build.workersTitle", { filled, req }), { tap: false });
         } else {
           cell.classList.add("disabled");
           if (data.building && req > 0) {
-            cell.title = data.activationForfeit
-              ? t("build.workersForfeitedTitle", { filled, req })
-              : t("build.workersTitle", { filled, req });
+            setPopover(
+              cell,
+              data.activationForfeit
+                ? t("build.workersForfeitedTitle", { filled, req })
+                : t("build.workersTitle", { filled, req }),
+              { tap: false }
+            );
           }
         }
         if ((req === 0 && data.building) || filled >= req) {
@@ -3425,9 +3438,12 @@ function updateScoreOverlays(breakdown, total = 0, marketDetails = [], nodeToMar
     
     // Add market details tooltip
     if (spot.key === "market" && marketDetails.length > 0) {
-      chip.title = marketDetails
-        .map((m) => t("market.tooltipRow", { row: m.row + 1, col: m.col + 1, points: m.points }))
-        .join('\n');
+      setPopover(
+        chip,
+        marketDetails
+          .map((m) => t("market.tooltipRow", { row: m.row + 1, col: m.col + 1, points: m.points }))
+          .join('\n')
+      );
     }
     
     targetEl.appendChild(chip);
@@ -3502,10 +3518,10 @@ function renderInfluenceTrack({ influenceEarned = 0, influenceSpent = 0 } = {}) 
         scribble.alt = "";
         scribble.className = "influence-scribble";
         slot.appendChild(scribble);
-        slot.title = t("influence.spentTitle");
+        setPopover(slot, t("influence.spentTitle"));
       } else {
         slot.classList.add("available");
-        slot.title = t("influence.availableTitle");
+        setPopover(slot, t("influence.availableTitle"));
       }
     }
     track.appendChild(slot);
@@ -3527,7 +3543,7 @@ function renderTurnTrack(filled = 0) {
     const unused = i >= turnLimit;
     if (unused) {
       slot.classList.add("turn-slot-unused");
-      slot.title = t("turn.unusedTurnMarkerTitle");
+      setPopover(slot, t("turn.unusedTurnMarkerTitle"));
     }
     if (i < count || unused) {
       const icon = document.createElement("img");

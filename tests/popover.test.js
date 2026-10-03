@@ -48,6 +48,34 @@ describe("setPopover", () => {
     // Should not throw
     setPopover(null, "Test text");
   });
+
+  it("sets data-popover-tap to false when tap option is false", () => {
+    const el = document.createElement("button");
+    setPopover(el, "Test text", { tap: false });
+
+    expect(el.dataset.popoverTap).toBe("false");
+  });
+
+  it("removes data-popover-tap when tap option is true or omitted", () => {
+    const el = document.createElement("button");
+    setPopover(el, "Test text", { tap: false });
+    expect(el.dataset.popoverTap).toBe("false");
+
+    setPopover(el, "Test text", { tap: true });
+    expect(el.dataset.popoverTap).toBeUndefined();
+
+    setPopover(el, "Test text");
+    expect(el.dataset.popoverTap).toBeUndefined();
+  });
+
+  it("clears data-popover-tap when popover is removed", () => {
+    const el = document.createElement("button");
+    setPopover(el, "Test text", { tap: false });
+    expect(el.dataset.popoverTap).toBe("false");
+
+    setPopover(el, null);
+    expect(el.dataset.popoverTap).toBeUndefined();
+  });
 });
 
 describe("initPopovers", () => {
@@ -108,6 +136,19 @@ describe("initPopovers", () => {
 
     btn.click();
     expect(popover.hidden).toBe(false);
+
+    btn.click();
+    expect(popover.hidden).toBe(true);
+  });
+
+  it("does not show popover on click when tap is false", () => {
+    initPopovers(root);
+    const btn = document.createElement("button");
+    btn.dataset.popover = "Click text";
+    btn.dataset.popoverTap = "false";
+    root.appendChild(btn);
+
+    const popover = document.querySelector(".rf-popover");
 
     btn.click();
     expect(popover.hidden).toBe(true);
