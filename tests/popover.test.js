@@ -76,6 +76,39 @@ describe("setPopover", () => {
     setPopover(el, null);
     expect(el.dataset.popoverTap).toBeUndefined();
   });
+
+  it("adds tabindex=0 to a non-focusable element like a div", () => {
+    const el = document.createElement("div");
+    setPopover(el, "Test text");
+
+    expect(el.getAttribute("tabindex")).toBe("0");
+  });
+
+  it("does not add tabindex to a naturally focusable element like a button", () => {
+    const el = document.createElement("button");
+    setPopover(el, "Test text");
+
+    expect(el.hasAttribute("tabindex")).toBe(false);
+  });
+
+  it("removes the tabindex it added when the popover is cleared", () => {
+    const el = document.createElement("div");
+    setPopover(el, "Test text");
+    expect(el.getAttribute("tabindex")).toBe("0");
+
+    setPopover(el, null);
+    expect(el.hasAttribute("tabindex")).toBe(false);
+  });
+
+  it("does not remove a pre-existing tabindex when the popover is cleared", () => {
+    const el = document.createElement("div");
+    el.setAttribute("tabindex", "-1");
+    setPopover(el, "Test text");
+    expect(el.getAttribute("tabindex")).toBe("-1");
+
+    setPopover(el, null);
+    expect(el.getAttribute("tabindex")).toBe("-1");
+  });
 });
 
 describe("initPopovers", () => {
@@ -267,6 +300,19 @@ describe("initPopovers", () => {
     // Unfocus
     btn.dispatchEvent(new Event("focusout", { bubbles: true }));
     expect(popover.hidden).toBe(true);
+  });
+
+  it("shows popover when focusing a div target via setPopover", () => {
+    initPopovers(root);
+    const div = document.createElement("div");
+    setPopover(div, "Div focus text");
+    root.appendChild(div);
+
+    const popover = document.querySelector(".rf-popover");
+
+    div.dispatchEvent(new Event("focusin", { bubbles: true }));
+    expect(popover.hidden).toBe(false);
+    expect(popover.textContent).toBe("Div focus text");
   });
 
   it("handles non-Element targets in event handlers without throwing", () => {

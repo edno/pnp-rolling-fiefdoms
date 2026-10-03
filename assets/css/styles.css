@@ -1650,7 +1650,7 @@ select {
 .influence-stepper-label {
   font-family: var(--font-ui);
   font-size: 13px;
-  color: var(--muted);
+  color: var(--text);
 }
 
 .influence-stepper-face svg {
@@ -2273,6 +2273,14 @@ button.secondary {
   line-height: 1.35;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
   pointer-events: none;
+}
+
+.has-popover {
+  pointer-events: auto;
+}
+
+.has-popover:not(.cell) {
+  cursor: help;
 }
 
 /* Responsive overrides: kept last so they win over the base rules above. */

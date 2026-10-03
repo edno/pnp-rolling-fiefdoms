@@ -34,6 +34,10 @@ export function setPopover(el, text, options = {}) {
     delete el.dataset.popover;
     el.classList.remove("has-popover");
     delete el.dataset.popoverTap;
+    if (el.dataset.popoverAddedTabindex === "true") {
+      el.removeAttribute("tabindex");
+      delete el.dataset.popoverAddedTabindex;
+    }
     return;
   }
 
@@ -43,6 +47,14 @@ export function setPopover(el, text, options = {}) {
   }
   el.removeAttribute("title");
   el.classList.add("has-popover");
+
+  // Ensure keyboard users can focus non-interactive elements (e.g. divs/spans)
+  // so the existing focusin handler can show the popover.
+  const isNativelyFocusable = /^(button|a|input|select|textarea)$/i.test(el.tagName);
+  if (!isNativelyFocusable && !el.hasAttribute("tabindex")) {
+    el.setAttribute("tabindex", "0");
+    el.dataset.popoverAddedTabindex = "true";
+  }
 
   // Store tap option (default true)
   if (options.tap === false) {

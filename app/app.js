@@ -764,7 +764,7 @@ async function setupControls() {
   }
   setupChallengePicker();
   if (logDrawerEl) {
-    if (window.matchMedia && window.matchMedia("(max-width: 1099px)").matches) {
+    if (isCompactLayout()) {
       logDrawerEl.open = false;
     }
     logDrawerEl.addEventListener("toggle", () => {
