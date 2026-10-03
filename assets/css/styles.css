@@ -213,6 +213,10 @@ button.menu-item {
   min-height: 44px;
 }
 
+.building-picker {
+  display: none;
+}
+
 .action-bar #diceView .die-badge {
   width: clamp(44px, 9vw, 64px);
   height: clamp(44px, 9vw, 64px);
@@ -2046,6 +2050,33 @@ button.secondary {
 
   .pair-build-fields .dice-row {
     flex-wrap: wrap;
+  }
+
+  .building-picker:not([hidden]) {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px 8px;
+    padding: 4px 0;
+  }
+
+  .building-pick {
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 6px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  .building-pick.selected {
+    border: 2px solid var(--accent);
+    background-color: rgba(230, 126, 34, 0.25);
+  }
+
+  .building-pick-pop {
+    font-size: 0.85em;
+    opacity: 0.8;
   }
 }
 

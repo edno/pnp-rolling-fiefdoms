@@ -50,6 +50,7 @@ const baseHtml = `
   <input id="fiefdomInput" />
   <div id="buildingsOverlay"></div>
   <div id="guildsOverlay"></div>
+  <div id="buildingPicker" hidden></div>
 `;
 
 async function flushMicrotasks() {
@@ -885,5 +886,113 @@ describe("plot confirm step (jsdom)", () => {
     } finally {
       setConfirmStepOverride(null);
     }
+  });
+});
+
+describe("narrow-screen building picker (jsdom)", () => {
+  function stubNarrowMatchMedia() {
+    const narrowMatchMedia = (query) => ({
+      matches: query.includes("max-width: 1100px"),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    });
+    window.matchMedia = narrowMatchMedia;
+  }
+
+  async function setupPairedForBuild(hooks) {
+    hooks.state.dice = [
+      { label: "N1", face: 1, resolved: 1 },
+      { label: "N2", face: 2, resolved: 2 },
+      { label: "B1", face: 1, resolved: 1 },
+      { label: "B2", face: 2, resolved: 2 },
+    ];
+    hooks.state.locationSelection = [0, 1];
+    hooks.state.rollAvailable = false;
+    hooks.state.board = createEmptyBoard();
+    hooks.state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    hooks.updateDiceAssignments();
+    await flushMicrotasks();
+  }
+
+  it("shows exactly the available options after pairing, mirroring the sheet overlay", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    stubNarrowMatchMedia();
+    await setupPairedForBuild(hooks);
+
+    const overlayCodes = Array.from(document.querySelectorAll("#buildingsOverlay .building-hit.available")).map(
+      (el) => el.dataset.code,
+    );
+    const pickerCodes = Array.from(document.querySelectorAll("#buildingPicker .building-pick")).map(
+      (el) => el.dataset.code,
+    );
+    expect(overlayCodes.length).toBeGreaterThan(0);
+    expect(pickerCodes.sort()).toEqual(overlayCodes.sort());
+    expect(document.getElementById("buildingPicker").hidden).toBe(false);
+  });
+
+  it("clicking a picker button selects the same building as the overlay", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    stubNarrowMatchMedia();
+    await setupPairedForBuild(hooks);
+
+    const pickBtn = document.querySelector('#buildingPicker .building-pick[data-code="F"]');
+    expect(pickBtn).toBeTruthy();
+    pickBtn.click();
+    await flushMicrotasks();
+
+    expect(hooks.state.buildChoice?.code).toBe("F");
+    const overlayHit = document.querySelector('#buildingsOverlay .building-hit[data-code="F"]');
+    expect(overlayHit.classList.contains("selected")).toBe(true);
+    const refreshedPickBtn = document.querySelector('#buildingPicker .building-pick[data-code="F"]');
+    expect(refreshedPickBtn.classList.contains("selected")).toBe(true);
+  });
+
+  it("shows guild type picker buttons when the Guild building is chosen", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    stubNarrowMatchMedia();
+    hooks.state.dice = [
+      { label: "N1", face: 1, resolved: 1 },
+      { label: "N2", face: 2, resolved: 2 },
+      { label: "B1", face: 5, resolved: 5 },
+      { label: "B2", face: 5, resolved: 5 },
+    ];
+    hooks.state.locationSelection = [0, 1];
+    hooks.state.rollAvailable = false;
+    hooks.state.board = createEmptyBoard();
+    hooks.state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    hooks.updateDiceAssignments();
+    await flushMicrotasks();
+
+    const guildPick = document.querySelector('#buildingPicker .building-pick[data-code="G"]');
+    expect(guildPick).toBeTruthy();
+    guildPick.click();
+    await flushMicrotasks();
+
+    const guildTypeBtn = document.querySelector('#buildingPicker .building-pick[data-code="GF"]');
+    expect(guildTypeBtn).toBeTruthy();
+    guildTypeBtn.click();
+    await flushMicrotasks();
+
+    expect(hooks.state.selectedGuildType).toBe("GF");
+    const guildHit = document.querySelector('#guildsOverlay .guild-hit[data-code="GF"]');
+    expect(guildHit.classList.contains("selected")).toBe(true);
+  });
+
+  it("hides the picker once the building has been placed", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    stubNarrowMatchMedia();
+    await setupPairedForBuild(hooks);
+    hooks.state.buildChoice = { code: "F", source: "die2" };
+
+    hooks.placeBuilding(0, 1, "F");
+    await flushMicrotasks();
+
+    expect(hooks.state.board[0][1].building).toBe("F");
+    expect(document.getElementById("buildingPicker").hidden).toBe(true);
+    expect(document.querySelectorAll("#buildingPicker .building-pick").length).toBe(0);
   });
 });

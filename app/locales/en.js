@@ -39,6 +39,7 @@ export default {
     sheetAlt: "Rolling Fiefdoms player sheet showing the 5x5 board, tracks, and panels.",
     selectBuilding: "Select building",
     selectGuild: "Select guild",
+    buildingPickerLabel: "Choose a building",
     close: "Close",
     turnTitle: "Turn",
     rollDice: "Roll Dice",
@@ -123,6 +124,7 @@ export default {
     rollingDice: "Rolling dice...",
     rolled: "Rolled {dice}",
     unusedTurnMarkerTitle: "This turn won't be played (turn limit reached earlier).",
+    selectBuildingPicker: "Choose a building below.",
   },
   game: {
     started: "Game started.",

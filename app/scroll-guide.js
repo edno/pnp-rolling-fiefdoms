@@ -40,8 +40,11 @@ export function guideTo(el, { block = "center", minVisible = 1 } = {}) {
 
     // Compute the scroll position based on block option
     let top;
-    if (block === "start") {
+    const available = viewportHeight - barHeight - 16;
+
+    if (rect.height >= available || block === "start") {
       // Place element at the top of the comfort zone (below action bar)
+      // when element is taller than available space or explicitly "start"
       top = window.scrollY + rect.top - barHeight - COMFORT_MARGIN;
     } else {
       // block === "center": center the element in the available area below the bar
@@ -49,9 +52,11 @@ export function guideTo(el, { block = "center", minVisible = 1 } = {}) {
       const elementHeight = rect.height;
       const centerOffset = (availableHeight - elementHeight) / 2;
       top = window.scrollY + rect.top - barHeight - centerOffset;
+      // Clamp so the element's top is never above barHeight + 8
+      top = Math.min(top, window.scrollY + rect.top - barHeight - COMFORT_MARGIN);
     }
 
-    // Never place the element's top above the bar
+    // Never place the element's top above the screen start
     top = Math.max(0, top);
 
     const reduceMotion = Boolean(

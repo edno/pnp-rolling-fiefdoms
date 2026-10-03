@@ -196,4 +196,53 @@ describe("guideTo", () => {
 
     expect(window.scrollTo).toHaveBeenCalled();
   });
+
+  it("tall element with block center aligns its top below the bar", () => {
+    stubMatchMedia({ narrow: true });
+    stubActionBar(83);
+    const el = document.createElement("div");
+    // Viewport: 390, Bar: 83, Available: 390-83-16=291
+    // Element height: 330 (>= 291, so triggers tall condition)
+    // Element at top=1000, bottom=1330
+    el.getBoundingClientRect = () => ({ top: 1000, bottom: 1330, height: 330 });
+    document.body.appendChild(el);
+    Object.defineProperty(window, "innerHeight", { value: 390, configurable: true });
+    Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
+
+    guideTo(el, { block: "center" });
+
+    // Expected: top = 0 + 1000 - 83 - 8 = 909
+    expect(window.scrollTo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        top: 909,
+      }),
+    );
+  });
+
+  it("short element centering never places top under the bar", () => {
+    stubMatchMedia({ narrow: true });
+    stubActionBar(83);
+    const el = document.createElement("div");
+    // Viewport: 390, Bar: 83, Available: 390-83-16=291
+    // Element height: 100 (< 291, so uses center logic)
+    // Element at top=500, bottom=600
+    el.getBoundingClientRect = () => ({ top: 500, bottom: 600, height: 100 });
+    document.body.appendChild(el);
+    Object.defineProperty(window, "innerHeight", { value: 390, configurable: true });
+    Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
+
+    guideTo(el, { block: "center" });
+
+    // Calculate:
+    // availableHeight = 390 - 83 = 307
+    // centerOffset = (307 - 100) / 2 = 103.5
+    // top (before clamp) = 0 + 500 - 83 - 103.5 = 313.5
+    // Clamp to max: min(313.5, 0 + 500 - 83 - 8) = min(313.5, 409) = 313.5
+    // After scroll to 313.5, element's viewport top is 500 - 313.5 = 186.5 (>= 83+8=91, OK)
+    expect(window.scrollTo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        top: 313.5,
+      }),
+    );
+  });
 });

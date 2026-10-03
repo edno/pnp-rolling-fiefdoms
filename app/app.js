@@ -60,6 +60,7 @@ import { splitForcedDice } from "./dice-display.js";
 import { createDieFaceSVG } from "./dice-face.js";
 import { needsConfirmStep } from "./confirm-step.js";
 import { guideTo } from "./scroll-guide.js";
+import { isCompactLayout } from "./layout-mode.js";
 import {
   boardEl,
   diceView,
@@ -1336,7 +1337,9 @@ function fillBuildings(buildDice) {
     !state.forceForfeit &&
     !state.forceForfeitAdvisory &&
     !state.activationMode;
-  if (shouldGuideToBuildings) {
+  // On narrow screens the building choice is offered as buttons in the sticky
+  // action bar (see renderBuildingPicker), so no need to scroll to the sheet.
+  if (shouldGuideToBuildings && !isCompactLayout()) {
     guideToStep(
       "buildings:" + options.map((o) => o.code).join(","),
       () => document.querySelector(".sheet-window-buildings"),
@@ -1436,6 +1439,67 @@ function renderBuildingOverlay(options = [], disabled = false) {
     );
     overlay.appendChild(div);
   });
+  renderBuildingPicker();
+}
+
+/**
+ * Mirrors the Buildings sheet overlay (and, when relevant, the guild overlay)
+ * as touch-sized buttons in the sticky action bar for narrow screens. Reuses
+ * the overlay's own DOM state (`.building-hit.available/.selected`,
+ * `.guild-hit.available/.selected`) rather than recomputing the rules, and
+ * delegates clicks to the matching hitbox so behavior stays identical.
+ */
+function renderBuildingPicker() {
+  const picker = document.getElementById("buildingPicker");
+  if (!picker) return;
+  const overlay = document.getElementById("buildingsOverlay");
+  const availableHits = overlay ? Array.from(overlay.querySelectorAll(".building-hit.available")) : [];
+  clearElement(picker);
+  if (!availableHits.length) {
+    picker.hidden = true;
+    return;
+  }
+  picker.hidden = false;
+  availableHits.forEach((hit) => {
+    const code = hit.dataset.code;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "building-pick";
+    btn.dataset.code = code;
+    if (hit.dataset.source) btn.dataset.source = hit.dataset.source;
+    if (hit.dataset.pop) btn.dataset.pop = hit.dataset.pop;
+    const selected = hit.classList.contains("selected");
+    btn.classList.toggle("selected", selected);
+    btn.setAttribute("aria-pressed", selected ? "true" : "false");
+    const label = t(`buildings.${code}`);
+    if (hit.dataset.pop) {
+      const pop = document.createElement("span");
+      pop.className = "building-pick-pop";
+      pop.textContent = `+${hit.dataset.pop}`;
+      btn.append(label + " ", pop);
+    } else {
+      btn.textContent = label;
+    }
+    btn.addEventListener("click", () => hit.click());
+    picker.appendChild(btn);
+  });
+  if (state.buildChoice?.code === "G") {
+    const guildOverlay = document.getElementById("guildsOverlay");
+    const guildHits = guildOverlay ? Array.from(guildOverlay.querySelectorAll(".guild-hit.available")) : [];
+    guildHits.forEach((hit) => {
+      const code = hit.dataset.code;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "building-pick";
+      btn.dataset.code = code;
+      const selected = hit.classList.contains("selected");
+      btn.classList.toggle("selected", selected);
+      btn.setAttribute("aria-pressed", selected ? "true" : "false");
+      btn.textContent = t(`buildings.${code}`);
+      btn.addEventListener("click", () => hit.click());
+      picker.appendChild(btn);
+    });
+  }
 }
 
 function highlightMarketClaims(marketRow, marketCol) {
@@ -2698,6 +2762,7 @@ function renderGuildOverlay(available = []) {
     div.setAttribute("aria-label", hit.code);
     overlay.appendChild(div);
   });
+  renderBuildingPicker();
 }
 
 function nodesForCell(r, c) {

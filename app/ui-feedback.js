@@ -9,6 +9,7 @@
 import { actionBannerEl } from "./dom-manager.js";
 import { BUILDING_RULES } from "./rules.js";
 import { t, escapeHtml } from "./i18n.js";
+import { isCompactLayout } from "./layout-mode.js";
 
 /**
  * Wrap a button's label so it renders inline styled like the real button
@@ -143,7 +144,7 @@ export function actionMessage(state, currentPhase, options = {}) {
 
   if (phase === TURN_PHASE.BUILDING) {
     if (!state.buildChoice) {
-      return t("hints.selectBuildingFromOverlay");
+      return isCompactLayout() ? t("turn.selectBuildingPicker") : t("hints.selectBuildingFromOverlay");
     }
     return t("hints.clickHighlightedPlot");
   }

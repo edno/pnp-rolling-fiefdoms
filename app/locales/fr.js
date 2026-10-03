@@ -39,6 +39,7 @@ export default {
     sheetAlt: "Feuille de fief Rolling Fiefdoms montrant le plateau 5x5, les pistes et les panneaux.",
     selectBuilding: "Choisir un bâtiment",
     selectGuild: "Choisir une guilde",
+    buildingPickerLabel: "Choisir un bâtiment",
     close: "Fermer",
     turnTitle: "Tour",
     rollDice: "Lancer les dés",
@@ -123,6 +124,7 @@ export default {
     rollingDice: "Lancer des dés...",
     rolled: "Lancé {dice}",
     unusedTurnMarkerTitle: "Ce tour ne sera pas joué (limite de tours atteinte plus tôt).",
+    selectBuildingPicker: "Choisissez un bâtiment ci-dessous.",
   },
   game: {
     started: "Partie commencée.",
