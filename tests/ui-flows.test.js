@@ -412,6 +412,51 @@ describe("activation prompts (jsdom)", () => {
   });
 });
 
+describe("inline action button in banner (jsdom)", () => {
+  it("renders the pre-roll banner with a real inline button targeting #rollBtn", async () => {
+    await setupApp({ enableHooks: true });
+    const inlineBtn = document.querySelector('#actionBanner .btn-inline-action[data-target="rollBtn"]');
+    expect(inlineBtn).toBeTruthy();
+    expect(inlineBtn.tagName).toBe("BUTTON");
+  });
+
+  it("clicking the inline roll button rolls the dice like #rollBtn", async () => {
+    await setupApp({ enableHooks: true, numbered: [1, 2, 3, 4], x: ["X", "X"] });
+    const hooks = window.__rfTestHooks;
+    expect(Array.isArray(hooks.state.dice) ? hooks.state.dice.length : 0).toBe(0);
+    const inlineBtn = document.querySelector('#actionBanner .btn-inline-action[data-target="rollBtn"]');
+    expect(inlineBtn).toBeTruthy();
+    inlineBtn.click();
+    await flushMicrotasks();
+    expect(Array.isArray(hooks.state.dice) && hooks.state.dice.length > 0).toBe(true);
+  });
+
+  it("disables the inline button when its target real button is disabled", async () => {
+    vi.resetModules();
+    stubEnvironment();
+    const { syncInlineActionButtons } = await import("../app/ui-feedback.js");
+    const rollBtn = document.getElementById("rollBtn");
+    rollBtn.disabled = true;
+    document.getElementById("actionBanner").innerHTML =
+      '<button type="button" class="btn-label-inline btn-inline-action" data-target="rollBtn">Roll Dice</button>';
+    syncInlineActionButtons();
+    const inlineBtn = document.querySelector('#actionBanner .btn-inline-action');
+    expect(inlineBtn.disabled).toBe(true);
+  });
+
+  it("delegates clicks on the finishActivation inline button to the real control", async () => {
+    await setupApp({ enableHooks: true });
+    const finishBtn = document.getElementById("finishActivation");
+    const onClick = vi.fn();
+    finishBtn.onclick = onClick;
+    finishBtn.disabled = false;
+    document.getElementById("actionBanner").innerHTML =
+      '<button type="button" class="btn-label-inline btn-inline-action" data-target="finishActivation">Finish Activation</button>';
+    document.querySelector('#actionBanner .btn-inline-action').click();
+    expect(onClick).toHaveBeenCalled();
+  });
+});
+
 describe("score rank banner (jsdom)", () => {
   it("summarizes the final score with a rank label", async () => {
     await setupApp({ enableHooks: true });

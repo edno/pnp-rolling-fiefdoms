@@ -1237,12 +1237,26 @@ button:disabled {
   display: inline-block;
   background: var(--accent-strong);
   color: #fff;
+  border: none;
   border-radius: var(--radius-sm);
   padding: 2px 8px;
   font-family: var(--font-ui);
   font-weight: 600;
   font-size: 0.85em;
   white-space: nowrap;
+}
+
+.btn-inline-action {
+  padding: 4px 14px;
+  font-size: 0.8em;
+  vertical-align: middle;
+  cursor: pointer;
+  min-height: 36px;
+}
+
+.btn-inline-action:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .link-btn {
@@ -2122,6 +2136,14 @@ button.secondary {
     font-size: 0.85em;
     opacity: 0.8;
   }
+
+  .action-bar:has(.btn-inline-action[data-target="rollBtn"]) #rollBtn {
+    display: none !important;
+  }
+
+  .action-bar:has(.btn-inline-action[data-target="finishActivation"]) #finishActivation {
+    display: none !important;
+  }
 }
 
 @media (orientation: portrait) and (max-width: 1024px) {
@@ -2206,6 +2228,10 @@ button.secondary {
 }
 
 @media (pointer: coarse) {
+  .btn-inline-action {
+    min-height: 44px;
+  }
+
   #diceView .influence-btn,
   #locDicePreview .influence-btn,
   #buildDicePreview .influence-btn {

@@ -120,6 +120,7 @@ import {
   forEachCell,
   createOctagon,
   clearElement,
+  actionBannerEl,
 } from "./dom-manager.js";
 import {
   ICONS,
@@ -136,6 +137,7 @@ import {
   updateActionBanner as updateBannerUI,
   formatButtonLabelHtml,
   flashHint,
+  syncInlineActionButtons,
   TURN_PHASE,
 } from "./ui-feedback.js";
 import {
@@ -422,6 +424,7 @@ function updateRollButton() {
   rollBtn.disabled = !enabled;
   rollBtn.classList.toggle("dice-locked", !enabled && !debugMode);
   rollBtn.title = enabled ? t("turn.rollIdleTitle") : t("turn.rollUsedTitle");
+  syncInlineActionButtons();
 }
 
 function refreshDiceVisibility() {
@@ -743,6 +746,14 @@ async function setupControls() {
     newGameBtn.onclick = () => openChallengePicker();
     newGameBtn.style.display = "none";
   }
+  if (actionBannerEl) {
+    actionBannerEl.addEventListener("click", (event) => {
+      const btn = event.target.closest(".btn-inline-action");
+      if (!btn) return;
+      const target = document.getElementById(btn.dataset.target);
+      if (target && !target.disabled) target.click();
+    });
+  }
   setupChallengePicker();
   if (logDrawerEl) {
     if (window.matchMedia && window.matchMedia("(max-width: 1099px)").matches) {
@@ -888,7 +899,7 @@ function rollDice() {
   if (needsDoubleReroll) {
     const msg = t("turn.doubleWindroseRolled");
     log(msg);
-    state.bannerOverride = t("turn.doubleWindroseRolledBanner", { rollBtn: formatButtonLabelHtml(t("html.rollDice")) });
+    state.bannerOverride = t("turn.doubleWindroseRolledBanner", { rollBtn: formatButtonLabelHtml(t("html.rollDice"), "rollBtn") });
     updateActionBanner();
     state.pendingTurnIndex = state.turnIndex;
     state.pendingActiveTurn = state.activeTurn;
@@ -2245,7 +2256,7 @@ function autoAdvance() {
   if (action === "roll") {
     prepareNextRoll();
     state.bannerOverride = state.pestilence
-      ? t("hints.pressRollAfterPestilence", { rollBtn: formatButtonLabelHtml(t("html.rollDice")) })
+      ? t("hints.pressRollAfterPestilence", { rollBtn: formatButtonLabelHtml(t("html.rollDice"), "rollBtn") })
       : null;
     updateActionBanner();
   }

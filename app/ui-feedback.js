@@ -14,9 +14,28 @@ import { isCompactLayout } from "./layout-mode.js";
 /**
  * Wrap a button's label so it renders inline styled like the real button
  * (see .btn-label-inline in styles.css), for use inside t()-interpolated hints.
+ * When targetId is provided, the inline label is itself a real button that
+ * triggers the control with that id (see delegated click handler in app.js).
  */
-export function formatButtonLabelHtml(label) {
+export function formatButtonLabelHtml(label, targetId) {
+  if (targetId) {
+    return `<button type="button" class="btn-label-inline btn-inline-action" data-target="${escapeHtml(targetId)}">${escapeHtml(label)}</button>`;
+  }
   return `<span class="btn-label-inline">${escapeHtml(label)}</span>`;
+}
+
+/**
+ * Keep inline-action buttons inside the action banner disabled/enabled in
+ * sync with the real controls they target (#rollBtn, #finishActivation).
+ */
+export function syncInlineActionButtons() {
+  if (!actionBannerEl) return;
+  const inlineButtons = actionBannerEl.querySelectorAll(".btn-inline-action");
+  inlineButtons.forEach((btn) => {
+    const target = document.getElementById(btn.dataset.target);
+    const targetUnavailable = !target || target.disabled || target.style.display === "none";
+    btn.disabled = targetUnavailable;
+  });
 }
 
 const SCORE_RANKS = [
@@ -91,7 +110,7 @@ export function actionMessage(state, currentPhase, options = {}) {
       return t("activation.populationSelected", { remaining });
     }
     if (anyRemaining) return t("activation.selectPopulationNode");
-    return t("activation.finishWhenReady", { finishBtn: formatButtonLabelHtml(t("html.finishActivation")) });
+    return t("activation.finishWhenReady", { finishBtn: formatButtonLabelHtml(t("html.finishActivation"), "finishActivation") });
   }
 
   if (state.pendingSpringhouseTarget) {
@@ -129,7 +148,7 @@ export function actionMessage(state, currentPhase, options = {}) {
   }
 
   if (phase === TURN_PHASE.AWAIT_ROLL) {
-    return t("hints.pressRollToStart", { rollBtn: formatButtonLabelHtml(t("html.rollDice")) });
+    return t("hints.pressRollToStart", { rollBtn: formatButtonLabelHtml(t("html.rollDice"), "rollBtn") });
   }
 
   if (phase === TURN_PHASE.SPLITTING) {
@@ -150,7 +169,7 @@ export function actionMessage(state, currentPhase, options = {}) {
   }
 
   if (!state.activeTurn) return t("hints.waitingForActivePlayer");
-  return t("hints.rollDiceToBegin", { rollBtn: formatButtonLabelHtml(t("html.rollDice")) });
+  return t("hints.rollDiceToBegin", { rollBtn: formatButtonLabelHtml(t("html.rollDice"), "rollBtn") });
 }
 
 /**
@@ -173,6 +192,7 @@ export function updateActionBanner(state, currentPhase, options = {}) {
     void actionBannerEl.offsetWidth; // restart animation
     actionBannerEl.classList.add("bump");
   }
+  syncInlineActionButtons();
 }
 
 let flashHintTimer = null;
@@ -193,6 +213,7 @@ export function flashHint(text) {
   actionBannerEl.classList.remove("bump");
   void actionBannerEl.offsetWidth; // restart animation
   actionBannerEl.classList.add("bump");
+  syncInlineActionButtons();
   if (flashHintTimer) clearTimeout(flashHintTimer);
   flashHintTimer = setTimeout(() => {
     flashHintTimer = null;
@@ -203,5 +224,6 @@ export function flashHint(text) {
     } else {
       actionBannerEl.textContent = restoreText;
     }
+    syncInlineActionButtons();
   }, 3000);
 }
