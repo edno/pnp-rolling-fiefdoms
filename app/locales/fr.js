@@ -259,7 +259,7 @@ export default {
     pressRollToStart: "Appuyez sur {rollBtn} pour commencer votre tour.",
     lockSplitToContinue: "Verrouillez la répartition pour continuer à construire.",
     selectBuildingFromOverlay: 'Sélectionnez un bâtiment dans le panneau <span class="panel-title-font">Bâtiments</span>.',
-    clickHighlightedPlot: "Cliquez sur une parcelle en surbrillance pour placer le bâtiment choisi.",
+    clickHighlightedPlot: "Choisissez une parcelle en surbrillance pour construire.",
     waitingForActivePlayer: "En attente du joueur actif.",
     rollDiceToBegin: "{rollBtn} pour commencer.",
     pressRollAfterPestilence: "Appuyez sur {rollBtn} pour continuer après la Pestilence.",

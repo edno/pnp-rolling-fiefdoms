@@ -286,6 +286,12 @@
             >
               <img src="assets/img/swap.svg" alt="" class="swap-icon" />
             </button>
+            <button id="finishActivation" style="display: none" data-i18n="html.finishActivation">
+              Finish Activation
+            </button>
+            <button id="newGameBtn" style="display: none" data-i18n="html.playAgain">Play again</button>
+          </div>
+          <div class="action-bar-aux">
             <button
               id="confirmPlotBtn"
               type="button"
@@ -303,52 +309,48 @@
             >
               Change plot
             </button>
-            <button id="finishActivation" style="display: none" data-i18n="html.finishActivation">
-              Finish Activation
-            </button>
-            <button id="newGameBtn" style="display: none" data-i18n="html.playAgain">Play again</button>
-          </div>
-          <div id="influenceStepper" class="influence-stepper" hidden>
-            <span class="influence-stepper-label" data-i18n="influence.stepperLabel">Influence</span>
-            <button
-              id="influenceStepperMinus"
-              type="button"
-              class="influence-stepper-btn minus"
-              data-i18n-attr="title:influence.decreaseTitle"
-              title="Decrease"
-            >
-              −
-            </button>
-            <span id="influenceStepperFace" class="influence-stepper-face"></span>
-            <span id="influenceStepperValue" class="influence-stepper-value"></span>
-            <button
-              id="influenceStepperPlus"
-              type="button"
-              class="influence-stepper-btn plus"
-              data-i18n-attr="title:influence.increaseTitle"
-              title="Increase"
-            >
-              +
-            </button>
-            <button
-              id="influenceStepperReset"
-              type="button"
-              class="influence-stepper-btn reset"
-              data-i18n-attr="title:influence.resetTitle"
-              title="Reset"
+            <div
+              id="buildingPicker"
+              class="building-picker"
+              role="group"
               hidden
-            >
-              ↺
-            </button>
+              data-i18n-attr="aria-label:html.buildingPickerLabel"
+              aria-label="Choose a building"
+            ></div>
+            <div id="influenceStepper" class="influence-stepper" hidden>
+              <span class="influence-stepper-label" data-i18n="influence.stepperLabel">Influence</span>
+              <button
+                id="influenceStepperMinus"
+                type="button"
+                class="influence-stepper-btn minus"
+                data-i18n-attr="title:influence.decreaseTitle"
+                title="Decrease"
+              >
+                −
+              </button>
+              <span id="influenceStepperFace" class="influence-stepper-face"></span>
+              <span id="influenceStepperValue" class="influence-stepper-value"></span>
+              <button
+                id="influenceStepperPlus"
+                type="button"
+                class="influence-stepper-btn plus"
+                data-i18n-attr="title:influence.increaseTitle"
+                title="Increase"
+              >
+                +
+              </button>
+              <button
+                id="influenceStepperReset"
+                type="button"
+                class="influence-stepper-btn reset"
+                data-i18n-attr="title:influence.resetTitle"
+                title="Reset"
+                hidden
+              >
+                ↺
+              </button>
+            </div>
           </div>
-          <div
-            id="buildingPicker"
-            class="building-picker"
-            role="group"
-            hidden
-            data-i18n-attr="aria-label:html.buildingPickerLabel"
-            aria-label="Choose a building"
-          ></div>
       </div>
 
       <section class="board-panel">

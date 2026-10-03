@@ -259,7 +259,7 @@ export default {
     pressRollToStart: "Press {rollBtn} to start your turn.",
     lockSplitToContinue: "Lock the split to continue building.",
     selectBuildingFromOverlay: 'Select a building from the <span class="panel-title-font">Buildings</span> panel.',
-    clickHighlightedPlot: "Click a highlighted plot to place the chosen building.",
+    clickHighlightedPlot: "Choose a highlighted plot to build.",
     waitingForActivePlayer: "Waiting for the active player.",
     rollDiceToBegin: "{rollBtn} to begin.",
     pressRollAfterPestilence: "Press {rollBtn} to continue after pestilence.",

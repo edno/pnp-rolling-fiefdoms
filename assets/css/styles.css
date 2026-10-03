@@ -185,16 +185,23 @@ button.menu-item {
 
 .action-banner {
   margin: 0;
-  padding: 10px 24px;
+  padding: 4px 24px;
   background: rgba(255, 255, 255, 0.5);
   border-bottom: 1px solid var(--border);
   font-weight: 900;
   color: var(--accent-strong);
-  min-height: 28px;
   text-align: center;
   font-size: 24px;
+  line-height: var(--ab-banner-line-h, 30px);
+  height: var(--ab-banner-h, 64px);
   width: 100%;
   box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  justify-content: center;
+  column-gap: 0.3em;
+  overflow: hidden;
 }
 
 .action-bar {
@@ -202,10 +209,17 @@ button.menu-item {
   position: sticky;
   top: 0;
   z-index: 15;
+  min-width: 0;
   background: var(--panel);
   border-bottom: 1px solid var(--border);
   padding: 0 max(16px, env(safe-area-inset-right)) 8px
     max(16px, env(safe-area-inset-left));
+  /* Fixed-height action-bar slots (banner / main row / aux row) so actions
+     never shift the page; see AGENTS.md Appendix. */
+  --ab-banner-line-h: 30px;
+  --ab-banner-h: 64px;
+  --ab-main-h: 72px;
+  --ab-aux-h: 44px;
 }
 
 .action-bar .action-banner {
@@ -215,9 +229,18 @@ button.menu-item {
 .action-bar-controls {
   display: flex;
   align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
+  justify-content: safe center;
+  min-width: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
   gap: 12px;
+  height: var(--ab-main-h);
+  min-height: var(--ab-main-h);
+}
+
+.action-bar-controls::-webkit-scrollbar {
+  display: none;
 }
 
 .action-bar-controls > button {
@@ -235,6 +258,43 @@ button.menu-item {
   padding: 0;
   flex: 0 0 auto;
   align-self: center;
+}
+
+.action-bar-aux {
+  display: flex;
+  align-items: center;
+  justify-content: safe center;
+  min-width: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  gap: 8px;
+  height: var(--ab-aux-h);
+  min-height: var(--ab-aux-h);
+}
+
+.action-bar-aux::-webkit-scrollbar {
+  display: none;
+}
+
+.action-bar-aux > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  width: auto;
+  padding: 0 16px;
+  min-height: 36px;
+  border-radius: var(--radius-sm);
+}
+
+/* While a plot awaits Confirm, the aux row shows only Confirm / Change plot. */
+.action-bar-aux:has(> #confirmPlotBtn:not([style*="display: none"])) > #buildingPicker,
+.action-bar-aux:has(> #confirmPlotBtn:not([style*="display: none"])) > #influenceStepper {
+  display: none !important;
+}
+
+#buildingPicker,
+#influenceStepper {
+  flex: 0 0 auto;
 }
 
 .building-picker {
@@ -1524,7 +1584,7 @@ select {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 4px 0;
+  padding: 0;
 }
 
 .influence-stepper-label {
@@ -2170,6 +2230,7 @@ button.secondary {
 
   .action-bar {
     order: 0;
+    --ab-aux-h: 52px;
   }
 
   .board-panel {
@@ -2193,10 +2254,16 @@ button.secondary {
 
   .building-picker:not([hidden]) {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: center;
     gap: 6px 8px;
-    padding: 4px 0;
+    padding: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .building-picker:not([hidden])::-webkit-scrollbar {
+    display: none;
   }
 
   .building-pick {
@@ -2303,11 +2370,19 @@ button.secondary {
 }
 
 @media (pointer: coarse) {
+  .action-bar {
+    --ab-banner-line-h: 26px;
+    --ab-banner-h: 56px;
+    --ab-main-h: 60px;
+    --ab-aux-h: 52px;
+  }
+
   .btn-inline-action {
     min-height: 44px;
   }
 
-  .action-bar-controls > button {
+  .action-bar-controls > button,
+  .action-bar-aux > button {
     min-height: 44px;
   }
 
@@ -2387,7 +2462,6 @@ button.secondary {
     border-bottom: none;
     padding: 4px 8px;
     font-size: 18px;
-    line-height: 1.25;
   }
 
   .action-bar-controls {
@@ -2455,18 +2529,30 @@ button.secondary {
 
   .action-bar {
     padding: 0 8px 4px;
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: var(--ab-banner-h) var(--ab-main-h);
+    grid-template-areas: "banner banner" "controls aux";
     align-items: center;
     justify-content: center;
     column-gap: 12px;
+    --ab-banner-line-h: 20px;
+    --ab-banner-h: 24px;
+    --ab-main-h: 52px;
+    --ab-aux-h: 52px;
   }
 
+  /* Compact short-landscape bar: banner clamps to one line, and the main
+     row + aux row share the same fixed-height grid row (aux right-aligned)
+     so the bar stays as short as possible without changing height. */
   .action-bar .action-banner {
+    grid-area: banner;
     padding: 2px 8px;
     font-size: 16px;
-    line-height: 1.2;
-    flex: 1 0 100%;
+    display: block;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
   }
 
   .building-picker:not([hidden]) {
@@ -2474,8 +2560,17 @@ button.secondary {
   }
 
   .action-bar-controls {
+    grid-area: controls;
+    justify-self: start;
     gap: 6px 8px;
     flex-wrap: nowrap;
+  }
+
+  .action-bar-aux {
+    grid-area: aux;
+    justify-self: stretch;
+    justify-content: safe center;
+    gap: 6px 8px;
   }
 
   .action-bar #diceView .die-badge {
