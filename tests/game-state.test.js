@@ -9,6 +9,7 @@ import {
   finishActivation,
   startPopulationPlacement,
   placePopulationNode,
+  canPlacePopulationNode,
   chooseBarricadeNode,
   allocateWorker,
   autoForfeitUnfillableState,
@@ -1094,6 +1095,55 @@ describe("population placement", () => {
     expect(result.placed).toBe(2);
     expect(state.populationNodes[1][1]).toBe(2);
     expect(state.pendingPopulation).toBeNull();
+  });
+});
+
+describe("canPlacePopulationNode", () => {
+  it("returns ok:false with no reasonKey when no placement is pending", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    const result = canPlacePopulationNode(state, 1, 1, { nodesForCell });
+    expect(result).toEqual({ ok: false, reasonKey: null });
+  });
+
+  it("flags nodes that don't touch the built plot", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    state.pendingPopulation = { remaining: 2, cell: [2, 2] };
+    const result = canPlacePopulationNode(state, 0, 0, { nodesForCell });
+    expect(result).toEqual({ ok: false, reasonKey: "population.mustTouchBuiltPlot" });
+  });
+
+  it("flags nodes already used", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    state.populationNodes[1][1] = 1;
+    state.pendingPopulation = { remaining: 2, cell: [2, 2] };
+    const result = canPlacePopulationNode(state, 1, 1, { nodesForCell });
+    expect(result).toEqual({ ok: false, reasonKey: "population.spotAlreadyUsed" });
+  });
+
+  it("flags barricaded nodes", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    state.barricadedNodes = Array.from({ length: 4 }, () => Array(4).fill(false));
+    state.barricadedNodes[1][1] = true;
+    state.pendingPopulation = { remaining: 2, cell: [2, 2] };
+    const result = canPlacePopulationNode(state, 1, 1, { nodesForCell });
+    expect(result).toEqual({ ok: false, reasonKey: "population.spotAlreadyUsed" });
+  });
+
+  it("allows a valid, unused, touching node", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    state.pendingPopulation = { remaining: 2, cell: [2, 2] };
+    const result = canPlacePopulationNode(state, 1, 1, { nodesForCell });
+    expect(result).toEqual({ ok: true, reasonKey: null });
   });
 });
 

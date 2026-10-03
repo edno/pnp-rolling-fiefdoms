@@ -693,19 +693,30 @@ export function startPopulationPlacement(state, cellCoord, count, { nodesForCell
   };
 }
 
-export function placePopulationNode(state, nr, nc, { nodesForCell, allocatePopulationToNode, popCapacity }) {
+// Pure, read-only eligibility check for placing a population node at (nr, nc), shared by
+// placePopulationNode() (which commits the placement) and callers that only need to preview
+// whether a tap is valid (e.g. app.js's onPopulationNodeClick on touch devices). Returns a
+// reasonKey matching the message keys placePopulationNode() would log for the same failure.
+export function canPlacePopulationNode(state, nr, nc, { nodesForCell }) {
   if (!state.pendingPopulation || state.pendingPopulation.remaining <= 0) {
-    return { placed: 0, message: null };
+    return { ok: false, reasonKey: null };
   }
   const eligible = nodesForCell(state.pendingPopulation.cell[0], state.pendingPopulation.cell[1]).some(
     ([r, c]) => r === nr && c === nc,
   );
-  if (!eligible)
-    return { placed: 0, message: t("population.mustTouchBuiltPlot") };
+  if (!eligible) return { ok: false, reasonKey: "population.mustTouchBuiltPlot" };
   if ((state.populationNodes[nr]?.[nc] || 0) > 0)
-    return { placed: 0, message: t("population.spotAlreadyUsed") };
-  if (state.barricadedNodes?.[nr]?.[nc])
-    return { placed: 0, message: t("population.spotAlreadyUsed") };
+    return { ok: false, reasonKey: "population.spotAlreadyUsed" };
+  if (state.barricadedNodes?.[nr]?.[nc]) return { ok: false, reasonKey: "population.spotAlreadyUsed" };
+  return { ok: true, reasonKey: null };
+}
+
+export function placePopulationNode(state, nr, nc, { nodesForCell, allocatePopulationToNode, popCapacity }) {
+  if (!state.pendingPopulation || state.pendingPopulation.remaining <= 0) {
+    return { placed: 0, message: null };
+  }
+  const check = canPlacePopulationNode(state, nr, nc, { nodesForCell });
+  if (!check.ok) return { placed: 0, message: t(check.reasonKey) };
 
   const { placed, grid } = allocatePopulationToNode(
     state.populationNodes,

@@ -22,6 +22,7 @@
 
 ## Appendix: Current clarifications
 
+- Guided scrolling on narrow screens (`<=1100px`, see `app/scroll-guide.js`'s `guideTo()`): on each step transition (building options rendered, building/guild chosen, population placement pending, forfeit/pestilence forced) the viewport auto-scrolls to the next relevant control if it isn't fully visible below the sticky `.action-bar`, honoring `prefers-reduced-motion`. Triggered only on step changes (tracked via `lastGuidedStep` in `app/app.js`, reset on roll), not on every re-render. Pending plots dim other `.cell.highlight` candidates (`opacity: .45`) via a `:has()` selector while still letting the player tap them to move the pending plot.
 - Windrose faces replace previous paired faces; they are wild for location (1–5), must stay in the location pair, and count as 0 during pestilence.
 - Dice locking: after selecting a building or resolving pestilence/forfeit, dice are locked and should remain visible/grey until the next roll; location/build previews must persist during the lock.
 - Mid-game scoring: zero-requirement buildings (Cottage, Springhouse) and vagrants can score during play; worker-requiring buildings only score after activation at game end.

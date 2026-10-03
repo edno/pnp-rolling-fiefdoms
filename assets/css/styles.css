@@ -531,6 +531,12 @@ main {
   outline-offset: -2px;
 }
 
+/* While a plot/forfeit placement is pending confirm, dim the other tappable
+   candidates so the chosen one stands out; they remain fully tappable. */
+.board:has(.cell-pending) .cell.highlight:not(.cell-pending) {
+  opacity: 0.45;
+}
+
 .cell .label.building-preview {
   opacity: 0.5;
 }

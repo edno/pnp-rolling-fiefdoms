@@ -743,4 +743,29 @@ describe("plot confirm step (jsdom)", () => {
     await flushMicrotasks();
     expect(hooks.state.influenceAdjustments?.N1?.delta).toBeGreaterThan(0);
   });
+
+  it("rolling again clears a stale pending-plot confirm prompt", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { setConfirmStepOverride } = await import("../app/confirm-step.js");
+    setConfirmStepOverride(true);
+    try {
+      await setupBuildReady(hooks);
+      const targetCell = document.querySelector('.cell[data-row="0"][data-col="1"]');
+      targetCell.click();
+      await flushMicrotasks();
+
+      expect(hooks.state.pendingPlot).toBeTruthy();
+      expect(document.getElementById("confirmPlotBtn").style.display).not.toBe("none");
+
+      hooks.state.rollAvailable = true;
+      hooks.rollDice();
+      await flushMicrotasks();
+
+      expect(hooks.state.pendingPlot).toBeNull();
+      expect(document.getElementById("confirmPlotBtn").style.display).toBe("none");
+    } finally {
+      setConfirmStepOverride(null);
+    }
+  });
 });

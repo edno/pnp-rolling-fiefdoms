@@ -35,6 +35,7 @@ import {
   finishActivation as finishActivationState,
   startPopulationPlacement,
   placePopulationNode,
+  canPlacePopulationNode,
   chooseBarricadeNode,
   allocateWorker,
   autoForfeitUnfillableState,
@@ -58,6 +59,7 @@ import {
 import { splitForcedDice } from "./dice-display.js";
 import { createDieFaceSVG } from "./dice-face.js";
 import { needsConfirmStep } from "./confirm-step.js";
+import { guideTo } from "./scroll-guide.js";
 import {
   boardEl,
   diceView,
@@ -815,11 +817,23 @@ async function setupControls() {
 
 let rollingInProgress = false;
 
+// Guided scrolling (see app/scroll-guide.js): tracks the last step we auto-scrolled for so
+// re-renders of the same step don't keep yanking the viewport. Reset whenever a new roll
+// starts a fresh turn.
+let lastGuidedStep = null;
+
+function guideToStep(stepKey, elGetter) {
+  if (!stepKey || stepKey === lastGuidedStep) return;
+  lastGuidedStep = stepKey;
+  guideTo(elGetter());
+}
+
 function rollDice() {
   if (rollingInProgress) {
     return;
   }
   rollingInProgress = true;
+  lastGuidedStep = null;
   clearPendingPlot();
 
   try {
@@ -898,6 +912,7 @@ function rollDice() {
     state.forceForfeit = true;
     state.forceForfeitAdvisory = false;
     state.diceLocked = true;
+    guideToStep("pestilence-forfeit", () => document.querySelector(".sheet-window-board") || document.querySelector(".board"));
   } else if (turnHintEl) {
     setTurnHint(state.activeTurn ? "" : nonActiveAutoHintText());
   }
@@ -1295,6 +1310,7 @@ function fillBuildings(buildDice) {
     renderSelectionDice(state.lockedLocationDice || [], state.lockedBuildDice || []);
     highlightLocations();
     renderBoard();
+    guideToStep("forfeit", () => document.querySelector(".sheet-window-board") || document.querySelector(".board"));
     return;
   }
   enforceBuildingSelection(options);
@@ -1308,6 +1324,12 @@ function fillBuildings(buildDice) {
   }
   renderBuildingOverlay(options);
   updateActionBanner();
+  guideToStep(
+    "buildings:" + options.map((o) => o.code).join(","),
+    () =>
+      document.querySelector(".building-hit.available") ||
+      document.querySelector(".sheet-window-buildings"),
+  );
 }
 
 function enforceBuildingSelection(options = []) {
@@ -1667,6 +1689,10 @@ function pendingPlotBannerText(pending) {
   return t("confirm.pendingPopulation", { row, col });
 }
 
+// Tracks the exact banner text the confirm-step prompt set, so hidePlotConfirmControls()
+// only clears state.bannerOverride if nothing else has since overwritten it.
+let confirmPromptBannerText = null;
+
 function showPlotConfirmControls() {
   if (!state.pendingPlot) return hidePlotConfirmControls();
   if (confirmPlotBtn) confirmPlotBtn.style.display = "inline-block";
@@ -1675,14 +1701,19 @@ function showPlotConfirmControls() {
     cancelPlotBtn.textContent =
       state.pendingPlot.kind === "population" ? t("confirm.changeSquare") : t("confirm.changePlot");
   }
-  state.bannerOverride = pendingPlotBannerText(state.pendingPlot);
+  const text = pendingPlotBannerText(state.pendingPlot);
+  state.bannerOverride = text;
+  confirmPromptBannerText = text;
   updateActionBanner();
 }
 
 function hidePlotConfirmControls() {
   if (confirmPlotBtn) confirmPlotBtn.style.display = "none";
   if (cancelPlotBtn) cancelPlotBtn.style.display = "none";
-  if (state.bannerOverride) state.bannerOverride = null;
+  if (confirmPromptBannerText && state.bannerOverride === confirmPromptBannerText) {
+    state.bannerOverride = null;
+  }
+  confirmPromptBannerText = null;
 }
 
 function confirmPendingPlot() {
@@ -2600,6 +2631,9 @@ function handleBuildingChoice() {
   }
   updateActionBanner();
   renderSelectionDice();
+  guideToStep("plot:" + code + ":" + (state.selectedGuildType || ""), () =>
+    document.querySelector(".cell.highlight"),
+  );
 }
 
 function renderGuildOverlay(available = []) {
@@ -2646,6 +2680,7 @@ function renderGuildOverlay(available = []) {
       document.querySelectorAll(".guild-hit.selected").forEach((el) => el.classList.remove("selected"));
       div.classList.add("selected");
       state.selectedGuildType = hit.code;
+      guideToStep("plot:G:" + hit.code, () => document.querySelector(".cell.highlight"));
     };
     div.setAttribute("aria-label", hit.code);
     overlay.appendChild(div);
@@ -2686,6 +2721,7 @@ function beginPopulationPlacement(r, c, count) {
   renderBoard();
   if (result.message) log(result.message);
   updateActionBanner();
+  guideToStep("population:" + r + "," + c, () => document.querySelector(".population-node.highlight"));
 }
 
 function onPopulationNodeClick(nr, nc) {
@@ -2717,12 +2753,8 @@ function onPopulationNodeClick(nr, nc) {
   }
   if (!state.pendingPopulation || state.pendingPopulation.remaining <= 0) return;
   if (needsConfirmStep()) {
-    const eligible = nodesForCell(state.pendingPopulation.cell[0], state.pendingPopulation.cell[1]).some(
-      ([r, c]) => r === nr && c === nc,
-    );
-    const alreadyUsed =
-      (state.populationNodes[nr]?.[nc] || 0) > 0 || state.barricadedNodes?.[nr]?.[nc];
-    if (!eligible || alreadyUsed) {
+    const { ok } = canPlacePopulationNode(state, nr, nc, { nodesForCell });
+    if (!ok) {
       // Invalid taps fall through to the real function so the existing
       // message/log behavior stays identical; nothing to preview here.
       doPlacePopulationNode(nr, nc);
@@ -3766,5 +3798,6 @@ function autoForfeitUnfillable(finalize = false) {
       forfeitCell,
       confirmPendingPlot,
       cancelPendingPlot,
+      rollDice,
     };
   }
