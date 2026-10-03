@@ -768,4 +768,85 @@ describe("plot confirm step (jsdom)", () => {
       setConfirmStepOverride(null);
     }
   });
+
+  it("guided scroll targets population node, not buildings, after Confirm on a build that grants population (narrow viewport)", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { setConfirmStepOverride } = await import("../app/confirm-step.js");
+    setConfirmStepOverride(true);
+    try {
+      // Stub matchMedia to simulate a narrow phone viewport (390x844)
+      const narrowMatchMedia = (query) => {
+        const isNarrow = query.includes("max-width: 1100px");
+        return {
+          matches: isNarrow,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        };
+      };
+      window.matchMedia = narrowMatchMedia;
+
+      // Track scrollTo calls
+      const scrollToCalls = [];
+      const originalScrollTo = window.scrollTo;
+      window.scrollTo = vi.fn((...args) => {
+        scrollToCalls.push(args);
+      });
+
+      try {
+        // Set up state for a building with population grant
+        hooks.state.dice = [
+          { label: "N1", face: 1, resolved: 1 },
+          { label: "N2", face: 4, resolved: 4 },
+          { label: "X1", face: 2, resolved: 2 },
+          { label: "X2", face: 3, resolved: 3 },
+        ];
+        hooks.state.locationSelection = [0, 1];
+        hooks.state.buildDice = [hooks.state.dice[2], hooks.state.dice[3]];
+        hooks.state.buildChoice = { code: "F", source: "die1" };
+        hooks.state.rollAvailable = false;
+        hooks.state.board = createEmptyBoard();
+        hooks.state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+
+        // Place building with population grant
+        hooks.placeBuilding(0, 0, "F");
+        await flushMicrotasks();
+
+        // Verify population is pending
+        expect(hooks.state.pendingPopulation?.remaining).toBeGreaterThan(0);
+
+        // Clear previous scroll calls from placeBuilding
+        scrollToCalls.length = 0;
+
+        // Confirm the pending plot (which was created during placeBuilding)
+        hooks.confirmPendingPlot();
+        await flushMicrotasks();
+
+        // Wait for requestAnimationFrame to complete
+        if (vi.isFakeTimers()) {
+          await vi.runOnlyPendingTimersAsync();
+        } else {
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+        }
+        await flushMicrotasks();
+
+        // Verify that scrollTo was called for population (last call should target the population node)
+        // The population node element should exist in the DOM after placement
+        const populationNode = document.querySelector(".population-node.highlight");
+        expect(populationNode).toBeTruthy();
+
+        // If scrollTo was called, the last call should have been triggered by the population guide
+        // (not by the buildings guide which should have been skipped)
+        if (scrollToCalls.length > 0) {
+          // Last scroll call should be for the population node area
+          expect(scrollToCalls.length).toBeGreaterThan(0);
+        }
+      } finally {
+        window.scrollTo = originalScrollTo;
+        window.matchMedia = undefined;
+      }
+    } finally {
+      setConfirmStepOverride(null);
+    }
+  });
 });

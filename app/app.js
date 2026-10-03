@@ -822,10 +822,10 @@ let rollingInProgress = false;
 // starts a fresh turn.
 let lastGuidedStep = null;
 
-function guideToStep(stepKey, elGetter) {
+function guideToStep(stepKey, elGetter, options) {
   if (!stepKey || stepKey === lastGuidedStep) return;
   lastGuidedStep = stepKey;
-  guideTo(elGetter());
+  guideTo(elGetter(), options);
 }
 
 function rollDice() {
@@ -1324,12 +1324,25 @@ function fillBuildings(buildDice) {
   }
   renderBuildingOverlay(options);
   updateActionBanner();
-  guideToStep(
-    "buildings:" + options.map((o) => o.code).join(","),
-    () =>
-      document.querySelector(".building-hit.available") ||
-      document.querySelector(".sheet-window-buildings"),
-  );
+  // Only guide to buildings while the player is actively choosing a building.
+  // Skip if: dice locked, buildChoice already set, pending population/plot,
+  // pestilence/forfeit, or activation mode.
+  const shouldGuideToBuildings =
+    !state.diceLocked &&
+    !state.buildChoice &&
+    !(state.pendingPopulation?.remaining > 0) &&
+    !state.pendingPlot &&
+    !state.pestilence &&
+    !state.forceForfeit &&
+    !state.forceForfeitAdvisory &&
+    !state.activationMode;
+  if (shouldGuideToBuildings) {
+    guideToStep(
+      "buildings:" + options.map((o) => o.code).join(","),
+      () => document.querySelector(".sheet-window-buildings"),
+      { block: "start", minVisible: 0.6 },
+    );
+  }
 }
 
 function enforceBuildingSelection(options = []) {
@@ -2721,7 +2734,17 @@ function beginPopulationPlacement(r, c, count) {
   renderBoard();
   if (result.message) log(result.message);
   updateActionBanner();
-  guideToStep("population:" + r + "," + c, () => document.querySelector(".population-node.highlight"));
+  // Defer the population guide with requestAnimationFrame to ensure the DOM is settled
+  // and the target node position is final (especially after placeBuilding's re-renders).
+  if (typeof requestAnimationFrame !== "undefined") {
+    requestAnimationFrame(() => {
+      guideToStep("population:" + r + "," + c, () => document.querySelector(".population-node.highlight"));
+    });
+  } else {
+    setTimeout(() => {
+      guideToStep("population:" + r + "," + c, () => document.querySelector(".population-node.highlight"));
+    }, 0);
+  }
 }
 
 function onPopulationNodeClick(nr, nc) {
