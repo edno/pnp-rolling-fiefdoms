@@ -235,6 +235,24 @@ describe("initPopovers", () => {
     btn.dispatchEvent(new Event("focusout", { bubbles: true }));
     expect(popover.hidden).toBe(true);
   });
+
+  it("handles non-Element targets in event handlers without throwing", () => {
+    initPopovers(root);
+    const btn = document.createElement("button");
+    btn.dataset.popover = "Test text";
+    root.appendChild(btn);
+
+    // Dispatch a pointerover on document (e.target will be document, not an Element)
+    // This should not throw
+    expect(() => {
+      const event = new Event("pointerover", { bubbles: true });
+      Object.defineProperty(event, "pointerType", {
+        value: "mouse",
+        enumerable: true,
+      });
+      document.dispatchEvent(event);
+    }).not.toThrow();
+  });
 });
 
 describe("hidePopover", () => {

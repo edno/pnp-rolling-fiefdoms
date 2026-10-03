@@ -81,9 +81,12 @@ export function initPopovers(root = document) {
   // Ensure popover element exists
   getPopoverEl();
 
+  // Helper to safely get target element, handling non-Element targets
+  const targetEl = (e) => (e.target instanceof Element ? e.target : e.target?.parentElement ?? null);
+
   // Delegated click handler on root
   const handleClick = (e) => {
-    const target = e.target.closest("[data-popover]");
+    const target = targetEl(e)?.closest("[data-popover]");
     if (target && target.dataset.popoverTap !== "false") {
       togglePopover(target);
     }
@@ -91,7 +94,7 @@ export function initPopovers(root = document) {
 
   // Click outside handler - hide popover on any document click not on a popover element
   const handleDocumentClick = (e) => {
-    const target = e.target.closest("[data-popover]");
+    const target = targetEl(e)?.closest("[data-popover]");
     if (!target) {
       hidePopover();
     }
@@ -100,7 +103,7 @@ export function initPopovers(root = document) {
   // Delegated pointerenter handler
   const handlePointerEnter = (e) => {
     if (e.pointerType === "mouse") {
-      const target = e.target.closest("[data-popover]");
+      const target = targetEl(e)?.closest("[data-popover]");
       if (target) {
         showPopover(target);
       }
@@ -110,7 +113,7 @@ export function initPopovers(root = document) {
   // Delegated pointerleave handler
   const handlePointerLeave = (e) => {
     if (e.pointerType === "mouse") {
-      const target = e.target.closest("[data-popover]");
+      const target = targetEl(e)?.closest("[data-popover]");
       if (target && currentTarget === target) {
         hidePopover();
       }
@@ -119,7 +122,7 @@ export function initPopovers(root = document) {
 
   // Delegated focusin handler
   const handleFocusIn = (e) => {
-    const target = e.target.closest("[data-popover]");
+    const target = targetEl(e)?.closest("[data-popover]");
     if (target) {
       showPopover(target);
     }
@@ -127,7 +130,7 @@ export function initPopovers(root = document) {
 
   // Delegated focusout handler
   const handleFocusOut = (e) => {
-    const target = e.target.closest("[data-popover]");
+    const target = targetEl(e)?.closest("[data-popover]");
     if (target && currentTarget === target) {
       hidePopover();
     }

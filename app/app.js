@@ -1252,7 +1252,7 @@ function renderDice() {
       showRoleStyle: !turnLocked,
       forcedLocation: (state.forcedLocationDice || []).includes(idx),
       allowInfluence: !turnLocked,
-      useAdjustedFace: false,
+      useAdjustedFace: !state.diceRolling,
     });
     row.appendChild(badge);
   });

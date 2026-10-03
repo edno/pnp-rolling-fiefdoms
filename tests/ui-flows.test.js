@@ -140,6 +140,43 @@ describe("influence population handling (jsdom)", () => {
     placeBuilding(0, 0, "F");
     expect(state.pendingPopulation?.remaining).toBe(5);
   });
+
+  it("shows adjusted die face in #diceView after applying influence", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { state, adjustDieWithInfluence, updateDiceAssignments } = hooks;
+    state.dice = [
+      { label: "N1", face: 2, resolved: 2 },
+      { label: "N2", face: 4, resolved: 4 },
+      { label: "X1", face: 2, resolved: 2 },
+      { label: "X2", face: 3, resolved: 3 },
+    ];
+    state.locationSelection = [];
+    state.influence = { earned: 1, spent: 0, pending: 0 };
+    state.rollAvailable = false;
+
+    // Render the dice view
+    updateDiceAssignments();
+    await flushMicrotasks();
+
+    // Check that die at index 0 shows 2 pips before adjustment
+    let badge = document.querySelector('#diceView .die-badge[data-idx="0"]');
+    let pipCount = badge.querySelectorAll(".pip-svg").length;
+    expect(pipCount).toBe(2);
+
+    // Apply +1 influence to die at index 0
+    adjustDieWithInfluence(0, 1);
+    await flushMicrotasks();
+
+    // Re-render dice view
+    updateDiceAssignments();
+    await flushMicrotasks();
+
+    // Check that die at index 0 now shows 3 pips
+    badge = document.querySelector('#diceView .die-badge[data-idx="0"]');
+    pipCount = badge.querySelectorAll(".pip-svg").length;
+    expect(pipCount).toBe(3);
+  });
 });
 
 describe("Social Contract center-building choices (jsdom)", () => {
