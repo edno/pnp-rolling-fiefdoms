@@ -2055,6 +2055,17 @@ select {
   cursor: pointer;
   font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
   font-size: 24px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Keep "IV. Name" as one piece: the badge is a flex container, so loose text nodes
+   would otherwise become separate flex items that wrap independently. */
+.challenge-badge .challenge-name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .challenge-badge-info-icon {
@@ -2607,6 +2618,10 @@ button.secondary {
   .modal-actions > button {
     width: min(250px, 100%);
     min-height: 44px;
+    font-size: 18px;
+  }
+
+  .challenge-badge {
     font-size: 18px;
   }
 }

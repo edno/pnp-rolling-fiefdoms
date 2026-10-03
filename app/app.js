@@ -552,7 +552,7 @@ function formatChallengeNameHtml(name) {
   const match = /^([IVXLCDM]+)(\.\s*)(.*)$/.exec(name);
   if (!match) return escapeHtml(name);
   const [, numeral, separator, rest] = match;
-  return `<span class="challenge-roman-numeral">${escapeHtml(numeral)}</span>${escapeHtml(separator)}${escapeHtml(rest)}`;
+  return `<span class="challenge-name"><span class="challenge-roman-numeral">${escapeHtml(numeral)}</span>${escapeHtml(separator)}${escapeHtml(rest)}</span>`;
 }
 
 // A plain circle+"i" glyph (not a text/emoji character) so it renders identically across
