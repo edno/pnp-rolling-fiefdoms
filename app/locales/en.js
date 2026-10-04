@@ -23,15 +23,29 @@ export default {
     A: "Almshouse",
     G: "Guild",
   },
-  // Hover/focus tooltip copy for buildings (see app/building-info.js's buildingTooltip()),
-  // shown both on the Buildings/Guilds sheet overlay and on buildings placed on the board.
+  // Hover/focus tooltip copy for buildings (see app/building-info.js's buildingTooltip()/
+  // buildingTooltipParts()), shown both on the Buildings/Guilds sheet overlay and on
+  // buildings placed on the board.
   buildingInfo: {
-    workers: "Workers: {req}",
-    workersReduced: "Workers: {req} ({base} − {boost} Springhouse)",
-    filled: "Filled: {filled}/{req}",
-    onceBuilt: "Built once per game.",
-    guildsLimit: "Up to 2 Guilds, each a different type, per game.",
-    onBuildSpringhouse: "On build: reduces one adjacent building's worker requirement by 1.",
+    // Rulebook's "Basic/Special/Advanced buildings" headings, shown in the tooltip title
+    // next to the building name, e.g. "Cottage (Special)".
+    category: {
+      basic: "Basic",
+      special: "Special",
+      advanced: "Advanced",
+    },
+    labels: {
+      labourers: "Labourers",
+      filled: "Filled",
+    },
+    labourersValue: "{req}",
+    labourersReducedValue: "{req} ({base} − {boost} Springhouse)",
+    labourersNone: "No Labourers needed",
+    filledValue: "{filled}/{req}",
+    advancedNote: "Sum only · Max. 1",
+    guildsNote: "Sum only · Max. 2, unique types",
+    onBuildSpringhouse: "On build: remove 1 Labourer requirement (min 0) from an adjacent building.",
+    onBuildCottage: "On build: outline 1 Housing unit (houses 4 Population).",
     guildConditionGeneric: "15 RP if its condition is met.",
     guildNameByTarget: {
       F: "Farmers' Guild",
@@ -48,13 +62,13 @@ export default {
       M: "15 RP if 4+ active Markets stand in the centre 3×3.",
     },
     scoring: {
-      C: "2 RP if occupied by population; houses 4 population.",
-      B: "5 RP on a corner-to-corner diagonal plot; houses 8 population.",
+      C: "2 RP if occupied by at least 1 Population.",
+      B: "5 RP only if active in a diagonal plot; provides 2 Housing units when activated.",
       F: "3 RP, +2 if adjacent to a Springhouse.",
       Q: "3 RP, +1 if another Quarry shares its row or column.",
       W: "3 RP, +1 per adjacent Windmill.",
       P: "3 RP, +1 per adjacent active Market.",
-      M: "RP equals the population it claims nearby.",
+      M: "1 RP per 2 Population pips across all adjacent Squares (rounded down).",
       S: "0 RP, −1 per adjacent forfeited plot.",
       T: "5 RP, +2 per unique Basic/Special building type in its row and column.",
       U: "5/8/12/15 RP for 1/2/3/4 unique Advanced buildings built.",
@@ -88,6 +102,7 @@ export default {
     swapAriaLabel: "Swap location/build dice pairs",
     swapUnavailableOnlyOnePairing: "Swap unavailable: only one dice pairing is valid this turn.",
     swapUnavailableNoValidPairing: "Swap unavailable: neither dice pairing has a valid location.",
+    swapUnavailableNoValidLocationOnSwap: "Swap unavailable: the other dice pairing has no valid location.",
     locationDiceLabel: "Location Dice",
     buildDiceLabel: "Build Dice",
     logTitle: "Log",

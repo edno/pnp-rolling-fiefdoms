@@ -27,12 +27,26 @@ export default {
   // dans app/building-info.js), affiché à la fois sur le panneau Bâtiments/Guildes
   // et sur les bâtiments posés sur le plateau.
   buildingInfo: {
-    workers: "Ouvriers : {req}",
-    workersReduced: "Ouvriers : {req} ({base} − {boost} Source)",
-    filled: "Remplis : {filled}/{req}",
-    onceBuilt: "Constructible une seule fois par partie.",
-    guildsLimit: "Jusqu'à 2 Guildes, de types différents, par partie.",
-    onBuildSpringhouse: "À la construction : réduit d'1 le nombre d'ouvriers requis d'un bâtiment adjacent.",
+    // Formulation du livret de règles ("bâtiments de base / spéciaux / avancés"), accordée
+    // au masculin avec "bâtiment", affichée dans le titre de l'infobulle à côté du nom,
+    // ex. "Ferme (de base)".
+    category: {
+      basic: "de base",
+      special: "spécial",
+      advanced: "avancé",
+    },
+    labels: {
+      labourers: "Ouvriers",
+      filled: "Remplis",
+    },
+    labourersValue: "{req}",
+    labourersReducedValue: "{req} ({base} − {boost} Source)",
+    labourersNone: "Aucun Ouvrier requis",
+    filledValue: "{filled}/{req}",
+    advancedNote: "Somme uniquement · Max. 1",
+    guildsNote: "Somme uniquement · Max. 2, types différents",
+    onBuildSpringhouse: "À la construction : retire 1 Ouvrier requis (min 0) d'un bâtiment adjacent.",
+    onBuildCottage: "À la construction : tracez 1 unité de Logement (loge 4 Population).",
     guildConditionGeneric: "15 PR si sa condition est remplie.",
     guildNameByTarget: {
       F: "Guilde des Fermiers",
@@ -49,13 +63,13 @@ export default {
       M: "15 PR si 4+ Halles actives se trouvent dans le carré central 3×3.",
     },
     scoring: {
-      C: "2 PR si occupé par de la population ; loge 4 population.",
-      B: "5 PR sur une parcelle en diagonale de coin à coin ; loge 8 population.",
+      C: "2 PR si occupé par au moins 1 Population.",
+      B: "5 PR seulement si actif sur une parcelle en diagonale ; procure 2 unités de Logement lors de l'activation.",
       F: "3 PR, +2 si adjacent à une Source.",
       Q: "3 PR, +1 si une autre Carrière partage sa ligne ou sa colonne.",
       W: "3 PR, +1 par Moulin adjacent.",
       P: "3 PR, +1 par Halle active adjacente.",
-      M: "PR égal à la population qu'elle capte à proximité.",
+      M: "1 PR par tranche de 2 points de Population sur les Cases adjacentes (arrondi à l'inférieur).",
       S: "0 PR, −1 par parcelle renoncée adjacente.",
       T: "5 PR, +2 par type de bâtiment Basique/Spécial unique sur sa ligne et sa colonne.",
       U: "5/8/12/15 PR pour 1/2/3/4 bâtiments Avancés uniques construits.",
@@ -89,6 +103,7 @@ export default {
     swapAriaLabel: "Échanger les paires de dés coordonnées/construction",
     swapUnavailableOnlyOnePairing: "Échange indisponible : une seule répartition des dés est valide ce tour-ci.",
     swapUnavailableNoValidPairing: "Échange indisponible : aucune des deux répartitions n'a d'emplacement valide.",
+    swapUnavailableNoValidLocationOnSwap: "Échange indisponible : l'autre répartition des dés n'a pas d'emplacement valide.",
     locationDiceLabel: "Dés de coordonnées",
     buildDiceLabel: "Dés de construction",
     logTitle: "Journal",

@@ -17,6 +17,11 @@ Suggested CSS (coordinator will add to styles.css):
 
 let currentTarget = null;
 const listeners = new WeakMap();
+// Optional rich-content renderers, keyed by target element: setPopover(el, text, { render })
+// stores `render` here instead of stuffing DOM/markup into el.dataset (which only holds
+// strings). `text` is still stored on el.dataset.popover and mirrored into the hidden
+// description span, so assistive tech and the plain-text fallback are unaffected either way.
+const richRenderers = new WeakMap();
 let windowListenersAdded = false;
 let descCounter = 0;
 // Tracks description spans this helper owns, keyed by id, via a WeakRef to the
@@ -74,8 +79,11 @@ function removePopoverDescription(el) {
  * popover data and the description this helper owns.
  *
  * @param {Element} el
- * @param {string|null} text
- * @param {Object} options - { tap: boolean } - if tap is false, popover won't show on click
+ * @param {string|null} text - plain-text version, used for the aria description and shown
+ *   verbatim when no `render` is given.
+ * @param {Object} options - { tap: boolean, render: (container: Element) => void } - if tap is
+ *   false, popover won't show on click; if `render` is given, it builds the popover's DOM
+ *   content (via createElement/textContent - never innerHTML) instead of the plain text.
  */
 export function setPopover(el, text, options = {}) {
   if (!el) return;
@@ -106,12 +114,18 @@ export function setPopover(el, text, options = {}) {
       delete el.dataset.popoverAddedTabindex;
     }
     removePopoverDescription(el);
+    richRenderers.delete(el);
     return;
   }
 
   el.dataset.popover = text;
   el.removeAttribute("title");
   el.classList.add("has-popover");
+  if (typeof options.render === "function") {
+    richRenderers.set(el, options.render);
+  } else {
+    richRenderers.delete(el);
+  }
 
   // Re-renders (clearElement + rebuild) discard the old target elements without
   // ever calling setPopover(el, null) on them, so sweep description spans whose
@@ -297,7 +311,12 @@ function showPopover(target) {
   const popoverEl = getPopoverEl();
 
   currentTarget = target;
-  popoverEl.textContent = target.dataset.popover || "";
+  const render = richRenderers.get(target);
+  if (render) {
+    render(popoverEl);
+  } else {
+    popoverEl.textContent = target.dataset.popover || "";
+  }
   popoverEl.hidden = false;
 
   const rect = target.getBoundingClientRect();

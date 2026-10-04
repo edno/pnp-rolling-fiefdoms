@@ -2460,12 +2460,72 @@ button.secondary {
   pointer-events: none;
 }
 
+/* Rich building tooltip content (see app/building-info.js's renderBuildingTooltip()):
+   a bold name + muted category title row, a divider, then compact label/value rows.
+   `.rf-popover`'s `white-space: pre-line` only affects its plain-text fallback; these
+   rows lay out normally since each is its own block element. */
+.rf-popover-title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: 5px;
+  margin-bottom: 4px;
+}
+
+.rf-popover-name {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.rf-popover-category {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.rf-popover-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0 0 5px;
+}
+
+.rf-popover-row {
+  margin: 2px 0;
+}
+
+.rf-popover-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.rf-popover-value {
+  color: var(--text);
+}
+
+.rf-popover-row-secondary {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--muted);
+}
+
+.rf-popover-row-warning {
+  font-size: 13px;
+  color: var(--danger);
+}
+
 .has-popover {
   pointer-events: auto;
 }
 
 .has-popover:not(.cell) {
   cursor: help;
+}
+
+/* Clickable targets that also carry a tooltip keep the hand cursor. */
+.building-hit.available.has-popover,
+.guild-hit.available.has-popover,
+button.has-popover:not(:disabled) {
+  cursor: pointer;
 }
 
 /* Autoplay HUD: Dev/spectator mode overlay when ?autoplay is active */

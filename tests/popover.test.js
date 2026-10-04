@@ -174,6 +174,38 @@ describe("setPopover", () => {
     setPopover(el, null);
     expect(el.getAttribute("tabindex")).toBe("-1");
   });
+
+  it("still stores the plain-text version in dataset.popover and the description span when a render option is given", () => {
+    const el = document.createElement("button");
+    setPopover(el, "Plain text version", { render: (container) => (container.textContent = "Rich version") });
+
+    expect(el.dataset.popover).toBe("Plain text version");
+    const descId = el.getAttribute("aria-describedby");
+    expect(document.getElementById(descId).textContent).toBe("Plain text version");
+  });
+
+  it("drops a previously set render option when a later setPopover call omits it", () => {
+    const el = document.createElement("button");
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const existing = document.querySelector(".rf-popover");
+    if (existing) existing.remove();
+    initPopovers(container);
+    container.appendChild(el);
+
+    setPopover(el, "First", { render: (c) => (c.textContent = "Rich First") });
+    el.click();
+    const popover = document.querySelector(".rf-popover");
+    expect(popover.textContent).toBe("Rich First");
+    el.click(); // toggle off
+
+    setPopover(el, "Second");
+    el.click();
+    expect(popover.textContent).toBe("Second");
+
+    popover.remove();
+    container.remove();
+  });
 });
 
 describe("initPopovers", () => {
@@ -222,6 +254,27 @@ describe("initPopovers", () => {
 
     expect(popover.hidden).toBe(false);
     expect(popover.textContent).toBe("Click text");
+  });
+
+  it("builds rich DOM content via the render option when shown, instead of the plain text", () => {
+    initPopovers(root);
+    const btn = document.createElement("button");
+    root.appendChild(btn);
+    setPopover(btn, "Cottage (Special)\nNo Labourers needed", {
+      tap: true,
+      render: (container) => {
+        const strong = document.createElement("strong");
+        strong.textContent = "Cottage";
+        container.appendChild(strong);
+      },
+    });
+
+    const popover = document.querySelector(".rf-popover");
+    btn.click();
+
+    expect(popover.hidden).toBe(false);
+    expect(popover.querySelector("strong")?.textContent).toBe("Cottage");
+    expect(popover.textContent).toBe("Cottage");
   });
 
   it("toggles popover on second click", () => {

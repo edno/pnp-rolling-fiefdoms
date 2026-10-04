@@ -170,7 +170,7 @@ import { initSheetWindows } from "./sheet-layout.js";
 import { onMouseHover } from "./hover.js";
 import { initPopovers, setPopover } from "./popover.js";
 import { updateScrollCue } from "./scroll-cue.js";
-import { buildingTooltip } from "./building-info.js";
+import { buildingTooltip, renderBuildingTooltip } from "./building-info.js";
 
 const BOARD_SIZE = 5;
 const POPULATION_GRID_SIZE = 4;
@@ -1597,9 +1597,13 @@ function renderBuildingOverlay(options = [], disabled = false) {
     } else {
       div.classList.add("disabled");
     }
-    setPopover(div, buildingTooltip(hit.code, { context: "sheet", buildingOverrides: activeChallenge()?.rules?.buildingOverrides }), {
-      tap: false,
-    });
+    {
+      const tooltipOptions = { context: "sheet", buildingOverrides: activeChallenge()?.rules?.buildingOverrides };
+      setPopover(div, buildingTooltip(hit.code, tooltipOptions), {
+        tap: false,
+        render: (container) => renderBuildingTooltip(container, hit.code, tooltipOptions),
+      });
+    }
     div.addEventListener("click", (e) => {
       e.stopPropagation();
       if (div.classList.contains("disabled")) return;
@@ -1765,17 +1769,19 @@ function renderBoard() {
           (BUILDING_RULES[data.building]?.requirement || 0) - (Number(data.springBoost) || 0),
         );
         const filled = Math.max(0, state.workerAllocations?.[r]?.[c] || 0);
-        setPopover(
-          cell,
-          buildingTooltip(data.building, {
+        {
+          const tooltipOptions = {
             context: "board",
             guildLabel: data.building === "G" ? data.buildingLabel : undefined,
             springBoost: data.springBoost,
             filled: state.activationMode ? filled : undefined,
             buildingOverrides: activeChallenge()?.rules?.buildingOverrides,
-          }),
-          { tap: false },
-        );
+          };
+          setPopover(cell, buildingTooltip(data.building, tooltipOptions), {
+            tap: false,
+            render: (container) => renderBuildingTooltip(container, data.building, tooltipOptions),
+          });
+        }
         const isActivated = req === 0 || filled >= req;
         if (isActivated) {
           cell.classList.add("activated-building");
@@ -2076,17 +2082,18 @@ function highlightLocations() {
         // activation-mode's filled/required (and, if applicable, forfeited) detail, rather
         // than overwriting it with workers-only text.
         if (data.building && !data.forfeited) {
-          let tooltip = buildingTooltip(data.building, {
+          const tooltipOptions = {
             context: "board",
             guildLabel: data.building === "G" ? data.buildingLabel : undefined,
             springBoost: data.springBoost,
             filled,
             buildingOverrides: activeChallenge()?.rules?.buildingOverrides,
+            forfeitedNote: data.activationForfeit ? t("build.workersForfeitedTitle", { filled, req }) : undefined,
+          };
+          setPopover(cell, buildingTooltip(data.building, tooltipOptions), {
+            tap: false,
+            render: (container) => renderBuildingTooltip(container, data.building, tooltipOptions),
           });
-          if (data.activationForfeit) {
-            tooltip = `${tooltip}\n${t("build.workersForfeitedTitle", { filled, req })}`;
-          }
-          setPopover(cell, tooltip, { tap: false });
         }
         if ((req === 0 && data.building) || filled >= req) {
           cell.classList.add("activated-building");
@@ -3048,11 +3055,13 @@ function renderGuildOverlay(available = []) {
     if (state.selectedGuildType === hit.code) {
       div.classList.add("selected");
     }
-    setPopover(
-      div,
-      buildingTooltip("G", { context: "sheet", guildLabel: hit.code, buildingOverrides: activeChallenge()?.rules?.buildingOverrides }),
-      { tap: false },
-    );
+    {
+      const tooltipOptions = { context: "sheet", guildLabel: hit.code, buildingOverrides: activeChallenge()?.rules?.buildingOverrides };
+      setPopover(div, buildingTooltip("G", tooltipOptions), {
+        tap: false,
+        render: (container) => renderBuildingTooltip(container, "G", tooltipOptions),
+      });
+    }
     div.onclick = () => {
       if (locked || !div.classList.contains("available")) return;
       if (centerBuildingActive) {
@@ -3884,6 +3893,17 @@ function soloSwapUnavailableReasonKey() {
   if (!basePossible && !altPossible) {
     logSwapDebugTrace(choice, "html.swapUnavailableNoValidPairing", details);
     return "html.swapUnavailableNoValidPairing";
+  }
+
+  // One pairing is possible, but if it's the one currently in effect (not the one
+  // swapping would switch to), swapping would land on a pairing with no valid
+  // location. `choice.swapped` reflects the pairing currently active: true means the
+  // alt (base build dice as location) pairing is in effect, so swapping would switch
+  // to the base pairing, and vice versa.
+  const targetPossible = choice.swapped ? basePossible : altPossible;
+  if (!targetPossible) {
+    logSwapDebugTrace(choice, "html.swapUnavailableNoValidLocationOnSwap", details);
+    return "html.swapUnavailableNoValidLocationOnSwap";
   }
   return null;
 }
