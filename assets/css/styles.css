@@ -336,16 +336,19 @@ button.menu-item {
   border-radius: var(--radius-sm);
 }
 
-/* While a plot awaits Confirm, the aux row shows only Confirm / Change plot. */
-.action-bar-aux:has(> #confirmPlotBtn:not([style*="display: none"])) > #buildingPicker,
-.action-bar-aux:has(> #confirmPlotBtn:not([style*="display: none"])) > #influenceStepper {
+/* While a plot awaits Confirm, the aux row shows only Confirm / Change plot.
+   `.is-open`/`.has-confirm` are set by syncActionBarState() in app.js rather
+   than :has() on inline styles/attributes, which WebKit (iOS) doesn't
+   reliably re-evaluate after those mutations. */
+.action-bar-aux.has-confirm > #buildingPicker,
+.action-bar-aux.has-confirm > #influenceStepper {
   display: none !important;
 }
 
 /* Collapse the aux row entirely (no reserved height) when none of its
    possible contents are visible, so the bar's fixed --ab-h isn't padded
    with empty space. */
-.action-bar-aux:not(:has(> #confirmPlotBtn:not([style*="display: none"]))):not(:has(> #buildingPicker:not([hidden]))):not(:has(> #influenceStepper:not([hidden]))) {
+.action-bar-aux:not(.is-open) {
   display: none;
 }
 
@@ -680,8 +683,11 @@ main {
 }
 
 /* While a plot/forfeit placement is pending confirm, dim the other tappable
-   candidates so the chosen one stands out; they remain fully tappable. */
-.board:has(.cell-pending) .cell.highlight:not(.cell-pending) {
+   candidates so the chosen one stands out; they remain fully tappable.
+   #board gets the has-pending class from JS (syncActionBarState()/renderBoard())
+   rather than :has(.cell-pending), which WebKit doesn't reliably re-evaluate
+   after class mutations on touch devices. */
+#board.has-pending .cell.highlight:not(.cell-pending) {
   opacity: 0.45;
 }
 
@@ -728,6 +734,15 @@ main {
 
 .population-node.highlight {
   border: 2px solid var(--accent) !important;
+}
+
+/* Pending population placement awaiting Confirm: a stronger version of
+   .highlight (thicker border + slight tint), consistent with the node's
+   rhombus shape. Must not get the octagon ring (see the .cell-scoped
+   ring rule above) since .cell-pending is reused on population-node too. */
+.population-node.cell-pending {
+  border: 3px solid var(--accent) !important;
+  background-color: rgba(179, 89, 0, 0.18);
 }
 
 .population-node.disabled {
@@ -846,9 +861,12 @@ main {
 }
 
 /* Shared octagon ring for cell state markers (highlight, pending, selected
-   building) to match the printed octagon plots instead of a square outline. */
+   building) to match the printed octagon plots instead of a square outline.
+   Scoped to .cell only: .cell-pending is also used on .population-node
+   (rhombus-shaped) when a population placement is pending confirm, which
+   must not get the octagon ring (see .population-node.cell-pending below). */
 .cell.highlight::after,
-.cell-pending::after,
+.cell.cell-pending::after,
 .cell.selected-building::after {
   content: "";
   position: absolute;
@@ -1025,7 +1043,9 @@ main {
 }
 
 
-#turnHintPanel:has(#turnHint:empty) {
+/* JS-managed (setTurnHint() in app.js) rather than :has(#turnHint:empty),
+   since WebKit doesn't reliably re-evaluate :has() after text mutations. */
+#turnHintPanel.turn-hint-empty {
   display: none;
 }
 
@@ -1215,10 +1235,12 @@ main {
 }
 
 .controls {
-  display: grid;
-  grid-template-rows: auto auto auto 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
-  align-self: start;
+  /* Stretch to the sheet's row so the log (size-contained below) fills the
+     remaining height and scrolls instead of extending past the play area. */
+  align-self: stretch;
   min-height: 0;
   max-height: none;
 }
@@ -1467,8 +1489,11 @@ button:disabled {
   cursor: default;
 }
 
-.action-bar:has(.btn-inline-action[data-target="rollBtn"]) #rollBtn,
-.action-bar:has(.btn-inline-action[data-target="finishActivation"]) #finishActivation {
+/* .has-inline-roll/.has-inline-finish are set by syncActionBarState() in
+   app.js rather than :has(), which WebKit doesn't reliably re-evaluate
+   after the banner's inline action button is added/removed. */
+.action-bar.has-inline-roll #rollBtn,
+.action-bar.has-inline-finish #finishActivation {
   display: none !important;
 }
 
@@ -1558,16 +1583,26 @@ button:disabled {
 .log-panel {
   display: flex;
   flex-direction: column;
-  min-height: 80px;
+  flex: 1 1 0;
+  min-height: 120px;
+  /* Contributes no intrinsic height, so long logs never grow the grid row. */
+  contain: size;
 }
 
 .log-drawer {
-  display: flex;
-  flex-direction: column;
+  /* <details> content can't be a flex item, so the drawer itself scrolls,
+     with a sticky summary. */
+  flex: 1 1 auto;
   min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .log-drawer summary {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--panel);
   cursor: pointer;
   list-style: none;
   display: flex;
@@ -1612,11 +1647,7 @@ button:disabled {
 }
 
 .log-body {
-  flex: 1 1 auto;
   min-height: 40px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
 }
 
 #log {
@@ -1937,8 +1968,8 @@ select {
 .dice-locked {
   cursor: default !important;
   pointer-events: none !important;
-  filter: grayscale(0.75) saturate(0.8) !important;
-  opacity: 0.72 !important;
+  filter: grayscale(0.7) contrast(1.05) !important;
+  opacity: 0.85 !important;
 }
 
 .split-preview .die-badge {
@@ -2292,6 +2323,14 @@ select {
   box-shadow: 0 4px 12px rgba(179, 89, 0, 0.25);
 }
 
+.challenge-tap-hint {
+  display: none;
+  margin: 0 0 8px 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+}
+
 .challenge-card-normal {
   background: var(--panel);
   justify-content: center;
@@ -2550,7 +2589,16 @@ button.secondary {
 
   .controls {
     order: 2;
-    grid-template-rows: auto auto auto;
+  }
+
+  .log-panel {
+    contain: none;
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+
+  .log-drawer {
+    max-height: 50dvh;
   }
 
   .pair-build-fields {
@@ -2618,8 +2666,9 @@ button.secondary {
 
   /* Aux "drawer": anchored to the sticky bar's bottom edge, overlapping the
      sheet below rather than pushing it, with an open/close slide+fade so the
-     bar never jumps height. Collapsed state replaces the base display:none
-     (see the :not(:has(...)) rule above) so the transition can animate. */
+     bar never jumps height. The base `.action-bar-aux:not(.is-open)` rule
+     (above, higher specificity via :not()) still collapses it to display:none
+     when closed; `.is-open` is set by syncActionBarState() in app.js. */
   .action-bar-aux {
     position: absolute;
     left: 0;
@@ -2658,13 +2707,7 @@ button.secondary {
       visibility 0s linear 180ms;
   }
 
-  .action-bar-aux:not(:has(> #confirmPlotBtn:not([style*="display: none"]))):not(:has(> #buildingPicker:not([hidden]))):not(:has(> #influenceStepper:not([hidden]))) {
-    display: flex;
-  }
-
-  .action-bar-aux:has(> #confirmPlotBtn:not([style*="display: none"])),
-  .action-bar-aux:has(> #buildingPicker:not([hidden])),
-  .action-bar-aux:has(> #influenceStepper:not([hidden])) {
+  .action-bar-aux.is-open {
     transform: none;
     opacity: 1;
     visibility: visible;
@@ -2694,35 +2737,24 @@ button.secondary {
      prompt) there are no dice yet: drop the empty dice row and centre the
      prompt in the bar. The bar keeps its fixed height, so nothing jumps when
      the dice appear. */
-  .action-bar:has(#actionBanner .btn-inline-action):not(:has(.die-badge)) {
+  .action-bar.is-pre-roll {
     justify-content: center;
     padding-bottom: 0;
   }
 
-  .action-bar:has(#actionBanner .btn-inline-action):not(:has(.die-badge)) .action-bar-controls {
+  .action-bar.is-pre-roll .action-bar-controls {
     display: none;
   }
 }
 
 /* Desktop-specific overrides for the shared two-row bar above: #buildingPicker
    is never shown here (.building-picker is display: none regardless of its
-   [hidden] attribute), so the drawer's open/closed state must ignore it
-   (otherwise an empty drawer flashes open whenever JS removes the picker's
-   [hidden] attribute), and the banner can afford a larger, still 2-line-max
-   font. This block is intentionally separate from (and placed after) the
-   earlier `@media (min-width: 1101px)` block above so these rules win over
-   the shared drawer open-state rule just above (equal specificity, later
-   source order) without duplicating its other declarations. */
+   [hidden] attribute); syncActionBarState() in app.js already ignores the
+   picker on desktop (pickerVisible requires isCompactLayout()), so the
+   drawer's open/closed state (.is-open) handles this correctly without a
+   desktop-specific override here. The banner can afford a larger, still
+   2-line-max font on desktop. */
 @media (min-width: 1101px) {
-  /* Closed state override: with the picker ignored, the drawer is "open"
-     only when the confirm step or the influence stepper is visible. */
-  .action-bar-aux:not(:has(> #confirmPlotBtn:not([style*="display: none"]))):not(:has(> #influenceStepper:not([hidden]))) {
-    transform: translateY(-8px);
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-  }
-
   .action-bar {
     /* Desktop prompts fit on one line, so the banner reserves one 32px line
        (48px keeps room for the 36px inline button); --ab-h (shared rule above)
@@ -2924,8 +2956,7 @@ button.secondary {
     margin: 10px 0;
   }
 
-  /* Save vertical space in the challenge picker so the Start button is
-     reachable without scrolling the dialog on small screens. */
+  /* Save vertical space in the challenge picker on small screens. */
   #challengePicker p[data-i18n="challenges.picker.description"] {
     display: none;
   }
@@ -2943,7 +2974,7 @@ button.secondary {
     margin: 4px 0 8px 0;
   }
 
-  /* Centre the snapped card so it lines up with the card-width Start button below. */
+  /* Centre the snapped card so it lines up with the card-width Cancel button below. */
   .challenge-carousel {
     padding-inline: calc((100% - min(250px, 100%)) / 2);
     scroll-padding-inline: calc((100% - min(250px, 100%)) / 2);
@@ -2954,7 +2985,17 @@ button.secondary {
     scroll-snap-align: center;
   }
 
-  /* Small screens: Start (and Cancel when shown) match a challenge card's width. */
+  /* Small screens: the centred card is auto-selected on scroll and tapping it
+     starts the game (challengeCardTapStarts in app.js), so Start is redundant. */
+  #challengeConfirmBtn {
+    display: none;
+  }
+
+  .challenge-tap-hint {
+    display: block;
+  }
+
+  /* Cancel (when shown) matches a challenge card's width. */
   .modal-actions {
     flex-direction: column-reverse;
     align-items: center;
@@ -3129,10 +3170,9 @@ button.secondary {
     transition: none;
   }
 
-  .action-bar-aux:not(:has(> #confirmPlotBtn:not([style*="display: none"]))):not(:has(> #buildingPicker:not([hidden]))):not(:has(> #influenceStepper:not([hidden]))) {
-    display: none;
-  }
-
+  /* Collapsed (closed) state is handled by the shared base rule
+     `.action-bar-aux:not(.is-open) { display: none }` (higher specificity
+     via :not(), so it wins over the unconditional display overrides above). */
 
   .action-bar-controls > button {
     min-height: 44px;

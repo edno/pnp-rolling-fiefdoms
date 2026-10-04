@@ -42,9 +42,23 @@ vi.mock("../app/dice.js", () => {
 const baseHtml = `
   <div id="loadingOverlay"></div>
   <div id="sheet"></div>
+  <div class="action-bar" id="actionBar">
+    <div id="actionBanner"></div>
+    <div class="action-bar-controls">
+      <button id="rollBtn"></button>
+      <button id="finishActivation"></button>
+    </div>
+    <div class="action-bar-aux" id="actionBarAux">
+      <button id="confirmPlotBtn" style="display: none"></button>
+      <button id="cancelPlotBtn" style="display: none"></button>
+      <div id="buildingPicker" hidden></div>
+    </div>
+  </div>
+  <div class="panel" id="turnHintPanel">
+    <div id="turnHint"></div>
+  </div>
   <div id="board"></div>
   <div id="diceView"></div>
-  <div id="turnHint"></div>
   <div id="locDicePreview"></div>
   <div id="buildDicePreview"></div>
   <div id="influenceStepper" hidden>
@@ -62,18 +76,12 @@ const baseHtml = `
   <div id="scoreOverlayReputation"></div>
   <div id="turnTrackOverlay"></div>
   <div id="popHousingOverlay"></div>
-  <button id="finishActivation"></button>
   <button id="newGameBtn"></button>
-  <button id="confirmPlotBtn" style="display: none"></button>
-  <button id="cancelPlotBtn" style="display: none"></button>
   <button id="fullscreenToggle"></button>
-  <div id="actionBanner"></div>
   <span id="turnStatusChip"></span>
-  <button id="rollBtn"></button>
   <input id="fiefdomInput" />
   <div id="buildingsOverlay"></div>
   <div id="guildsOverlay"></div>
-  <div id="buildingPicker" hidden></div>
 `;
 
 const challengePickerHtml = `
@@ -1620,6 +1628,40 @@ describe("challenge picker carousel selection on small screens (jsdom)", () => {
     const selectedAfter = cards.map((card) => card.classList.contains("selected"));
     expect(selectedAfter).toEqual(selectedBefore);
   });
+
+  it("on small screens tapping a peeking card selects it, and tapping the selected card starts the game", async () => {
+    await setupApp({ enableHooks: true, withChallengePicker: true });
+    document.getElementById("newGameBtn")?.click();
+    window.matchMedia = (query) => ({
+      matches: query.includes("max-width: 600px"),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    });
+
+    const picker = document.getElementById("challengePicker");
+    const cards = Array.from(document.querySelectorAll("#challengeCards .challenge-card:not(.challenge-card-disabled)"));
+    expect(picker.hidden).toBe(false);
+
+    cards[1].click();
+    expect(cards[1].classList.contains("selected")).toBe(true);
+    expect(picker.hidden).toBe(false);
+
+    cards[1].click();
+    expect(picker.hidden).toBe(true);
+  });
+
+  it("on larger screens tapping the selected card does not start the game", async () => {
+    await setupApp({ enableHooks: true, withChallengePicker: true });
+    document.getElementById("newGameBtn")?.click();
+    window.matchMedia = () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+
+    const picker = document.getElementById("challengePicker");
+    const cards = Array.from(document.querySelectorAll("#challengeCards .challenge-card:not(.challenge-card-disabled)"));
+    cards[1].click();
+    cards[1].click();
+    expect(cards[1].classList.contains("selected")).toBe(true);
+    expect(picker.hidden).toBe(false);
+  });
 });
 
 describe("unread log badge (jsdom)", () => {
@@ -1721,5 +1763,133 @@ describe("flashHint / updateActionBanner interplay (jsdom)", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("syncActionBarState (jsdom) - JS-managed action-bar/aux classes", () => {
+  it("keeps the aux drawer closed before the roll, with the pre-roll class set", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { syncActionBarState } = hooks;
+    const actionBar = document.getElementById("actionBar");
+    const actionBarAux = document.getElementById("actionBarAux");
+    const actionBanner = document.getElementById("actionBanner");
+
+    actionBanner.innerHTML = '<button class="btn-inline-action" data-target="rollBtn">Roll Dice</button>';
+    document.getElementById("diceView").innerHTML = "";
+
+    syncActionBarState();
+
+    expect(actionBar.classList.contains("is-pre-roll")).toBe(true);
+    expect(actionBar.classList.contains("has-inline-roll")).toBe(true);
+    expect(actionBarAux.classList.contains("is-open")).toBe(false);
+    expect(actionBarAux.classList.contains("has-confirm")).toBe(false);
+  });
+
+  it("opens the drawer (without has-confirm) when only the building picker is visible on a compact layout", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { syncActionBarState } = hooks;
+    window.matchMedia = () => ({
+      matches: true,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    });
+    const picker = document.getElementById("buildingPicker");
+    picker.hidden = false;
+
+    syncActionBarState();
+
+    const actionBarAux = document.getElementById("actionBarAux");
+    expect(actionBarAux.classList.contains("is-open")).toBe(true);
+    expect(actionBarAux.classList.contains("has-confirm")).toBe(false);
+  });
+
+  it("does not open the drawer for the building picker on a non-compact (desktop) layout", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { syncActionBarState } = hooks;
+    window.matchMedia = () => ({
+      matches: false,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    });
+    const picker = document.getElementById("buildingPicker");
+    picker.hidden = false;
+
+    syncActionBarState();
+
+    const actionBarAux = document.getElementById("actionBarAux");
+    expect(actionBarAux.classList.contains("is-open")).toBe(false);
+  });
+
+  it("sets has-confirm (and opens the drawer) once a plot is pending confirm", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { state } = hooks;
+    state.pendingPlot = { r: 0, c: 0, kind: "build", code: "C" };
+    // showPlotConfirmControls isn't exposed on the hooks object; drive the
+    // same effect directly via the confirm button + syncActionBarState.
+    const confirmBtn = document.getElementById("confirmPlotBtn");
+    confirmBtn.style.display = "inline-block";
+    hooks.syncActionBarState();
+
+    const actionBarAux = document.getElementById("actionBarAux");
+    expect(actionBarAux.classList.contains("is-open")).toBe(true);
+    expect(actionBarAux.classList.contains("has-confirm")).toBe(true);
+  });
+
+  it("closes the drawer again once Confirm is hidden and no other aux content is visible", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const confirmBtn = document.getElementById("confirmPlotBtn");
+    confirmBtn.style.display = "none";
+    document.getElementById("buildingPicker").hidden = true;
+    document.getElementById("influenceStepper").hidden = true;
+
+    hooks.syncActionBarState();
+
+    const actionBarAux = document.getElementById("actionBarAux");
+    expect(actionBarAux.classList.contains("is-open")).toBe(false);
+    expect(actionBarAux.classList.contains("has-confirm")).toBe(false);
+  });
+
+  it("sets has-inline-roll / has-inline-finish from the banner's inline action buttons", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const actionBar = document.getElementById("actionBar");
+    const actionBanner = document.getElementById("actionBanner");
+
+    actionBanner.innerHTML =
+      '<button class="btn-inline-action" data-target="finishActivation">Finish</button>';
+    hooks.syncActionBarState();
+    expect(actionBar.classList.contains("has-inline-finish")).toBe(true);
+    expect(actionBar.classList.contains("has-inline-roll")).toBe(false);
+
+    actionBanner.innerHTML = '<button class="btn-inline-action" data-target="rollBtn">Roll</button>';
+    hooks.syncActionBarState();
+    expect(actionBar.classList.contains("has-inline-roll")).toBe(true);
+    expect(actionBar.classList.contains("has-inline-finish")).toBe(false);
+  });
+
+  it("marks #board as has-pending only while a build/forfeit plot awaits confirm", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { state, renderBoard } = hooks;
+    state.board = createEmptyBoard();
+    state.pendingPlot = { r: 0, c: 0, kind: "build", code: "C" };
+
+    renderBoard();
+    expect(document.getElementById("board").classList.contains("has-pending")).toBe(true);
+
+    state.pendingPlot = null;
+    renderBoard();
+    expect(document.getElementById("board").classList.contains("has-pending")).toBe(false);
+
+    // Pending population placements use a different pending marker
+    // (.population-node.cell-pending) and must not dim board highlights.
+    state.pendingPlot = { r: 0, c: 0, kind: "population" };
+    renderBoard();
+    expect(document.getElementById("board").classList.contains("has-pending")).toBe(false);
   });
 });

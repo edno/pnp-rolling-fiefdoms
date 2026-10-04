@@ -39,7 +39,7 @@
     <title>Rolling Fiefdoms - Online Solo</title>
     <link rel="canonical" href="https://rolling-fiefdoms.edno.io/" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="modulepreload" href="app/app.js?v=v27" />
+    <link rel="modulepreload" href="app/app.js?v=v28" />
     <link rel="icon" type="image/png" href="assets/img/ink-splatter.png" />
     <script type="application/ld+json">
       {
@@ -78,8 +78,8 @@
         z-index: 999;
       }
     </style>
-    <link rel="stylesheet" href="assets/css/fonts.css?v=v27" />
-    <link rel="stylesheet" href="assets/css/styles.css?v=v27" />
+    <link rel="stylesheet" href="assets/css/fonts.css?v=v28" />
+    <link rel="stylesheet" href="assets/css/styles.css?v=v28" />
   </head>
   <body class="loading">
     <header>
@@ -250,6 +250,7 @@
           </button>
         </div>
         <div id="challengeCarouselDots" class="carousel-dots"></div>
+        <p class="challenge-tap-hint" data-i18n="challenges.picker.tapToStart">Tap the card to start</p>
         <div class="modal-actions">
           <button id="challengeCancelBtn" type="button" class="secondary" data-i18n="challenges.picker.cancel">
             Cancel
@@ -260,7 +261,7 @@
     </div>
 
     <main>
-      <div class="action-bar">
+      <div class="action-bar" id="actionBar">
         <div id="actionBanner" class="action-banner" aria-live="polite"></div>
           <div class="action-bar-controls">
             <button id="rollBtn" data-i18n="html.rollDice">Roll Dice</button>
@@ -280,7 +281,7 @@
             </button>
             <button id="newGameBtn" style="display: none" data-i18n="html.playAgain">Play again</button>
           </div>
-          <div class="action-bar-aux">
+          <div class="action-bar-aux" id="actionBarAux">
             <button
               id="confirmPlotBtn"
               type="button"
@@ -463,7 +464,7 @@
       </section>
 
       <section class="controls">
-        <div class="panel" id="turnHintPanel">
+        <div class="panel turn-hint-empty" id="turnHintPanel">
           <div id="turnHint" class="hint"></div>
         </div>
 
@@ -692,6 +693,6 @@
     </div>
 
     <script type="module" src="app/inline-init.js?v=v1"></script>
-    <script type="module" src="app/app.js?v=v27"></script>
+    <script type="module" src="app/app.js?v=v28"></script>
   </body>
 </html>

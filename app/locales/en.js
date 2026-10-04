@@ -275,6 +275,7 @@ export default {
       normalGameName: "Normal Game",
       normalGameDescription: "The standard 25-turn game with no restrictions.",
       confirm: "Start",
+      tapToStart: "Tap the card to start",
       cancel: "Cancel",
       setupLabel: "Setup",
       rulesLabel: "Rules",

@@ -15,6 +15,10 @@
 export const boardEl = document.getElementById("board");
 export const diceView = document.getElementById("diceView");
 export const turnHintEl = document.getElementById("turnHint");
+export const turnHintPanelEl = document.getElementById("turnHintPanel");
+export const actionBarEl = document.getElementById("actionBar");
+export const actionBarAuxEl = document.getElementById("actionBarAux");
+export const buildingPickerEl = document.getElementById("buildingPicker");
 export const locDicePreview = document.getElementById("locDicePreview");
 export const buildDicePreview = document.getElementById("buildDicePreview");
 export const influenceStepper = document.getElementById("influenceStepper");

@@ -65,6 +65,10 @@ import {
   boardEl,
   diceView,
   turnHintEl,
+  turnHintPanelEl,
+  actionBarEl,
+  actionBarAuxEl,
+  buildingPickerEl,
   locDicePreview,
   buildDicePreview,
   influenceStepper,
@@ -434,6 +438,9 @@ function setTurnHint(text) {
   } else {
     turnHintEl.textContent = text;
   }
+  // Mirrors the old `#turnHintPanel:has(#turnHint:empty)` CSS rule as a JS-managed
+  // class, since WebKit doesn't reliably re-evaluate :has() after text mutations.
+  if (turnHintPanelEl) turnHintPanelEl.classList.toggle("turn-hint-empty", !text);
 }
 
 function updateRollButton() {
@@ -1295,6 +1302,7 @@ function renderInfluenceStepper() {
   const die = idx >= 0 ? state.dice[idx] : null;
   if (!die) {
     influenceStepper.hidden = true;
+    syncActionBarState();
     return;
   }
   influenceStepper.hidden = false;
@@ -1317,6 +1325,7 @@ function renderInfluenceStepper() {
   if (influenceStepperMinus) influenceStepperMinus.disabled = !canAdjustDieValue(die, -1);
   if (influenceStepperPlus) influenceStepperPlus.disabled = !canAdjustDieValue(die, 1);
   if (influenceStepperReset) influenceStepperReset.hidden = delta === 0;
+  syncActionBarState();
 }
 
 // ============================================================================
@@ -1329,6 +1338,7 @@ function renderDice() {
   const awaitingRoll = state.rollAvailable && (!state.dice || state.dice.length === 0);
   if (state.activationMode || state.activationComplete || awaitingRoll) {
     if (influenceStepper) influenceStepper.hidden = true;
+    syncActionBarState();
     return;
   }
   clearElement(diceView);
@@ -1605,6 +1615,7 @@ function renderBuildingPicker() {
   clearElement(picker);
   if (!availableHits.length && !(awaitingCenterGuildType && guildHitsAvailable.length)) {
     picker.hidden = true;
+    syncActionBarState();
     return;
   }
   picker.hidden = false;
@@ -1647,6 +1658,7 @@ function renderBuildingPicker() {
       picker.appendChild(btn);
     });
   }
+  syncActionBarState();
 }
 
 function highlightMarketClaims(marketRow, marketCol) {
@@ -1673,6 +1685,13 @@ function clearMarketHighlights() {
 
 function renderBoard() {
   clearElement(boardEl);
+  // Dims other highlighted candidates while a plot/forfeit placement is pending
+  // confirm (see #board.has-pending in styles.css); JS-managed rather than
+  // :has(.cell-pending), which WebKit doesn't reliably re-evaluate on touch.
+  const pendingKind = state.pendingPlot?.kind;
+  if (boardEl) {
+    boardEl.classList.toggle("has-pending", pendingKind === "build" || pendingKind === "forfeit");
+  }
   const activationMap =
     state.activationMode || state.activationComplete
       ? computeActivationMap(state.board, state.populationNodes, currentWorkerAllocationsForScore())
@@ -1938,6 +1957,7 @@ function showPlotConfirmControls() {
   state.bannerOverride = text;
   confirmPromptBannerText = text;
   updateActionBanner();
+  syncActionBarState();
 }
 
 function hidePlotConfirmControls() {
@@ -1948,6 +1968,7 @@ function hidePlotConfirmControls() {
   }
   confirmPromptBannerText = null;
   previousBannerOverride = null;
+  syncActionBarState();
 }
 
 function confirmPendingPlot() {
@@ -2643,6 +2664,22 @@ if (typeof window !== "undefined") {
   });
 }
 
+// The building picker's visibility in the aux drawer depends on isCompactLayout()
+// (desktop never shows it even when populated), so crossing the 1100px breakpoint
+// (e.g. rotating a tablet) must re-sync the drawer's open/closed state.
+if (typeof window !== "undefined" && window.matchMedia) {
+  const compactLayoutQuery = window.matchMedia("(max-width: 1100px)");
+  const onCompactLayoutChange = () => {
+    renderBuildingPicker();
+    syncActionBarState();
+  };
+  if (typeof compactLayoutQuery.addEventListener === "function") {
+    compactLayoutQuery.addEventListener("change", onCompactLayoutChange);
+  } else if (typeof compactLayoutQuery.addListener === "function") {
+    compactLayoutQuery.addListener(onCompactLayoutChange);
+  }
+}
+
 // Cached to avoid forcing a layout (getBoundingClientRect) on every scroll-throttled
 // animation frame while the picker carousel is being dragged/scrolled - the card width only
 // changes on a window resize, which invalidates the cache above.
@@ -2700,7 +2737,13 @@ function selectCenteredChallengeCardOnSmallScreens() {
     }
   });
   if (!nearest) return;
-  nearest.click();
+  nearest.dispatchEvent(new CustomEvent("challenge-select"));
+}
+
+// Same breakpoint as selectCenteredChallengeCardOnSmallScreens: the Start button is hidden
+// there and tapping the (auto-selected) centred card starts the game instead.
+function challengeCardTapStarts() {
+  return Boolean(window.matchMedia && window.matchMedia("(max-width: 600px)").matches);
 }
 
 function openChallengePicker() {
@@ -2847,11 +2890,21 @@ function renderChallengeCards() {
     appendChallengeCardSection(card, "challenges.picker.victoryLabel", entry.victoryKeys);
     appendChallengeCardSection(card, "challenges.picker.rulesLabel", entry.ruleKeys);
     appendChallengeCardSection(card, "challenges.picker.setupLabel", entry.setupKeys);
-    card.onclick = () => {
+    const selectCard = () => {
       pickedChallengeId = entry.id;
       challengeCardsEl.querySelectorAll(".challenge-card").forEach((el) => el.classList.remove("selected"));
       card.classList.add("selected");
       card.scrollIntoView?.({ behavior: "smooth", inline: "center", block: "nearest" });
+    };
+    card.addEventListener("challenge-select", selectCard);
+    card.onclick = () => {
+      // Tapping a peeking neighbour only centres/selects it, so a stray tap never starts
+      // a game the player wasn't looking at.
+      if (challengeCardTapStarts() && card.classList.contains("selected")) {
+        challengeConfirmBtn?.click();
+        return;
+      }
+      selectCard();
     };
     card.addEventListener("scroll", () => updateScrollCue(card));
     challengeCardsEl.appendChild(card);
@@ -3100,6 +3153,7 @@ function updateActionBanner() {
     lockedPairChoice,
   });
   syncPlotConfirmControls();
+  syncActionBarState();
 }
 
 // Confirm/Change plot buttons are normally shown/hidden via showPlotConfirmControls()/
@@ -3111,6 +3165,38 @@ function syncPlotConfirmControls() {
   if (state.pendingPlot) return;
   if (confirmPlotBtn && confirmPlotBtn.style.display !== "none") confirmPlotBtn.style.display = "none";
   if (cancelPlotBtn && cancelPlotBtn.style.display !== "none") cancelPlotBtn.style.display = "none";
+}
+
+/**
+ * Replaces the old `:has()`-based CSS rules that derived the aux drawer's
+ * open/closed state and the pre-roll / inline-twin-hiding states from inline
+ * styles and attributes (`.action-bar-aux:has(> #confirmPlotBtn:not([style*=
+ * "display: none"]))`, etc.) - WebKit (iOS Chrome/Safari) doesn't reliably
+ * re-evaluate `:has()` after inline style/attribute mutations, which left the
+ * aux drawer looking like an empty tab, and the building picker invisible
+ * even when `renderBuildingPicker()` had populated it. Sets JS-managed
+ * classes instead; call after any change that affects these states.
+ */
+function syncActionBarState() {
+  if (!actionBarEl) return;
+  const confirmVisible = Boolean(confirmPlotBtn && confirmPlotBtn.style.display !== "none");
+  const pickerVisible = Boolean(buildingPickerEl && !buildingPickerEl.hidden && isCompactLayout());
+  const stepperVisible = Boolean(influenceStepper && !influenceStepper.hidden);
+  const hasInlineRoll = Boolean(actionBannerEl?.querySelector('.btn-inline-action[data-target="rollBtn"]'));
+  const hasInlineFinish = Boolean(
+    actionBannerEl?.querySelector('.btn-inline-action[data-target="finishActivation"]'),
+  );
+  const hasDiceBadge = Boolean(diceView?.querySelector(".die-badge"));
+  const preRoll = hasInlineRoll && !hasDiceBadge;
+
+  if (actionBarAuxEl) {
+    const isOpen = confirmVisible || pickerVisible || stepperVisible;
+    actionBarAuxEl.classList.toggle("is-open", isOpen);
+    actionBarAuxEl.classList.toggle("has-confirm", confirmVisible);
+  }
+  actionBarEl.classList.toggle("is-pre-roll", preRoll);
+  actionBarEl.classList.toggle("has-inline-roll", hasInlineRoll);
+  actionBarEl.classList.toggle("has-inline-finish", hasInlineFinish);
 }
 
 function updateSwapButton() {
@@ -4077,6 +4163,11 @@ function autoForfeitUnfillable(finalize = false) {
       newGame,
       log,
       updateActionBanner,
+      syncActionBarState,
+      renderBuildingPicker,
+      renderInfluenceStepper,
+      renderDice,
+      renderBoard,
       currentScore,
     };
   }

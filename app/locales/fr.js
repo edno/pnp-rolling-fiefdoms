@@ -275,6 +275,7 @@ export default {
       normalGameName: "Partie normale",
       normalGameDescription: "La partie standard en 25 tours, sans restriction.",
       confirm: "Commencer",
+      tapToStart: "Touchez la carte pour commencer",
       cancel: "Annuler",
       setupLabel: "Mise en place",
       rulesLabel: "Règles",
