@@ -1276,6 +1276,10 @@ function renderInfluenceStepper() {
   const adjustedDie = applyInfluenceToDie(state, die) || die;
   if (influenceStepperFace) {
     clearElement(influenceStepperFace);
+    // Same die-type class as the dice row so pip/body colours resolve (cream X dice
+    // have red pips via .die-special; without it the mini face renders blank).
+    influenceStepperFace.classList.toggle("die-special", die.label[0] === "X");
+    influenceStepperFace.classList.toggle("die-number", die.label[0] !== "X");
     influenceStepperFace.appendChild(createDieFaceSVG(adjustedDie, { showLabel: false }));
   }
   if (influenceStepperDieLabel) influenceStepperDieLabel.textContent = die.label;
@@ -1301,6 +1305,9 @@ function renderDice() {
     return;
   }
   clearElement(diceView);
+  // Resolve the influence target before building the badges, so the target ring is
+  // drawn on the same die the stepper adjusts (e.g. after a reset re-targets).
+  if (state.dice) influenceUiDie = resolveInfluenceUiDie();
   if (turnHintEl) {
     if (state.pestilence) {
       setTurnHint(t("pestilence.forfeitEmptyPlot"));
@@ -3432,7 +3439,8 @@ function makeDieBadge(
     targetBtn.addEventListener("click", (event) => {
       event.stopPropagation();
       influenceUiDie = die.label;
-      renderInfluenceStepper();
+      // Re-render the dice too, so the target ring/active badge move to this die.
+      renderDice();
     });
     badge.appendChild(targetBtn);
   }

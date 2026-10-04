@@ -1669,7 +1669,9 @@ select {
 
 .die-badge.influence-target {
   outline: 2px dashed var(--accent-strong);
-  outline-offset: 3px;
+  /* Drawn just inside the die: the dice row is a scroll-clipped strip with
+     little vertical padding, so an outer offset gets cut at the top. */
+  outline-offset: -2px;
 }
 
 .influence-target-btn {

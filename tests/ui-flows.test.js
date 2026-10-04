@@ -985,6 +985,32 @@ describe("plot confirm step (jsdom)", () => {
     expect(hooks.state.influenceAdjustments?.N1?.delta ?? 0).toBe(0);
   });
 
+  it("moves the influence target ring when another die's ± badge is tapped", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.state.dice = [
+      { label: "N1", face: 2, resolved: 2 },
+      { label: "N2", face: 4, resolved: 4 },
+      { label: "X1", face: 2, resolved: 2 },
+      { label: "X2", face: 3, resolved: 3 },
+    ];
+    hooks.state.locationSelection = [0, 1];
+    hooks.state.rollAvailable = false;
+    hooks.state.influence = { earned: 2, spent: 0, pending: 0 };
+    hooks.updateDiceAssignments(true);
+    await flushMicrotasks();
+
+    document.querySelector('#diceView .die-badge[data-idx="2"] .influence-target-btn').click();
+    await flushMicrotasks();
+    expect(document.querySelector('#diceView .die-badge[data-idx="2"]').classList.contains("influence-target")).toBe(true);
+
+    document.querySelector('#diceView .die-badge[data-idx="3"] .influence-target-btn').click();
+    await flushMicrotasks();
+    expect(document.querySelector('#diceView .die-badge[data-idx="3"]').classList.contains("influence-target")).toBe(true);
+    expect(document.querySelector('#diceView .die-badge[data-idx="2"]').classList.contains("influence-target")).toBe(false);
+    expect(document.getElementById("influenceStepperFace").classList.contains("die-special")).toBe(true);
+  });
+
   it("offers influence only once both location dice are chosen", async () => {
     await setupApp({ enableHooks: true });
     const hooks = window.__rfTestHooks;
