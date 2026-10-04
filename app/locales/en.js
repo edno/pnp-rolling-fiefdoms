@@ -242,7 +242,7 @@ export default {
     finishWhenReady: "Press {finishBtn} when ready for final scoring.",
   },
   score: {
-    label: "<strong>Final score {score}</strong> - {title} — {description}",
+    label: "<strong>Reputation {score}</strong> - {title} — {description}",
     rankLegendaryTitle: "Legendary",
     rankLegendaryDesc: "Your name will echo through the ages.",
     rankIllustriousTitle: "Illustrious",

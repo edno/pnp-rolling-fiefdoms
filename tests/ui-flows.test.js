@@ -527,7 +527,7 @@ describe("score rank banner (jsdom)", () => {
     hooks.state.activationComplete = true;
     hooks.state.finalScore = 91;
     const msg = hooks.actionMessage(hooks.state, null, hooks.TURN_PHASE.ACTIVATION_DONE);
-    expect(msg).toContain("Final score 91");
+    expect(msg).toContain("Reputation 91");
     expect(msg).toContain("Legendary");
     expect(msg).toContain("echo through the ages");
   });
