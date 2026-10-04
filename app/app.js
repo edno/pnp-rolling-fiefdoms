@@ -35,6 +35,7 @@ import {
   finishActivation as finishActivationState,
   startPopulationPlacement,
   placePopulationNode,
+  canPlacePopulationNode,
   chooseBarricadeNode,
   allocateWorker,
   autoForfeitUnfillableState,
@@ -57,13 +58,29 @@ import {
 } from "./influence.js";
 import { splitForcedDice } from "./dice-display.js";
 import { createDieFaceSVG } from "./dice-face.js";
+import { needsConfirmStep } from "./confirm-step.js";
+import { guideTo } from "./scroll-guide.js";
+import { isCompactLayout } from "./layout-mode.js";
 import {
   boardEl,
   diceView,
   turnHintEl,
+  turnHintPanelEl,
+  actionBarEl,
+  actionBarAuxEl,
+  buildingPickerEl,
   locDicePreview,
   buildDicePreview,
+  influenceStepper,
+  influenceStepperFace,
+  influenceStepperDieLabel,
+  influenceStepperValue,
+  influenceStepperMinus,
+  influenceStepperPlus,
+  influenceStepperReset,
   logEl,
+  logDrawerEl,
+  logUnreadBadge,
   scoreOverlayBuildingsEl,
   scoreOverlayGuildsEl,
   scoreOverlayReputationEl,
@@ -73,6 +90,9 @@ import {
   finishActivationBtn,
   newGameBtn,
   swapPairBtn,
+  swapBtnWrap,
+  confirmPlotBtn,
+  cancelPlotBtn,
   fullscreenBtn,
   sfxToggleBtn,
   sfxToggleLabel,
@@ -93,6 +113,7 @@ import {
   challengeInfoCloseBtn,
   loadingOverlay,
   sheetBaseImage,
+  sheetBaseImages,
   challengePickerEl,
   challengeCardsEl,
   challengeConfirmBtn,
@@ -111,6 +132,7 @@ import {
   forEachCell,
   createOctagon,
   clearElement,
+  actionBannerEl,
 } from "./dom-manager.js";
 import {
   ICONS,
@@ -126,6 +148,9 @@ import {
   actionMessage as generateActionMessage,
   updateActionBanner as updateBannerUI,
   formatButtonLabelHtml,
+  flashHint,
+  syncInlineActionButtons,
+  registerActionBarSync,
   TURN_PHASE,
 } from "./ui-feedback.js";
 import {
@@ -142,6 +167,17 @@ import {
   escapeHtml,
 } from "./i18n.js";
 import { CHALLENGES, CHALLENGE_ORDER } from "./challenges.js";
+import { initSheetWindows } from "./sheet-layout.js";
+import { onMouseHover } from "./hover.js";
+import { initPopovers, setPopover } from "./popover.js";
+import { updateScrollCue } from "./scroll-cue.js";
+import { buildingTooltip, renderBuildingTooltip } from "./building-info.js";
+import { popHousingTooltip, renderPopHousingTooltip } from "./pop-housing-info.js";
+
+// flashHint() (ui-feedback.js) replaces/restores the banner HTML, which
+// affects `.has-inline-roll` / `.has-inline-finish`; register syncActionBarState
+// so it can re-run that sync without a circular import.
+registerActionBarSync(() => syncActionBarState());
 
 const BOARD_SIZE = 5;
 const POPULATION_GRID_SIZE = 4;
@@ -151,6 +187,19 @@ const SFX_ICON_ON = "assets/img/sfx-on.svg";
 const SFX_ICON_OFF = "assets/img/sfx-off.svg";
 const DEFAULT_DICE_ANIM_MS = 1200;
 const SFX_STORAGE_KEY = "rf-sfx-enabled";
+
+// Enable test hooks if ?autoplay is present in URL
+const autoplayRequested =
+  typeof window !== "undefined" && new URLSearchParams(window.location.search).has("autoplay");
+if (autoplayRequested) {
+  window.__RF_ENABLE_TEST_HOOKS__ = true;
+}
+
+// Autoplay must never play dice/build sound effects, at any speed, regardless of the player's
+// saved SFX preference (SFX_STORAGE_KEY) — but it must not overwrite that saved preference
+// either, so a later normal session (without ?autoplay) still sees whatever the player chose.
+// This is a pure in-memory override, checked everywhere audio would otherwise play.
+const autoplayMuted = autoplayRequested;
 
 const state = createState();
 
@@ -202,14 +251,18 @@ function persistSfxPreference() {
 
 function updateSfxToggleButton() {
   if (!sfxToggleBtn) return;
-  sfxToggleBtn.setAttribute("aria-pressed", sfxEnabled ? "true" : "false");
-  sfxToggleBtn.classList.toggle("is-off", !sfxEnabled);
+  // Reflect the effective (autoplay-muted) state in the header toggle, without touching the
+  // underlying sfxEnabled preference that gets persisted to localStorage.
+  const effectiveOn = sfxEnabled && !autoplayMuted;
+  sfxToggleBtn.setAttribute("aria-pressed", effectiveOn ? "true" : "false");
+  sfxToggleBtn.classList.toggle("is-off", !effectiveOn);
+  sfxToggleBtn.disabled = autoplayMuted;
   if (sfxToggleLabel) {
-    sfxToggleLabel.textContent = sfxEnabled ? t("sfx.on") : t("sfx.off");
+    sfxToggleLabel.textContent = effectiveOn ? t("sfx.on") : t("sfx.off");
   }
   if (sfxToggleIcon) {
-    sfxToggleIcon.src = sfxEnabled ? SFX_ICON_ON : SFX_ICON_OFF;
-    sfxToggleIcon.alt = sfxEnabled ? t("sfx.onAlt") : t("sfx.offAlt");
+    sfxToggleIcon.src = effectiveOn ? SFX_ICON_ON : SFX_ICON_OFF;
+    sfxToggleIcon.alt = effectiveOn ? t("sfx.onAlt") : t("sfx.offAlt");
   }
 }
 
@@ -236,7 +289,7 @@ function applyLocaleChange(locale) {
   applyStaticDom();
   if (localeSelect) localeSelect.value = getLocale();
   updateLocaleFlagIcon();
-  setSheetImageSources(sheetBaseImage);
+  setAllSheetImageSources();
   updateSfxToggleButton();
   updateRollButton();
   renderBoard();
@@ -273,13 +326,14 @@ function setSfxEnabled(enabled) {
 }
 
 function toggleSfxEnabled() {
+  if (autoplayMuted) return;
   setSfxEnabled(!sfxEnabled);
 }
 
 updateSfxToggleButton();
 
 function safePlayAudio(instance, source, { onCreate } = {}) {
-  if (!sfxEnabled || typeof Audio === "undefined") return null;
+  if (!sfxEnabled || autoplayMuted || typeof Audio === "undefined") return null;
   if (!instance) {
     instance = new Audio(source);
     instance.preload = "auto";
@@ -300,12 +354,12 @@ function safePlayAudio(instance, source, { onCreate } = {}) {
 }
 
 function playSfx() {
-  if (!sfxEnabled) return;
+  if (!sfxEnabled || autoplayMuted) return;
   sfxAudio = safePlayAudio(sfxAudio, SFX_PATH);
 }
 
 function playDiceSfx() {
-  if (!sfxEnabled) return;
+  if (!sfxEnabled || autoplayMuted) return;
   const updateDuration = (audio) => {
     if (!audio) return;
     const duration = typeof audio.duration === "number" ? audio.duration : NaN;
@@ -393,6 +447,9 @@ function setTurnHint(text) {
   } else {
     turnHintEl.textContent = text;
   }
+  // Mirrors the old `#turnHintPanel:has(#turnHint:empty)` CSS rule as a JS-managed
+  // class, since WebKit doesn't reliably re-evaluate :has() after text mutations.
+  if (turnHintPanelEl) turnHintPanelEl.classList.toggle("turn-hint-empty", !text);
 }
 
 function updateRollButton() {
@@ -408,6 +465,7 @@ function updateRollButton() {
   rollBtn.disabled = !enabled;
   rollBtn.classList.toggle("dice-locked", !enabled && !debugMode);
   rollBtn.title = enabled ? t("turn.rollIdleTitle") : t("turn.rollUsedTitle");
+  syncInlineActionButtons();
 }
 
 function refreshDiceVisibility() {
@@ -515,7 +573,16 @@ async function init() {
     await setupControls();
     controlsReady = true;
   }
-  openChallengePicker();
+  // ?autoplay=N where N is a digit: 0 = normal game, 1-8 = challenge by 1-based index.
+  // Skip the challenge picker and start the right game directly.
+  const _apParam = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("autoplay");
+  if (_apParam !== null && /^\d+$/.test(_apParam)) {
+    const _apIdx = parseInt(_apParam, 10);
+    const _apChallengeId = _apIdx === 0 ? null : (CHALLENGE_ORDER[_apIdx - 1] || null);
+    newGame(_apChallengeId);
+  } else {
+    openChallengePicker();
+  }
 }
 
 function activeChallenge() {
@@ -529,7 +596,7 @@ function formatChallengeNameHtml(name) {
   const match = /^([IVXLCDM]+)(\.\s*)(.*)$/.exec(name);
   if (!match) return escapeHtml(name);
   const [, numeral, separator, rest] = match;
-  return `<span class="challenge-roman-numeral">${escapeHtml(numeral)}</span>${escapeHtml(separator)}${escapeHtml(rest)}`;
+  return `<span class="challenge-name"><span class="challenge-roman-numeral">${escapeHtml(numeral)}</span>${escapeHtml(separator)}${escapeHtml(rest)}</span>`;
 }
 
 // A plain circle+"i" glyph (not a text/emoji character) so it renders identically across
@@ -567,6 +634,8 @@ function resetState(challengeId = null) {
   state.lastStatusTurnIndex = 0;
   state.finalScore = null;
   state.log = [];
+  unreadLogCount = 0;
+  updateLogUnreadBadge();
   state.rollAvailable = true;
   state.pendingTurnIndex = null;
   state.pendingActiveTurn = null;
@@ -613,8 +682,14 @@ function setSheetImageSources(el) {
     el.srcset = `${standardSrc} 1x, ${highSrc} 2x`;
   }
   if ("sizes" in el) {
-    el.sizes = "(max-width: 1100px) 100vw, 1100px";
+    el.sizes = "100vw";
   }
+}
+
+function setAllSheetImageSources() {
+  (sheetBaseImages && sheetBaseImages.length ? sheetBaseImages : [sheetBaseImage]).forEach((el) =>
+    setSheetImageSources(el),
+  );
 }
 
 function preloadSheet() {
@@ -633,7 +708,7 @@ function preloadSheet() {
         cleanup();
         resolve(false);
       };
-      setSheetImageSources(imgEl);
+      setAllSheetImageSources();
       if (imgEl.complete) {
         cleanup();
         resolve(true);
@@ -684,7 +759,13 @@ async function initializeApp() {
     
     // Initialize the game
     await init();
-    
+
+    // Scale the sheet crop windows to fit their rendered width
+    initSheetWindows();
+
+    // Initialize popovers for tooltips
+    initPopovers();
+
     // Remove loading state only after everything is ready
     document.body.classList.remove("loading");
     if (loadingOverlay) loadingOverlay.remove();
@@ -717,7 +798,26 @@ async function setupControls() {
     newGameBtn.onclick = () => openChallengePicker();
     newGameBtn.style.display = "none";
   }
+  if (actionBannerEl) {
+    actionBannerEl.addEventListener("click", (event) => {
+      const btn = event.target.closest(".btn-inline-action");
+      if (!btn) return;
+      const target = document.getElementById(btn.dataset.target);
+      if (target && !target.disabled) target.click();
+    });
+  }
   setupChallengePicker();
+  if (logDrawerEl) {
+    if (isCompactLayout()) {
+      logDrawerEl.open = false;
+    }
+    logDrawerEl.addEventListener("toggle", () => {
+      if (logDrawerEl.open) {
+        unreadLogCount = 0;
+        updateLogUnreadBadge();
+      }
+    });
+  }
   if (fullscreenBtn) {
     fullscreenBtn.onclick = () => toggleFullscreen();
   }
@@ -764,7 +864,35 @@ async function setupControls() {
   }
   if (swapPairBtn) {
     swapPairBtn.onclick = () => toggleLockedPairChoice();
-    swapPairBtn.style.display = "none";
+  }
+  if (swapBtnWrap) {
+    swapBtnWrap.style.display = "none";
+  }
+  if (confirmPlotBtn) {
+    confirmPlotBtn.onclick = () => confirmPendingPlot();
+    confirmPlotBtn.style.display = "none";
+  }
+  if (cancelPlotBtn) {
+    cancelPlotBtn.onclick = () => cancelPendingPlot();
+    cancelPlotBtn.style.display = "none";
+  }
+  if (influenceStepperMinus) {
+    influenceStepperMinus.onclick = () => {
+      const idx = influenceUiDieIndex();
+      if (idx >= 0) adjustDieWithInfluence(idx, -1);
+    };
+  }
+  if (influenceStepperPlus) {
+    influenceStepperPlus.onclick = () => {
+      const idx = influenceUiDieIndex();
+      if (idx >= 0) adjustDieWithInfluence(idx, 1);
+    };
+  }
+  if (influenceStepperReset) {
+    influenceStepperReset.onclick = () => {
+      const idx = influenceUiDieIndex();
+      if (idx >= 0) resetDieInfluence(idx);
+    };
   }
 }
 
@@ -774,12 +902,31 @@ async function setupControls() {
 
 let rollingInProgress = false;
 
+// Guided scrolling (see app/scroll-guide.js): tracks the last step we auto-scrolled for so
+// re-renders of the same step don't keep yanking the viewport. Reset whenever a new roll
+// starts a fresh turn.
+let lastGuidedStep = null;
+
+// UI-only selection of which die the influence stepper targets. This is distinct from
+// state.influenceTarget (which has rule meaning for location-pair rescue) and never
+// persists past a reroll or new game.
+let influenceUiDie = null;
+
+function guideToStep(stepKey, elGetter, options) {
+  if (!stepKey || stepKey === lastGuidedStep) return;
+  lastGuidedStep = stepKey;
+  guideTo(elGetter(), options);
+}
+
 function rollDice() {
   if (rollingInProgress) {
     return;
   }
   rollingInProgress = true;
-  
+  lastGuidedStep = null;
+  influenceUiDie = null;
+  clearPendingPlot();
+
   try {
     if (state.activationMode) return;
     if (state.pendingCenterBuilding?.active) return;
@@ -830,7 +977,7 @@ function rollDice() {
   if (needsDoubleReroll) {
     const msg = t("turn.doubleWindroseRolled");
     log(msg);
-    state.bannerOverride = t("turn.doubleWindroseRolledBanner", { rollBtn: formatButtonLabelHtml(t("html.rollDice")) });
+    state.bannerOverride = t("turn.doubleWindroseRolledBanner", { rollBtn: formatButtonLabelHtml(t("html.rollDice"), "rollBtn") });
     updateActionBanner();
     state.pendingTurnIndex = state.turnIndex;
     state.pendingActiveTurn = state.activeTurn;
@@ -856,6 +1003,7 @@ function rollDice() {
     state.forceForfeit = true;
     state.forceForfeitAdvisory = false;
     state.diceLocked = true;
+    guideToStep("pestilence-forfeit", () => document.querySelector(".sheet-window-board") || document.querySelector(".board"));
   } else if (turnHintEl) {
     setTurnHint(state.activeTurn ? "" : nonActiveAutoHintText());
   }
@@ -1091,6 +1239,7 @@ function adjustDieWithInfluence(idx, direction) {
   } else if (!state.influenceTarget) {
     state.influenceTarget = die.label;
   }
+  influenceUiDie = die.label;
   state.influenceSelectionKey =
     state.locationSelection.length >= 1 ? canonicalSelectionKey(state.locationSelection) : null;
   log(t("influence.adjusted", { label: die.label, value: target }));
@@ -1121,6 +1270,75 @@ function resetDieInfluence(idx) {
   refreshDiceVisibility();
 }
 
+// Eligibility for showing the influence ± badge / being the stepper's target: same rules
+// as canAdjustDieValue (at most one die adjusted, influence available, not pestilence/
+// locked/activation), reused rather than duplicated.
+function influenceBadgeEligible(die) {
+  if (!isInfluenceEligibleDie(die)) return false;
+  const canDecrease = canAdjustDieValue(die, -1);
+  const canIncrease = canAdjustDieValue(die, 1);
+  const hasAdjustment = influenceAdjustmentDelta(die.label) !== 0;
+  return canDecrease || canIncrease || hasAdjustment;
+}
+
+function influenceUiDieIndex() {
+  if (!influenceUiDie || !state.dice) return -1;
+  return state.dice.findIndex((d) => d?.label === influenceUiDie);
+}
+
+// Resolves which die the stepper should target: a die with a nonzero adjustment wins,
+// otherwise the current UI selection if still eligible, otherwise auto-select when exactly
+// one die is eligible, otherwise none.
+function resolveInfluenceUiDie() {
+  if (!state.dice || !state.dice.length) return null;
+  const adjustedLabel = Object.keys(state.influenceAdjustments || {}).find(
+    (label) => influenceAdjustmentDelta(label) !== 0,
+  );
+  if (adjustedLabel && state.dice.some((d) => d?.label === adjustedLabel)) {
+    return adjustedLabel;
+  }
+  if (influenceUiDie) {
+    const current = state.dice.find((d) => d?.label === influenceUiDie);
+    if (current && influenceBadgeEligible(current)) return influenceUiDie;
+  }
+  const eligible = state.dice.filter((d) => influenceBadgeEligible(d));
+  if (eligible.length === 1) return eligible[0].label;
+  return null;
+}
+
+function renderInfluenceStepper() {
+  if (!influenceStepper) return;
+  influenceUiDie = resolveInfluenceUiDie();
+  const idx = influenceUiDieIndex();
+  const die = idx >= 0 ? state.dice[idx] : null;
+  if (!die) {
+    influenceStepper.hidden = true;
+    syncActionBarState();
+    return;
+  }
+  influenceStepper.hidden = false;
+  const base = typeof die.resolved === "number" ? die.resolved : null;
+  const delta = influenceAdjustmentDelta(die.label);
+  const adjustedDie = applyInfluenceToDie(state, die) || die;
+  if (influenceStepperFace) {
+    clearElement(influenceStepperFace);
+    // Same die-type class as the dice row so pip/body colours resolve (cream X dice
+    // have red pips via .die-special; without it the mini face renders blank).
+    influenceStepperFace.classList.toggle("die-special", die.label[0] === "X");
+    influenceStepperFace.classList.toggle("die-number", die.label[0] !== "X");
+    influenceStepperFace.appendChild(createDieFaceSVG(adjustedDie, { showLabel: false }));
+  }
+  if (influenceStepperDieLabel) influenceStepperDieLabel.textContent = die.label;
+  if (influenceStepperValue) {
+    const adjusted = typeof adjustedDie.resolved === "number" ? adjustedDie.resolved : base;
+    influenceStepperValue.textContent = delta !== 0 ? `${base} → ${adjusted}` : `${base}`;
+  }
+  if (influenceStepperMinus) influenceStepperMinus.disabled = !canAdjustDieValue(die, -1);
+  if (influenceStepperPlus) influenceStepperPlus.disabled = !canAdjustDieValue(die, 1);
+  if (influenceStepperReset) influenceStepperReset.hidden = delta === 0;
+  syncActionBarState();
+}
+
 // ============================================================================
 // RENDERING FUNCTIONS - UI rendering and DOM updates
 // ============================================================================
@@ -1129,8 +1347,15 @@ function renderDice() {
   if (!diceView) return;
   refreshDiceVisibility();
   const awaitingRoll = state.rollAvailable && (!state.dice || state.dice.length === 0);
-  if (state.activationMode || state.activationComplete || awaitingRoll) return;
+  if (state.activationMode || state.activationComplete || awaitingRoll) {
+    if (influenceStepper) influenceStepper.hidden = true;
+    syncActionBarState();
+    return;
+  }
   clearElement(diceView);
+  // Resolve the influence target before building the badges, so the target ring is
+  // drawn on the same die the stepper adjusts (e.g. after a reset re-targets).
+  if (state.dice) influenceUiDie = resolveInfluenceUiDie();
   if (turnHintEl) {
     if (state.pestilence) {
       setTurnHint(t("pestilence.forfeitEmptyPlot"));
@@ -1139,7 +1364,7 @@ function renderDice() {
     } else if (state.forceForfeitAdvisory && !state.forceForfeit) {
       setTurnHint(t("location.noValidPairsSpendInfluence"));
     } else if (forceForfeitActive()) {
-      setTurnHint(t("location.noValidPairsForfeit"));
+      setTurnHint(t("location.noValidPairsForfeit", { turn: state.turnIndex }));
     } else if (!state.activeTurn) {
       setTurnHint(nonActiveAutoHintText());
     } else {
@@ -1152,6 +1377,20 @@ function renderDice() {
   row.className = "dice-row";
   const turnLocked = state.diceLocked || state.activationMode || state.pestilence || forceForfeitActive();
   if (turnLocked) row.classList.add("dice-locked");
+  const hasInfluenceAdjustments = !influenceAdjustmentsEmpty();
+  // During a forced forfeit, keep the stepper/± badges available if an influence
+  // adjustment already exists so the player can undo (reset) the move that caused
+  // the forced forfeit; selection/clicking stays locked as usual.
+  // Like main's Pair & Build controls, influence is only offered once both location
+  // dice are chosen (otherwise picking the 2nd die would wipe the adjustment); an
+  // existing adjustment stays reachable so it can still be reset.
+  const pairChosen = Array.isArray(state.locationSelection) && state.locationSelection.length === 2;
+  const influenceLocked =
+    state.diceLocked ||
+    state.activationMode ||
+    state.pestilence ||
+    (forceForfeitActive() && !hasInfluenceAdjustments) ||
+    (!pairChosen && !hasInfluenceAdjustments);
   const baseSelection = Array.isArray(state.locationSelection) ? state.locationSelection.slice() : [];
   const storedLocationDice = turnLocked
     ? state.diceLocked && Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2
@@ -1194,14 +1433,21 @@ function renderDice() {
       clickable: !turnLocked,
       showRoleStyle: !turnLocked,
       forcedLocation: (state.forcedLocationDice || []).includes(idx),
-      allowInfluence: false,
-      useAdjustedFace: false,
+      allowInfluence: !influenceLocked,
+      useAdjustedFace: !state.diceRolling,
     });
     row.appendChild(badge);
   });
   field.appendChild(row);
   diceView.appendChild(field);
   diceView.classList.toggle("dice-rolling", state.diceRolling);
+  if (influenceLocked) {
+    influenceUiDie = null;
+    if (influenceStepper) influenceStepper.hidden = true;
+    syncActionBarState();
+  } else {
+    renderInfluenceStepper();
+  }
 }
 
 function fillBuildings(buildDice) {
@@ -1253,6 +1499,7 @@ function fillBuildings(buildDice) {
     renderSelectionDice(state.lockedLocationDice || [], state.lockedBuildDice || []);
     highlightLocations();
     renderBoard();
+    guideToStep("forfeit", () => document.querySelector(".sheet-window-board") || document.querySelector(".board"));
     return;
   }
   enforceBuildingSelection(options);
@@ -1281,6 +1528,26 @@ function enforceBuildingSelection(options = []) {
     state.selectedGuildType = null;
     renderGuildOverlay([]);
   }
+}
+
+// buildingHitboxes stacks two codes in the same sheet grid slot wherever a challenge's
+// `rules.buildingOverrides` can swap one for the other (Cottage/Barracks, Windmill/Piscary):
+// at most one of each pair is ever reachable in a given game, so only render the one that
+// currently applies. This replaces the old "both rendered, the inactive one disabled" setup,
+// which required `pointer-events: none` on disabled hits to stop them from swallowing
+// hover/clicks meant for their sibling underneath.
+const STACKED_BUILDING_SLOTS = [
+  ["C", "B"],
+  ["W", "P"],
+];
+
+function activeBuildingHitboxes() {
+  const overrides = activeChallenge()?.rules?.buildingOverrides || {};
+  const hidden = new Set();
+  STACKED_BUILDING_SLOTS.forEach(([base, swapped]) => {
+    hidden.add(overrides[base] === swapped ? base : swapped);
+  });
+  return buildingHitboxes.filter((hit) => !hidden.has(hit.code));
 }
 
 function renderBuildingOverlay(options = [], disabled = false) {
@@ -1321,7 +1588,7 @@ function renderBuildingOverlay(options = [], disabled = false) {
   const disableOverlay = forceDisabled || !options?.length;
   overlay.classList.toggle("disabled", disableOverlay);
   const optionMap = new Map(options.map((o) => [o.code, o]));
-  buildingHitboxes.forEach((hit) => {
+  activeBuildingHitboxes().forEach((hit) => {
     const opt = disableOverlay ? null : optionMap.get(hit.code);
     const div = document.createElement("div");
     div.className = "building-hit";
@@ -1337,6 +1604,13 @@ function renderBuildingOverlay(options = [], disabled = false) {
       }
     } else {
       div.classList.add("disabled");
+    }
+    {
+      const tooltipOptions = { context: "sheet", buildingOverrides: activeChallenge()?.rules?.buildingOverrides };
+      setPopover(div, buildingTooltip(hit.code, tooltipOptions), {
+        tap: false,
+        render: (container) => renderBuildingTooltip(container, hit.code, tooltipOptions),
+      });
     }
     div.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1359,6 +1633,71 @@ function renderBuildingOverlay(options = [], disabled = false) {
     );
     overlay.appendChild(div);
   });
+  renderBuildingPicker();
+}
+
+/**
+ * Mirrors the Buildings sheet overlay (and, when relevant, the guild overlay)
+ * as touch-sized buttons in the sticky action bar for narrow screens. Reuses
+ * the overlay's own DOM state (`.building-hit.available/.selected`,
+ * `.guild-hit.available/.selected`) rather than recomputing the rules, and
+ * delegates clicks to the matching hitbox so behavior stays identical.
+ */
+function renderBuildingPicker() {
+  const picker = document.getElementById("buildingPicker");
+  if (!picker) return;
+  const overlay = document.getElementById("buildingsOverlay");
+  const availableHits = overlay ? Array.from(overlay.querySelectorAll(".building-hit.available")) : [];
+  const guildOverlayEl = document.getElementById("guildsOverlay");
+  const guildHitsAvailable = guildOverlayEl ? Array.from(guildOverlayEl.querySelectorAll(".guild-hit.available")) : [];
+  const awaitingCenterGuildType = Boolean(state.pendingCenterBuilding?.awaitingGuildType);
+  clearElement(picker);
+  if (!availableHits.length && !(awaitingCenterGuildType && guildHitsAvailable.length)) {
+    picker.hidden = true;
+    syncActionBarState();
+    return;
+  }
+  picker.hidden = false;
+  availableHits.forEach((hit) => {
+    const code = hit.dataset.code;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "building-pick";
+    btn.dataset.code = code;
+    if (hit.dataset.source) btn.dataset.source = hit.dataset.source;
+    if (hit.dataset.pop) btn.dataset.pop = hit.dataset.pop;
+    const selected = hit.classList.contains("selected");
+    btn.classList.toggle("selected", selected);
+    btn.setAttribute("aria-pressed", selected ? "true" : "false");
+    const label = t(`buildings.${code}`);
+    if (hit.dataset.pop) {
+      const pop = document.createElement("span");
+      pop.className = "building-pick-pop";
+      pop.textContent = `+${hit.dataset.pop}`;
+      btn.append(label + " ", pop);
+    } else {
+      btn.textContent = label;
+    }
+    btn.addEventListener("click", () => hit.click());
+    picker.appendChild(btn);
+  });
+  if (state.buildChoice?.code === "G" || awaitingCenterGuildType) {
+    const guildHits = guildHitsAvailable;
+    guildHits.forEach((hit) => {
+      const code = hit.dataset.code;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "building-pick";
+      btn.dataset.code = code;
+      const selected = hit.classList.contains("selected");
+      btn.classList.toggle("selected", selected);
+      btn.setAttribute("aria-pressed", selected ? "true" : "false");
+      btn.textContent = t(`buildings.${code}`);
+      btn.addEventListener("click", () => hit.click());
+      picker.appendChild(btn);
+    });
+  }
+  syncActionBarState();
 }
 
 function highlightMarketClaims(marketRow, marketCol) {
@@ -1385,6 +1724,13 @@ function clearMarketHighlights() {
 
 function renderBoard() {
   clearElement(boardEl);
+  // Dims other highlighted candidates while a plot/forfeit placement is pending
+  // confirm (see #board.has-pending in styles.css); JS-managed rather than
+  // :has(.cell-pending), which WebKit doesn't reliably re-evaluate on touch.
+  const pendingKind = state.pendingPlot?.kind;
+  if (boardEl) {
+    boardEl.classList.toggle("has-pending", pendingKind === "build" || pendingKind === "forfeit");
+  }
   const activationMap =
     state.activationMode || state.activationComplete
       ? computeActivationMap(state.board, state.populationNodes, currentWorkerAllocationsForScore())
@@ -1417,8 +1763,11 @@ function renderBoard() {
         }
         // Add market hover to highlight claimed nodes
         if (data.building === "M") {
-          cell.onmouseenter = () => highlightMarketClaims(r, c);
-          cell.onmouseleave = () => clearMarketHighlights();
+          cell._hoverDispose = onMouseHover(
+            cell,
+            () => highlightMarketClaims(r, c),
+            () => clearMarketHighlights()
+          );
         }
         if (state.activationMode && state.activationSelection.building?.[0] === r && state.activationSelection.building?.[1] === c) {
           cell.classList.add("selected-building");
@@ -1428,6 +1777,19 @@ function renderBoard() {
           (BUILDING_RULES[data.building]?.requirement || 0) - (Number(data.springBoost) || 0),
         );
         const filled = Math.max(0, state.workerAllocations?.[r]?.[c] || 0);
+        {
+          const tooltipOptions = {
+            context: "board",
+            guildLabel: data.building === "G" ? data.buildingLabel : undefined,
+            springBoost: data.springBoost,
+            filled: state.activationMode ? filled : undefined,
+            buildingOverrides: activeChallenge()?.rules?.buildingOverrides,
+          };
+          setPopover(cell, buildingTooltip(data.building, tooltipOptions), {
+            tap: false,
+            render: (container) => renderBuildingTooltip(container, data.building, tooltipOptions),
+          });
+        }
         const isActivated = req === 0 || filled >= req;
         if (isActivated) {
           cell.classList.add("activated-building");
@@ -1473,6 +1835,16 @@ function renderBoard() {
         }
       } else {
         cell.classList.add("terrain");
+        const pending = state.pendingPlot;
+        if (pending && (pending.kind === "build" || pending.kind === "forfeit") && pending.r === r && pending.c === c) {
+          cell.classList.add("cell-pending");
+          if (pending.kind === "build") {
+            const label = document.createElement("div");
+            label.className = "label building building-preview";
+            label.textContent = buildingDisplayLetter(pending.code);
+            cell.appendChild(label);
+          }
+        }
       }
       cell.onclick = () => onCellClick(r, c);
       boardEl.appendChild(cell);
@@ -1493,16 +1865,19 @@ function onCellClick(r, c) {
   const phase = currentTurnPhase();
   if (state.locationSelection.length < 2 && !hasLockedLocation && !state.pestilence && !forceForfeitActive() && !state.activationMode) {
     log(t("build.splitFirst"));
+    flashHint(t("build.splitFirst"));
     return;
   }
   if (state.pendingPopulation?.remaining > 0) {
     log(t("population.placePendingFirst"));
+    flashHint(t("population.placePendingFirst"));
     return;
   }
   if (state.activationMode) {
     const popSel = state.activationSelection.pop;
     if (!popSel) {
       log(t("population.selectNodeFirst"));
+      flashHint(t("population.selectNodeFirst"));
       return;
     }
     allocateWorkersFromPop(popSel, [r, c]);
@@ -1513,6 +1888,7 @@ function onCellClick(r, c) {
     const isOption = options.some(([or, oc]) => or === r && oc === c);
     if (!isOption) {
       log(t("springhouse.chooseAdjacentBeforeBuilding"));
+    flashHint(t("springhouse.chooseAdjacentBeforeBuilding"));
       return;
     }
     applySpringhouseTarget([r, c]);
@@ -1522,9 +1898,10 @@ function onCellClick(r, c) {
     const cell = state.board[r][c];
     if (cell.building || cell.forfeited) {
       log(t("forfeit.chooseEmptyPlot"));
+    flashHint(t("forfeit.chooseEmptyPlot"));
       return;
     }
-    forfeitCell(r, c);
+    commitOrPendPlot(r, c, "forfeit");
     return;
   }
   if (state.locationSelection.length !== 2 || !state.locationPairs.length) {
@@ -1558,7 +1935,114 @@ function onCellClick(r, c) {
     log(t("build.finishStepBeforeBuilding"));
     return;
   }
-  placeBuilding(r, c, state.buildChoice.code);
+  commitOrPendPlot(r, c, "build", state.buildChoice.code);
+}
+
+/**
+ * Shared commit path for plot taps that place a building or forfeit a cell.
+ * On coarse pointers (needsConfirmStep()) this only sets a preview and shows
+ * Confirm/Change plot controls; the actual placeBuilding()/forfeitCell() call
+ * happens from confirmPendingPlot(). On mouse devices it commits immediately,
+ * matching the original one-click behavior exactly.
+ */
+function commitOrPendPlot(r, c, kind, code) {
+  if (needsConfirmStep()) {
+    state.pendingPlot = { r, c, kind, code };
+    renderBoard();
+    updateActionBanner();
+    showPlotConfirmControls();
+    return;
+  }
+  if (kind === "build") {
+    placeBuilding(r, c, code);
+  } else if (kind === "forfeit") {
+    forfeitCell(r, c);
+  }
+}
+
+/**
+ * Clears any pending plot/forfeit/population preview and hides the
+ * Confirm/Change plot controls. Called whenever the player changes dice
+ * selection, building choice, swaps pairs, applies influence, or rolls again.
+ */
+function clearPendingPlot() {
+  if (!state.pendingPlot) return;
+  state.pendingPlot = null;
+  hidePlotConfirmControls();
+  renderBoard();
+}
+
+function pendingPlotBannerText(pending) {
+  const row = pending.r + 1;
+  const col = pending.c + 1;
+  if (pending.kind === "build") {
+    return t("confirm.pendingBuild", { building: t(`buildings.${pending.code}`), row, col });
+  }
+  if (pending.kind === "forfeit") {
+    return t("confirm.pendingForfeit", { row, col });
+  }
+  return t("confirm.pendingPopulation", { row, col });
+}
+
+// Tracks the exact banner text the confirm-step prompt set, so hidePlotConfirmControls()
+// only clears state.bannerOverride if nothing else has since overwritten it, and the
+// override that was in place before the prompt ran (e.g. 'build.noValidBuilds'), so hiding
+// the prompt restores it instead of losing it.
+let confirmPromptBannerText = null;
+let previousBannerOverride = null;
+
+function showPlotConfirmControls() {
+  if (!state.pendingPlot) return hidePlotConfirmControls();
+  if (confirmPlotBtn) confirmPlotBtn.style.display = "inline-block";
+  if (cancelPlotBtn) {
+    cancelPlotBtn.style.display = "inline-block";
+    cancelPlotBtn.textContent =
+      state.pendingPlot.kind === "population" ? t("confirm.changeSquare") : t("confirm.changePlot");
+  }
+  const text = pendingPlotBannerText(state.pendingPlot);
+  // Only capture the "previous" override the first time the prompt shows (i.e. it
+  // isn't already showing its own text), so repeated re-renders of the same prompt
+  // don't clobber the saved value with the prompt's own text.
+  if (state.bannerOverride !== confirmPromptBannerText) {
+    previousBannerOverride = state.bannerOverride ?? null;
+  }
+  state.bannerOverride = text;
+  confirmPromptBannerText = text;
+  updateActionBanner();
+  syncActionBarState();
+}
+
+function hidePlotConfirmControls() {
+  if (confirmPlotBtn) confirmPlotBtn.style.display = "none";
+  if (cancelPlotBtn) cancelPlotBtn.style.display = "none";
+  if (confirmPromptBannerText && state.bannerOverride === confirmPromptBannerText) {
+    state.bannerOverride = previousBannerOverride;
+  }
+  confirmPromptBannerText = null;
+  previousBannerOverride = null;
+  syncActionBarState();
+}
+
+function confirmPendingPlot() {
+  const pending = state.pendingPlot;
+  if (!pending) return;
+  state.pendingPlot = null;
+  hidePlotConfirmControls();
+  if (pending.kind === "build") {
+    placeBuilding(pending.r, pending.c, pending.code);
+  } else if (pending.kind === "forfeit") {
+    forfeitCell(pending.r, pending.c);
+  } else if (pending.kind === "population") {
+    doPlacePopulationNode(pending.r, pending.c);
+  }
+}
+
+function cancelPendingPlot() {
+  if (!state.pendingPlot) return;
+  state.pendingPlot = null;
+  hidePlotConfirmControls();
+  renderBoard();
+  updateActionBanner();
 }
 
 function highlightLocations() {
@@ -1599,42 +2083,30 @@ function highlightLocations() {
             : true);
         if (canSelect) {
           cell.classList.add("highlight");
-          cell.title = t("build.workersTitle", { filled, req });
         } else {
           cell.classList.add("disabled");
-          if (data.building && req > 0) {
-            cell.title = data.activationForfeit
-              ? t("build.workersForfeitedTitle", { filled, req })
-              : t("build.workersTitle", { filled, req });
-          }
+        }
+        // Merge the building-info tooltip renderBoard() already set on this cell with
+        // activation-mode's filled/required (and, if applicable, forfeited) detail, rather
+        // than overwriting it with workers-only text.
+        if (data.building && !data.forfeited) {
+          const tooltipOptions = {
+            context: "board",
+            guildLabel: data.building === "G" ? data.buildingLabel : undefined,
+            springBoost: data.springBoost,
+            filled,
+            buildingOverrides: activeChallenge()?.rules?.buildingOverrides,
+            forfeitedNote: data.activationForfeit ? t("build.workersForfeitedTitle", { filled, req }) : undefined,
+          };
+          setPopover(cell, buildingTooltip(data.building, tooltipOptions), {
+            tap: false,
+            render: (container) => renderBuildingTooltip(container, data.building, tooltipOptions),
+          });
         }
         if ((req === 0 && data.building) || filled >= req) {
           cell.classList.add("activated-building");
         }
       });
-    return;
-  }
-  if (state.activationMode) {
-    const sel = state.activationSelection.building;
-    forEachCell((cell) => {
-      const r = parseInt(cell.dataset.row, 10);
-      const c = parseInt(cell.dataset.col, 10);
-      const data = state.board[r][c];
-      const req = Math.max(
-        0,
-        (BUILDING_RULES[data.building]?.requirement || 0) - (Number(data.springBoost) || 0),
-      );
-      const filled = Math.max(0, state.workerAllocations?.[r]?.[c] || 0);
-      const canSelect = data.building && !data.forfeited && req > filled;
-      if (sel && sel[0] === r && sel[1] === c) {
-        cell.classList.add("selected-building");
-      }
-      if (canSelect) {
-        cell.classList.add("highlight");
-      } else {
-        cell.classList.add("disabled");
-      }
-    });
     return;
   }
   if (state.pendingSpringhouseTarget) {
@@ -1920,11 +2392,28 @@ function updateTracks() {
   updateChallengeProgressBadge();
 }
 
+let unreadLogCount = 0;
+
+function updateLogUnreadBadge() {
+  if (!logUnreadBadge) return;
+  if (unreadLogCount > 0) {
+    logUnreadBadge.textContent = String(unreadLogCount);
+    logUnreadBadge.classList.remove("hidden");
+  } else {
+    logUnreadBadge.textContent = "";
+    logUnreadBadge.classList.add("hidden");
+  }
+}
+
 function log(msg) {
   const formatted = formatDiceLabelsInMessage(msg);
   state.log.unshift(formatted);
   if (logEl) {
     logEl.innerHTML = state.log.map((m) => `<li>${m}</li>`).join("");
+  }
+  if (logDrawerEl && !logDrawerEl.open) {
+    unreadLogCount += 1;
+    updateLogUnreadBadge();
   }
 }
 
@@ -1969,7 +2458,7 @@ function autoAdvance() {
   if (action === "roll") {
     prepareNextRoll();
     state.bannerOverride = state.pestilence
-      ? t("hints.pressRollAfterPestilence", { rollBtn: formatButtonLabelHtml(t("html.rollDice")) })
+      ? t("hints.pressRollAfterPestilence", { rollBtn: formatButtonLabelHtml(t("html.rollDice"), "rollBtn") })
       : null;
     updateActionBanner();
   }
@@ -2097,11 +2586,12 @@ function handleCenterBuildingChoice(code) {
 
 function newGame(challengeId = null) {
   hasStartedAnyGame = true;
+  influenceUiDie = null;
   hideChallengeOutcomeOverlay();
   clearTimeout(barricadeAlertTimeout);
   if (barricadeAlertOverlay) barricadeAlertOverlay.hidden = true;
   resetState(challengeId);
-  setSheetImageSources(sheetBaseImage);
+  setAllSheetImageSources();
   renderBoard();
   prepareNextRoll();
   renderSelectionDice([], []);
@@ -2140,12 +2630,18 @@ function setupChallengePicker() {
   }
   if (challengeCardsEl) {
     let scrollRaf = null;
+    let scrollSettleTimer = null;
     challengeCardsEl.addEventListener("scroll", () => {
       if (scrollRaf) return;
       scrollRaf = requestAnimationFrame(() => {
         scrollRaf = null;
         updateChallengeCarouselDots();
       });
+      if (scrollSettleTimer) clearTimeout(scrollSettleTimer);
+      scrollSettleTimer = setTimeout(() => {
+        scrollSettleTimer = null;
+        selectCenteredChallengeCardOnSmallScreens();
+      }, 120);
     });
   }
   document.addEventListener("keydown", (e) => {
@@ -2227,6 +2723,24 @@ if (typeof window !== "undefined") {
   });
 }
 
+// The building picker's visibility in the aux drawer depends on isCompactLayout()
+// (desktop never shows it even when populated), so crossing the 1100px breakpoint
+// (e.g. rotating a tablet) must re-sync the drawer's open/closed state. actionMessage()
+// also branches on isCompactLayout() (picker vs. overlay hint text), so the banner needs
+// re-rendering too, or it can keep showing the wrong-layout's wording after the crossing.
+if (typeof window !== "undefined" && window.matchMedia) {
+  const compactLayoutQuery = window.matchMedia("(max-width: 1100px)");
+  const onCompactLayoutChange = () => {
+    renderBuildingPicker();
+    updateActionBanner(); // also re-syncs action bar state
+  };
+  if (typeof compactLayoutQuery.addEventListener === "function") {
+    compactLayoutQuery.addEventListener("change", onCompactLayoutChange);
+  } else if (typeof compactLayoutQuery.addListener === "function") {
+    compactLayoutQuery.addListener(onCompactLayoutChange);
+  }
+}
+
 // Cached to avoid forcing a layout (getBoundingClientRect) on every scroll-throttled
 // animation frame while the picker carousel is being dragged/scrolled - the card width only
 // changes on a window resize, which invalidates the cache above.
@@ -2254,6 +2768,45 @@ function updateChallengeCarouselDots() {
     activeIndex = dots.length - 1;
   }
   dots.forEach((dot, idx) => dot.classList.toggle("active", idx === activeIndex));
+  // Edge fades only where there is more to scroll (see .challenge-carousel in styles.css).
+  challengeCardsEl.classList.toggle("can-scroll-left", challengeCardsEl.scrollLeft > 4);
+  challengeCardsEl.classList.toggle("can-scroll-right", challengeCardsEl.scrollLeft < maxScrollLeft - 4);
+}
+
+// On small screens (<=600px, see @media (max-width: 600px) in styles.css) the carousel
+// arrows are hidden and cards snap-center on swipe/dot-tap, so there's no click to select
+// the card the player ends up looking at. Once scroll settles on such screens, select the
+// card nearest the carousel's horizontal center (matching click-to-select behavior),
+// skipping disabled/placeholder cards so the previous selection is kept.
+function selectCenteredChallengeCardOnSmallScreens() {
+  if (!challengeCardsEl) return;
+  if (!window.matchMedia || !window.matchMedia("(max-width: 600px)").matches) return;
+  const cards = Array.from(challengeCardsEl.querySelectorAll(".challenge-card"));
+  if (!cards.length) return;
+  const containerRect = challengeCardsEl.getBoundingClientRect();
+  const containerCenter = containerRect.left + containerRect.width / 2;
+  let nearest = null;
+  let nearestDist = Infinity;
+  cards.forEach((card) => {
+    const rect = card.getBoundingClientRect();
+    const cardCenter = rect.left + rect.width / 2;
+    const dist = Math.abs(cardCenter - containerCenter);
+    if (dist < nearestDist) {
+      nearestDist = dist;
+      nearest = card;
+    }
+  });
+  // If the card the player actually scrolled to is a disabled placeholder, leave the
+  // previous selection alone rather than selecting (and smooth-scrolling to) some other
+  // enabled card elsewhere in the carousel.
+  if (!nearest || nearest.classList.contains("challenge-card-disabled")) return;
+  nearest.dispatchEvent(new CustomEvent("challenge-select"));
+}
+
+// Same breakpoint as selectCenteredChallengeCardOnSmallScreens: the Start button is hidden
+// there and tapping the (auto-selected) centred card starts the game instead.
+function challengeCardTapStarts() {
+  return Boolean(window.matchMedia && window.matchMedia("(max-width: 600px)").matches);
 }
 
 function openChallengePicker() {
@@ -2266,6 +2819,25 @@ function openChallengePicker() {
   if (challengePickerLocaleSelect) challengePickerLocaleSelect.value = getLocale();
   if (challengeCancelBtn) challengeCancelBtn.style.display = hasStartedAnyGame ? "inline-block" : "none";
   challengePickerEl.hidden = false;
+  const dialog = challengePickerEl.querySelector(".modal-dialog");
+  if (dialog) {
+    updateScrollCue(dialog);
+    if (!dialog.dataset.scrollCueBound) {
+      dialog.dataset.scrollCueBound = "true";
+      dialog.addEventListener("scroll", () => updateScrollCue(dialog));
+      window.addEventListener("resize", () => {
+        if (!challengePickerEl.hidden) updateScrollCue(dialog);
+      });
+    }
+  }
+  // The cards were measured while the modal was still [hidden] (all 0-height,
+  // so every card was marked is-at-end); re-measure now that the reveal has
+  // been applied, once layout has actually happened.
+  requestAnimationFrame(() => {
+    if (challengePickerEl.hidden) return;
+    challengeCardsEl.querySelectorAll(".challenge-card").forEach((card) => updateScrollCue(card));
+    updateChallengeCarouselDots();
+  });
 }
 
 function closeChallengePicker() {
@@ -2335,6 +2907,7 @@ function appendChallengePlaceholderCard(titleText, descText = null, difficulty =
     desc.textContent = descText;
     card.appendChild(desc);
   }
+  card.addEventListener("scroll", () => updateScrollCue(card));
   challengeCardsEl.appendChild(card);
 }
 
@@ -2380,21 +2953,40 @@ function renderChallengeCards() {
     appendChallengeCardSection(card, "challenges.picker.victoryLabel", entry.victoryKeys);
     appendChallengeCardSection(card, "challenges.picker.rulesLabel", entry.ruleKeys);
     appendChallengeCardSection(card, "challenges.picker.setupLabel", entry.setupKeys);
-    card.onclick = () => {
+    const selectCard = () => {
       pickedChallengeId = entry.id;
       challengeCardsEl.querySelectorAll(".challenge-card").forEach((el) => el.classList.remove("selected"));
       card.classList.add("selected");
-      card.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+      card.scrollIntoView?.({ behavior: "smooth", inline: "center", block: "nearest" });
     };
+    card.addEventListener("challenge-select", selectCard);
+    card.onclick = () => {
+      // Tapping a peeking neighbour only centres/selects it, so a stray tap never starts
+      // a game the player wasn't looking at.
+      if (challengeCardTapStarts() && card.classList.contains("selected")) {
+        challengeConfirmBtn?.click();
+        return;
+      }
+      selectCard();
+    };
+    card.addEventListener("scroll", () => updateScrollCue(card));
     challengeCardsEl.appendChild(card);
   });
   UPCOMING_CHALLENGES.forEach((entry) => {
     appendChallengePlaceholderCard(t(entry.nameKey), t(entry.descKey), entry.difficulty);
   });
   renderChallengeCarouselDots(challengeCardsEl.children.length);
+  challengeCardsEl.querySelectorAll(".challenge-card").forEach((card) => updateScrollCue(card));
+  if (!window.__rfChallengeCardResizeBound) {
+    window.__rfChallengeCardResizeBound = true;
+    window.addEventListener("resize", () => {
+      challengeCardsEl.querySelectorAll(".challenge-card").forEach((card) => updateScrollCue(card));
+    });
+  }
 }
 
 function handleBuildingChoice() {
+  clearPendingPlot();
   const selected = document.querySelector(".building-hit.selected");
   const hasLockedLocation = Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2;
   const diceLockedForBuild = state.diceLocked;
@@ -2423,6 +3015,7 @@ function handleBuildingChoice() {
     }
     if (!state.selectedGuildType) {
       log(t("build.selectGuildTypeFromOverlay"));
+      flashHint(t("build.selectGuildTypeFromOverlay"));
       return;
     }
   } else {
@@ -2431,6 +3024,9 @@ function handleBuildingChoice() {
   }
   updateActionBanner();
   renderSelectionDice();
+  guideToStep("plot:" + code + ":" + (state.selectedGuildType || ""), () =>
+    document.querySelector(".cell.highlight"),
+  );
 }
 
 function renderGuildOverlay(available = []) {
@@ -2451,7 +3047,10 @@ function renderGuildOverlay(available = []) {
       state.activationMode ||
       forceForfeitActive() ||
       state.pestilence);
-  overlay.style.pointerEvents = available.length && !locked ? "auto" : "none";
+  // Always keep pointer events on so disabled hits can still show their tooltip on
+  // hover/focus; onclick below already no-ops while locked/unavailable.
+  overlay.style.pointerEvents = "auto";
+  overlay.classList.toggle("disabled", locked || !available.length);
   clearElement(overlay);
   const availableSet = new Set(available);
   guildHitboxes.forEach((hit) => {
@@ -2468,19 +3067,34 @@ function renderGuildOverlay(available = []) {
     if (state.selectedGuildType === hit.code) {
       div.classList.add("selected");
     }
+    {
+      const tooltipOptions = { context: "sheet", guildLabel: hit.code, buildingOverrides: activeChallenge()?.rules?.buildingOverrides };
+      setPopover(div, buildingTooltip("G", tooltipOptions), {
+        tap: false,
+        render: (container) => renderBuildingTooltip(container, "G", tooltipOptions),
+      });
+    }
     div.onclick = () => {
       if (locked || !div.classList.contains("available")) return;
       if (centerBuildingActive) {
         placeCenterBuilding("G", hit.code);
         return;
       }
+      const oldType = state.selectedGuildType;
       document.querySelectorAll(".guild-hit.selected").forEach((el) => el.classList.remove("selected"));
       div.classList.add("selected");
       state.selectedGuildType = hit.code;
+      if (oldType !== hit.code) {
+        clearPendingPlot();
+      }
+      renderBuildingPicker();
+      updateActionBanner();
+      guideToStep("plot:G:" + hit.code, () => document.querySelector(".cell.highlight"));
     };
     div.setAttribute("aria-label", hit.code);
     overlay.appendChild(div);
   });
+  renderBuildingPicker();
 }
 
 function nodesForCell(r, c) {
@@ -2517,6 +3131,17 @@ function beginPopulationPlacement(r, c, count) {
   renderBoard();
   if (result.message) log(result.message);
   updateActionBanner();
+  // Defer the population guide with requestAnimationFrame to ensure the DOM is settled
+  // and the target node position is final (especially after placeBuilding's re-renders).
+  if (typeof requestAnimationFrame !== "undefined") {
+    requestAnimationFrame(() => {
+      guideToStep("population:" + r + "," + c, () => document.querySelector(".population-node.highlight"));
+    });
+  } else {
+    setTimeout(() => {
+      guideToStep("population:" + r + "," + c, () => document.querySelector(".population-node.highlight"));
+    }, 0);
+  }
 }
 
 function onPopulationNodeClick(nr, nc) {
@@ -2547,6 +3172,28 @@ function onPopulationNodeClick(nr, nc) {
     return;
   }
   if (!state.pendingPopulation || state.pendingPopulation.remaining <= 0) return;
+  if (needsConfirmStep()) {
+    const { ok } = canPlacePopulationNode(state, nr, nc, { nodesForCell });
+    if (!ok) {
+      // Invalid taps fall through to the real function so the existing
+      // message/log behavior stays identical; nothing to preview here.
+      doPlacePopulationNode(nr, nc);
+      return;
+    }
+    state.pendingPlot = { r: nr, c: nc, kind: "population" };
+    renderBoard();
+    updateActionBanner();
+    showPlotConfirmControls();
+    return;
+  }
+  doPlacePopulationNode(nr, nc);
+}
+
+/**
+ * Actual population placement commit, shared by the direct (mouse) click
+ * path and confirmPendingPlot() on coarse-pointer devices.
+ */
+function doPlacePopulationNode(nr, nc) {
   const result = placePopulationNode(state, nr, nc, {
     nodesForCell,
     allocatePopulationToNode,
@@ -2578,17 +3225,72 @@ function updateActionBanner() {
     currentScore,
     lockedPairChoice,
   });
+  syncPlotConfirmControls();
+  syncActionBarState();
+}
+
+// Confirm/Change plot buttons are normally shown/hidden via showPlotConfirmControls()/
+// hidePlotConfirmControls(), but some reset paths (e.g. resetTurnState(), called from a new
+// roll or a new game) clear state.pendingPlot directly without going through either, which
+// would otherwise leave the buttons stuck visible. Derive their visibility here, from
+// updateActionBanner() (part of every render path), so any reset path hides them.
+function syncPlotConfirmControls() {
+  if (state.pendingPlot) return;
+  if (confirmPlotBtn && confirmPlotBtn.style.display !== "none") confirmPlotBtn.style.display = "none";
+  if (cancelPlotBtn && cancelPlotBtn.style.display !== "none") cancelPlotBtn.style.display = "none";
+}
+
+/**
+ * Replaces the old `:has()`-based CSS rules that derived the aux drawer's
+ * open/closed state and the pre-roll / inline-twin-hiding states from inline
+ * styles and attributes (`.action-bar-aux:has(> #confirmPlotBtn:not([style*=
+ * "display: none"]))`, etc.) - WebKit (iOS Chrome/Safari) doesn't reliably
+ * re-evaluate `:has()` after inline style/attribute mutations, which left the
+ * aux drawer looking like an empty tab, and the building picker invisible
+ * even when `renderBuildingPicker()` had populated it. Sets JS-managed
+ * classes instead; call after any change that affects these states.
+ */
+function syncActionBarState() {
+  if (!actionBarEl) return;
+  const confirmVisible = Boolean(confirmPlotBtn && confirmPlotBtn.style.display !== "none");
+  const pickerVisible = Boolean(buildingPickerEl && !buildingPickerEl.hidden && isCompactLayout());
+  const stepperVisible = Boolean(influenceStepper && !influenceStepper.hidden);
+  const hasInlineRoll = Boolean(actionBannerEl?.querySelector('.btn-inline-action[data-target="rollBtn"]'));
+  const hasInlineFinish = Boolean(
+    actionBannerEl?.querySelector('.btn-inline-action[data-target="finishActivation"]'),
+  );
+  const hasDiceBadge = Boolean(diceView?.querySelector(".die-badge"));
+  const preRoll = hasInlineRoll && !hasDiceBadge;
+
+  if (actionBarAuxEl) {
+    const isOpen = confirmVisible || pickerVisible || stepperVisible;
+    actionBarAuxEl.classList.toggle("is-open", isOpen);
+    actionBarAuxEl.classList.toggle("has-confirm", confirmVisible);
+  }
+  actionBarEl.classList.toggle("is-pre-roll", preRoll);
+  actionBarEl.classList.toggle("has-inline-roll", hasInlineRoll);
+  actionBarEl.classList.toggle("has-inline-finish", hasInlineFinish);
 }
 
 function updateSwapButton() {
-  if (swapPairBtn) {
+  if (swapPairBtn && swapBtnWrap) {
     const reasonKey = soloSwapUnavailableReasonKey();
     const hidden = reasonKey === "hidden";
     const showSwap = reasonKey === null;
-    swapPairBtn.style.display = hidden ? "none" : "inline-block";
+    swapBtnWrap.style.display = hidden ? "none" : "inline-flex";
     swapPairBtn.disabled = !showSwap;
     swapPairBtn.classList.toggle("icon-btn-disabled", !hidden && !showSwap);
-    swapPairBtn.title = showSwap || hidden ? t("html.swapTitle") : t(reasonKey);
+
+    // When enabled, set popover on button with tap:false; when disabled, set on wrapper with default tap
+    if (showSwap || hidden) {
+      // Enabled or hidden: show title on button, disable tap
+      setPopover(swapPairBtn, t("html.swapTitle"), { tap: false });
+      setPopover(swapBtnWrap, null);
+    } else {
+      // Disabled: show reason on wrapper, allow tap to show popover
+      setPopover(swapBtnWrap, t(reasonKey));
+      setPopover(swapPairBtn, null);
+    }
     applySwapButtonPulse(showSwap);
   }
 }
@@ -2628,7 +3330,7 @@ function updateTurnStatusChip() {
   } else {
     turnStatusChip.textContent = label;
     turnStatusChip.setAttribute("aria-label", label);
-    turnStatusChip.title = label;
+    turnStatusChip.removeAttribute("title");
     turnStatusChip.classList.remove("hidden");
     turnStatusChip.removeAttribute("aria-hidden");
     turnStatusChip.classList.toggle("status-active", active);
@@ -2711,6 +3413,9 @@ function renderPopulationNodes() {
       node.dataset.nodeCol = c;
       if (isBarricaded) {
         node.classList.add("barricaded");
+      }
+      if (state.pendingPlot?.kind === "population" && state.pendingPlot.r === r && state.pendingPlot.c === c) {
+        node.classList.add("cell-pending");
       }
       if (state.pendingBarricade?.active) {
         if (!isBarricaded && val === 0) {
@@ -2859,22 +3564,14 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
   effectiveLoc = swapped.loc && swapped.loc.length ? swapped.loc : effectiveLoc;
   effectiveBuild = swapped.build && swapped.build.length ? swapped.build : effectiveBuild;
 
-  const hasInfluenceAdjustments = !influenceAdjustmentsEmpty();
-  const showInfluenceControls =
-    !ignoreState &&
-    !state.diceLocked &&
-    !state.activationMode &&
-    !state.pestilence &&
-    (!forceForfeitActive() || hasInfluenceAdjustments) &&
-    state.locationSelection.length === 2;
-
+  // The Pair & Build panel is a read-only preview: dice faces reflect influence
+  // adjustments made via the action-bar dice, but no influence controls render here.
   if (locDicePreview) {
     renderDicePreview(
       locDicePreview,
       clampDice(effectiveLoc),
       "location",
       t("location.selectTwoPreview"),
-      { allowInfluence: showInfluenceControls },
     );
   }
   if (buildDicePreview) {
@@ -2883,7 +3580,6 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
       clampDice(effectiveBuild),
       "build",
       t("location.remainingUsedForBuild"),
-      { allowInfluence: showInfluenceControls },
     );
   }
 }
@@ -2931,53 +3627,25 @@ function makeDieBadge(
       onDieClick(effectiveIdx);
     });
   }
-  if (allowInfluence && isInfluenceEligibleDie(die) && effectiveIdx >= 0) {
-    const canDecrease = canAdjustDieValue(die, -1);
-    const canIncrease = canAdjustDieValue(die, 1);
-    const hasAdjustment = influenceAdjustmentDelta(die.label) !== 0;
-    const showControls = canDecrease || canIncrease || hasAdjustment;
-    if (showControls) {
-      const controls = document.createElement("div");
-      controls.className = "die-influence-controls";
-      badge.classList.add("has-influence-controls");
-      if (canDecrease) {
-        const minusBtn = document.createElement("button");
-        minusBtn.type = "button";
-        minusBtn.className = "influence-btn minus";
-        minusBtn.textContent = "-";
-        minusBtn.title = t("influence.decreaseTitle");
-        minusBtn.addEventListener("click", (event) => {
-          event.stopPropagation();
-          adjustDieWithInfluence(effectiveIdx, -1);
-        });
-        controls.appendChild(minusBtn);
-      }
-      if (canIncrease) {
-        const plusBtn = document.createElement("button");
-        plusBtn.type = "button";
-        plusBtn.className = "influence-btn plus";
-        plusBtn.textContent = "+";
-        plusBtn.title = t("influence.increaseTitle");
-        plusBtn.addEventListener("click", (event) => {
-          event.stopPropagation();
-          adjustDieWithInfluence(effectiveIdx, 1);
-        });
-        controls.appendChild(plusBtn);
-      }
-      if (hasAdjustment) {
-        const resetBtn = document.createElement("button");
-        resetBtn.type = "button";
-        resetBtn.className = "influence-btn reset";
-        resetBtn.textContent = "↺";
-        resetBtn.title = t("influence.resetTitle");
-        resetBtn.addEventListener("click", (event) => {
-          event.stopPropagation();
-          resetDieInfluence(effectiveIdx);
-        });
-        controls.appendChild(resetBtn);
-      }
-      badge.appendChild(controls);
-    }
+  if (allowInfluence && influenceBadgeEligible(die) && effectiveIdx >= 0) {
+    badge.classList.add("has-influence-target");
+    const targetBtn = document.createElement("button");
+    targetBtn.type = "button";
+    targetBtn.className = "influence-target-btn";
+    targetBtn.textContent = "±";
+    targetBtn.setAttribute("aria-label", t("influence.useOnDie", { die: die.label }));
+    targetBtn.title = t("influence.badgeTitle");
+    if (influenceUiDie === die.label) targetBtn.classList.add("active");
+    targetBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      influenceUiDie = die.label;
+      // Re-render the dice too, so the target ring/active badge move to this die.
+      renderDice();
+    });
+    badge.appendChild(targetBtn);
+  }
+  if (allowInfluence && influenceUiDie === die.label && effectiveIdx >= 0) {
+    badge.classList.add("influence-target");
   }
   return badge;
 }
@@ -3034,6 +3702,13 @@ function onDieClick(idx) {
 // state and log messages) and just re-renders from the existing state — used when
 // refreshing the UI for a locale switch, which must not alter game state.
 function updateDiceAssignments(renderOnly = false) {
+  if (renderOnly) {
+    if (state.pendingPlot) {
+      showPlotConfirmControls();
+    }
+  } else {
+    clearPendingPlot();
+  }
   if (!state.dice || !state.dice.length) {
     if (!renderOnly) {
       state.forceForfeit = false;
@@ -3091,7 +3766,7 @@ function updateDiceAssignments(renderOnly = false) {
     } else if (state.forceForfeitAdvisory) {
       setTurnHint(t("location.noValidPairsSpendInfluence"));
     } else if (forceForfeitActive()) {
-      setTurnHint(t("location.noValidPairsForfeit"));
+      setTurnHint(t("location.noValidPairsForfeit", { turn: state.turnIndex }));
     } else if (!state.activeTurn) {
       setTurnHint(nonActiveAutoHintText());
     } else {
@@ -3230,6 +3905,17 @@ function soloSwapUnavailableReasonKey() {
   if (!basePossible && !altPossible) {
     logSwapDebugTrace(choice, "html.swapUnavailableNoValidPairing", details);
     return "html.swapUnavailableNoValidPairing";
+  }
+
+  // One pairing is possible, but if it's the one currently in effect (not the one
+  // swapping would switch to), swapping would land on a pairing with no valid
+  // location. `choice.swapped` reflects the pairing currently active: true means the
+  // alt (base build dice as location) pairing is in effect, so swapping would switch
+  // to the base pairing, and vice versa.
+  const targetPossible = choice.swapped ? basePossible : altPossible;
+  if (!targetPossible) {
+    logSwapDebugTrace(choice, "html.swapUnavailableNoValidLocationOnSwap", details);
+    return "html.swapUnavailableNoValidLocationOnSwap";
   }
   return null;
 }
@@ -3377,9 +4063,12 @@ function updateScoreOverlays(breakdown, total = 0, marketDetails = [], nodeToMar
     
     // Add market details tooltip
     if (spot.key === "market" && marketDetails.length > 0) {
-      chip.title = marketDetails
-        .map((m) => t("market.tooltipRow", { row: m.row + 1, col: m.col + 1, points: m.points }))
-        .join('\n');
+      setPopover(
+        chip,
+        marketDetails
+          .map((m) => t("market.tooltipRow", { row: m.row + 1, col: m.col + 1, points: m.points }))
+          .join('\n')
+      );
     }
     
     targetEl.appendChild(chip);
@@ -3429,6 +4118,11 @@ function renderPopHousingTrack(pop = 0, housing = 0, vagrants = 0) {
     }
   });
   popHousingOverlay.appendChild(track);
+
+  const tooltipOptions = { buildingOverrides: activeChallenge()?.rules?.buildingOverrides };
+  setPopover(popHousingOverlay, popHousingTooltip(pop, housing, vagrants, tooltipOptions), {
+    render: (container) => renderPopHousingTooltip(container, pop, housing, vagrants, tooltipOptions),
+  });
 }
 
 function renderInfluenceTrack({ influenceEarned = 0, influenceSpent = 0 } = {}) {
@@ -3454,10 +4148,10 @@ function renderInfluenceTrack({ influenceEarned = 0, influenceSpent = 0 } = {}) 
         scribble.alt = "";
         scribble.className = "influence-scribble";
         slot.appendChild(scribble);
-        slot.title = t("influence.spentTitle");
+        setPopover(slot, t("influence.spentTitle"));
       } else {
         slot.classList.add("available");
-        slot.title = t("influence.availableTitle");
+        setPopover(slot, t("influence.availableTitle"));
       }
     }
     track.appendChild(slot);
@@ -3479,7 +4173,7 @@ function renderTurnTrack(filled = 0) {
     const unused = i >= turnLimit;
     if (unused) {
       slot.classList.add("turn-slot-unused");
-      slot.title = t("turn.unusedTurnMarkerTitle");
+      setPopover(slot, t("turn.unusedTurnMarkerTitle"));
     }
     if (i < count || unused) {
       const icon = document.createElement("img");
@@ -3560,5 +4254,37 @@ function autoForfeitUnfillable(finalize = false) {
       onPopulationNodeClick,
       adjustDieWithInfluence,
       handleCenterBuildingChoice,
+      onCellClick,
+      forfeitCell,
+      confirmPendingPlot,
+      cancelPendingPlot,
+      rollDice,
+      newGame,
+      log,
+      updateActionBanner,
+      syncActionBarState,
+      renderBuildingPicker,
+      renderInfluenceStepper,
+      renderDice,
+      renderBoard,
+      currentScore,
     };
+  }
+
+  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("autoplay")) {
+    const _params = new URLSearchParams(window.location.search);
+    const autoplayParam = _params.get("autoplay");
+    // When autoplay value is a game index (digit), read speed from ?speed= instead,
+    // so ?autoplay=3 (challenge III) and ?autoplay=fast (speed only) both work.
+    const isGameIndex = autoplayParam !== null && /^\d+$/.test(autoplayParam);
+    const speedParam = isGameIndex
+      ? (_params.get("speed") || "normal")
+      : autoplayParam;
+    import("./autoplay.js").then((mod) => {
+      mod.initAutoplay({
+        speed: speedParam,
+      });
+    }).catch((err) => {
+      console.error("Failed to load autoplay module:", err);
+    });
   }

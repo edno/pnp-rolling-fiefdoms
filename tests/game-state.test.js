@@ -9,6 +9,7 @@ import {
   finishActivation,
   startPopulationPlacement,
   placePopulationNode,
+  canPlacePopulationNode,
   chooseBarricadeNode,
   allocateWorker,
   autoForfeitUnfillableState,
@@ -82,10 +83,15 @@ describe("beginTurn", () => {
     const fullBoard = Array.from({ length: 5 }, () =>
       Array.from({ length: 5 }, () => ({ building: "X", forfeited: false, springBoost: 0 })),
     );
-    beginTurn(state, dice, fullBoard, helpers);
+    const { messages } = beginTurn(state, dice, fullBoard, helpers);
     expect(state.activeTurn).toBe(false);
     expect(state.locationSelection).toEqual([0, 1]);
     expect(state.forceForfeit).toBe(true);
+    // The forced-forfeit message includes the current turn number so repeated
+    // identical banners/log entries are distinguishable turn to turn.
+    const forfeitMsg = messages.find((m) => m.kind === "location");
+    expect(forfeitMsg.text).toBe(t("location.noValidPairsForfeit", { turn: state.turnIndex }));
+    expect(forfeitMsg.text).toContain(String(state.turnIndex));
   });
 
   it("marks pestilence and computes pestilence info", () => {
@@ -686,9 +692,9 @@ describe("influence integration", () => {
     expect(forceForfeit).toBe(false);
     expect(state.forceForfeitAdvisory).toBe(true);
     expect(state.invalidSelection).toBe(true);
-    expect(message).toBe('Select two location dice in the <span class="panel-title-font">Turn</span> panel.');
+    expect(message).toBe('Select two location dice.');
     expect(state.invalidSelectionMessage).toBe(
-      'Select two location dice in the <span class="panel-title-font">Turn</span> panel.',
+      'Select two location dice.',
     );
     expect(state.forceForfeitHighlight).toBe(false);
   });
@@ -1094,6 +1100,55 @@ describe("population placement", () => {
     expect(result.placed).toBe(2);
     expect(state.populationNodes[1][1]).toBe(2);
     expect(state.pendingPopulation).toBeNull();
+  });
+});
+
+describe("canPlacePopulationNode", () => {
+  it("returns ok:false with no reasonKey when no placement is pending", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    const result = canPlacePopulationNode(state, 1, 1, { nodesForCell });
+    expect(result).toEqual({ ok: false, reasonKey: null });
+  });
+
+  it("flags nodes that don't touch the built plot", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    state.pendingPopulation = { remaining: 2, cell: [2, 2] };
+    const result = canPlacePopulationNode(state, 0, 0, { nodesForCell });
+    expect(result).toEqual({ ok: false, reasonKey: "population.mustTouchBuiltPlot" });
+  });
+
+  it("flags nodes already used", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    state.populationNodes[1][1] = 1;
+    state.pendingPopulation = { remaining: 2, cell: [2, 2] };
+    const result = canPlacePopulationNode(state, 1, 1, { nodesForCell });
+    expect(result).toEqual({ ok: false, reasonKey: "population.spotAlreadyUsed" });
+  });
+
+  it("flags barricaded nodes", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    state.barricadedNodes = Array.from({ length: 4 }, () => Array(4).fill(false));
+    state.barricadedNodes[1][1] = true;
+    state.pendingPopulation = { remaining: 2, cell: [2, 2] };
+    const result = canPlacePopulationNode(state, 1, 1, { nodesForCell });
+    expect(result).toEqual({ ok: false, reasonKey: "population.spotAlreadyUsed" });
+  });
+
+  it("allows a valid, unused, touching node", () => {
+    const state = createState();
+    state.board = emptyBoard();
+    state.populationNodes = Array.from({ length: 4 }, () => Array(4).fill(0));
+    state.pendingPopulation = { remaining: 2, cell: [2, 2] };
+    const result = canPlacePopulationNode(state, 1, 1, { nodesForCell });
+    expect(result).toEqual({ ok: true, reasonKey: null });
   });
 });
 

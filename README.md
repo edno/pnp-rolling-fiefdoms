@@ -13,6 +13,7 @@ This repository hosts the solo-friendly browser implementation. It mirrors the p
 - **Solo challenges**: A campaign of ranked chapters with custom setups, rule twists, and victory conditions drawn from the solo-challenges rulebook.
 - **English & French**: The UI and rulebooks are available in both languages.
 - **Offline-ready**: A lightweight service worker caches the core shell so you can play even when the connection drops.
+- **Tablet & phone friendly**: A responsive sheet layout, sticky action bar, and touch-safe Confirm step make the game comfortable to play on tablets and phones, not just desktop.
 
 ## Learn & play
 

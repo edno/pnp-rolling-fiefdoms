@@ -35,11 +35,11 @@
       name="twitter:image"
       content="resources/rolling-fiefdoms-cover-wide.jpg"
     />
-    <meta name="theme-color" content="#e67e22" />
+    <meta name="theme-color" content="#b35900" />
     <title>Rolling Fiefdoms - Online Solo</title>
     <link rel="canonical" href="https://rolling-fiefdoms.edno.io/" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="modulepreload" href="app/app.js?v=v24" />
+    <link rel="modulepreload" href="app/app.js?v=v36" />
     <link rel="icon" type="image/png" href="assets/img/ink-splatter.png" />
     <script type="application/ld+json">
       {
@@ -78,8 +78,8 @@
         z-index: 999;
       }
     </style>
-    <link rel="stylesheet" href="assets/css/fonts.css" />
-    <link rel="stylesheet" href="assets/css/styles.css" />
+    <link rel="stylesheet" href="assets/css/fonts.css?v=v36" />
+    <link rel="stylesheet" href="assets/css/styles.css?v=v36" />
   </head>
   <body class="loading">
     <header>
@@ -209,8 +209,6 @@
       <div class="spinner" aria-hidden="true"></div>
       <div class="loading-text" data-i18n="html.loadingBoard">Loading board…</div>
     </div>
-    <div id="actionBanner" class="action-banner" aria-live="polite"></div>
-
     <div id="challengePicker" class="modal-overlay" hidden>
       <div
         class="modal-dialog"
@@ -252,6 +250,7 @@
           </button>
         </div>
         <div id="challengeCarouselDots" class="carousel-dots"></div>
+        <p class="challenge-tap-hint" data-i18n="challenges.picker.tapToStart">Tap the card to start</p>
         <div class="modal-actions">
           <button id="challengeCancelBtn" type="button" class="secondary" data-i18n="challenges.picker.cancel">
             Cancel
@@ -262,127 +261,247 @@
     </div>
 
     <main>
+      <div class="action-bar" id="actionBar">
+        <div id="actionBanner" class="action-banner" aria-live="polite"></div>
+          <div class="action-bar-controls">
+            <button id="rollBtn" data-i18n="html.rollDice">Roll Dice</button>
+            <div id="diceView"></div>
+            <span class="swap-btn-wrap" style="display: none">
+              <button
+                id="swapPairBtn"
+                class="icon-btn"
+                type="button"
+                aria-label="Swap location/build dice pairs"
+                data-i18n-attr="aria-label:html.swapAriaLabel"
+              >
+                <img src="assets/img/swap.svg" alt="" class="swap-icon" />
+              </button>
+            </span>
+            <button id="finishActivation" style="display: none" data-i18n="html.finishActivation">
+              Finish Activation
+            </button>
+            <button id="newGameBtn" style="display: none" data-i18n="html.playAgain">Play again</button>
+          </div>
+          <div class="action-bar-aux" id="actionBarAux">
+            <button
+              id="confirmPlotBtn"
+              type="button"
+              style="display: none"
+              data-i18n="confirm.confirm"
+            >
+              Confirm
+            </button>
+            <button
+              id="cancelPlotBtn"
+              type="button"
+              class="secondary"
+              style="display: none"
+              data-i18n="confirm.changePlot"
+            >
+              Change plot
+            </button>
+            <div
+              id="buildingPicker"
+              class="building-picker"
+              role="group"
+              hidden
+              data-i18n-attr="aria-label:html.buildingPickerLabel"
+              aria-label="Choose a building"
+            ></div>
+            <div id="influenceStepper" class="influence-stepper" hidden>
+              <span class="influence-stepper-label" data-i18n="influence.stepperLabel">Influence</span>
+              <button
+                id="influenceStepperMinus"
+                type="button"
+                class="influence-stepper-btn minus"
+                data-i18n-attr="aria-label:influence.decreaseTitle;title:influence.decreaseTitle"
+                aria-label="Decrease"
+                title="Decrease"
+              >
+                −
+              </button>
+              <span id="influenceStepperFace" class="influence-stepper-face"></span>
+              <span id="influenceStepperDieLabel" class="influence-stepper-die-label"></span>
+              <span id="influenceStepperValue" class="influence-stepper-value"></span>
+              <button
+                id="influenceStepperPlus"
+                type="button"
+                class="influence-stepper-btn plus"
+                data-i18n-attr="aria-label:influence.increaseTitle;title:influence.increaseTitle"
+                aria-label="Increase"
+                title="Increase"
+              >
+                +
+              </button>
+              <button
+                id="influenceStepperReset"
+                type="button"
+                class="influence-stepper-btn reset"
+                data-i18n-attr="aria-label:influence.resetTitle;title:influence.resetTitle"
+                aria-label="Reset"
+                title="Reset"
+                hidden
+              >
+                ↺
+              </button>
+            </div>
+          </div>
+      </div>
+
       <section class="board-panel">
         <div class="sheet" id="sheet">
-          <img
-            id="sheetBaseImage"
-            class="sheet-base"
-            src="resources/rolling-fiefdoms-player-sheet.webp?v=v2.0"
-            srcset="
-              resources/rolling-fiefdoms-player-sheet.webp?v=v2.0    1x,
-              resources/rolling-fiefdoms-player-sheet@2x.webp?v=v2.0 2x
-            "
-            sizes="(max-width: 1100px) 100vw, 1100px"
-            alt="Rolling Fiefdoms player sheet showing the 5x5 board, tracks, and overlays."
-            data-i18n-attr="alt:html.sheetAlt"
-            loading="lazy"
-            decoding="async"
-            width="1086"
-            height="767"
-          />
-          <div class="fiefdom-overlay">
-            <input
-              id="fiefdomInput"
-              type="text"
-              maxlength="20"
-              placeholder="Fiefdom name"
-              data-i18n-attr="placeholder:html.fiefdomNamePlaceholder"
-            />
+          <div class="sheet-window sheet-window-board" data-crop="0,0,539,764">
+            <div class="sheet-canvas">
+              <img
+                id="sheetBaseImage"
+                class="sheet-base"
+                src="resources/rolling-fiefdoms-player-sheet.webp?v=v2.0"
+                srcset="
+                  resources/rolling-fiefdoms-player-sheet.webp?v=v2.0    1x,
+                  resources/rolling-fiefdoms-player-sheet@2x.webp?v=v2.0 2x
+                "
+                sizes="100vw"
+                alt="Rolling Fiefdoms player sheet showing the 5x5 board, tracks, and overlays."
+                data-i18n-attr="alt:html.sheetAlt"
+                loading="lazy"
+                decoding="async"
+                width="1086"
+                height="767"
+              />
+              <div class="fiefdom-overlay">
+                <input
+                  id="fiefdomInput"
+                  type="text"
+                  maxlength="20"
+                  placeholder="Fiefdom name"
+                  data-i18n-attr="placeholder:html.fiefdomNamePlaceholder"
+                />
+              </div>
+              <div class="board" id="board"></div>
+              <div
+                id="turnTrackOverlay"
+                class="turn-track-overlay"
+                aria-hidden="true"
+              ></div>
+            </div>
+            <div class="sheet-status-row">
+              <span
+                id="challengeProgressBadge"
+                class="status-chip challenge-progress-badge hidden"
+                aria-live="polite"
+              ></span>
+              <span
+                id="unrestBadge"
+                class="status-chip unrest-badge hidden"
+                aria-live="polite"
+              ></span>
+            </div>
           </div>
-          <div class="board" id="board"></div>
-          <div
-            id="scoreOverlayBuildings"
-            class="score-overlay score-overlay-buildings"
-          ></div>
-          <div
-            id="scoreOverlayGuilds"
-            class="score-overlay score-overlay-guilds"
-          ></div>
-          <div
-            id="scoreOverlayReputation"
-            class="score-overlay score-overlay-reputation"
-          ></div>
-          <div
-            id="turnTrackOverlay"
-            class="turn-track-overlay"
-            aria-hidden="true"
-          ></div>
-          <div id="influenceOverlay" class="influence-overlay"></div>
-          <div id="popHousingOverlay" class="pop-housing-overlay"></div>
-          <div
-            id="buildingsOverlay"
-            class="buildings-overlay"
-            aria-label="Select building"
-            data-i18n-attr="aria-label:html.selectBuilding"
-          ></div>
-          <div
-            id="guildsOverlay"
-            class="guilds-overlay"
-            aria-label="Select guild"
-            data-i18n-attr="aria-label:html.selectGuild"
-          ></div>
+          <div class="sheet-window sheet-window-middle" data-crop="539,0,174,764">
+            <div class="sheet-canvas">
+              <img
+                class="sheet-base"
+                src="resources/rolling-fiefdoms-player-sheet.webp?v=v2.0"
+                srcset="
+                  resources/rolling-fiefdoms-player-sheet.webp?v=v2.0    1x,
+                  resources/rolling-fiefdoms-player-sheet@2x.webp?v=v2.0 2x
+                "
+                sizes="100vw"
+                aria-hidden="true"
+                alt=""
+                loading="lazy"
+                decoding="async"
+                width="1086"
+                height="767"
+              />
+              <div id="influenceOverlay" class="influence-overlay"></div>
+              <div id="popHousingOverlay" class="pop-housing-overlay"></div>
+              <div
+                id="scoreOverlayReputation"
+                class="score-overlay score-overlay-reputation"
+              ></div>
+            </div>
+          </div>
+          <div class="sheet-window sheet-window-buildings" data-crop="713,0,363,764">
+            <div class="sheet-canvas">
+              <img
+                class="sheet-base"
+                src="resources/rolling-fiefdoms-player-sheet.webp?v=v2.0"
+                srcset="
+                  resources/rolling-fiefdoms-player-sheet.webp?v=v2.0    1x,
+                  resources/rolling-fiefdoms-player-sheet@2x.webp?v=v2.0 2x
+                "
+                sizes="100vw"
+                aria-hidden="true"
+                alt=""
+                loading="lazy"
+                decoding="async"
+                width="1086"
+                height="767"
+              />
+              <div
+                id="buildingsOverlay"
+                class="buildings-overlay"
+                aria-label="Select building"
+                data-i18n-attr="aria-label:html.selectBuilding"
+              ></div>
+              <div
+                id="guildsOverlay"
+                class="guilds-overlay"
+                aria-label="Select guild"
+                data-i18n-attr="aria-label:html.selectGuild"
+              ></div>
+              <div
+                id="scoreOverlayBuildings"
+                class="score-overlay score-overlay-buildings"
+              ></div>
+              <div
+                id="scoreOverlayGuilds"
+                class="score-overlay score-overlay-guilds"
+              ></div>
+            </div>
+          </div>
         </div>
       </section>
 
       <section class="controls">
-        <div class="panel">
-          <h2>
-            <span data-i18n="html.turnTitle">Turn</span>
-            <span
-              id="turnStatusChip"
-              class="status-chip"
-              aria-live="polite"
-            ></span>
-            <span
-              id="unrestBadge"
-              class="status-chip unrest-badge hidden"
-              aria-live="polite"
-            ></span>
-            <span
-              id="challengeProgressBadge"
-              class="status-chip challenge-progress-badge hidden"
-              aria-live="polite"
-            ></span>
-          </h2>
-          <button id="rollBtn" data-i18n="html.rollDice">Roll Dice</button>
-          <div id="diceView"></div>
+        <div class="panel turn-hint-empty" id="turnHintPanel">
           <div id="turnHint" class="hint"></div>
-          <button id="finishActivation" style="display: none" data-i18n="html.finishActivation">
-            Finish Activation
-          </button>
-          <button id="newGameBtn" style="display: none" data-i18n="html.playAgain">Play again</button>
         </div>
 
-        <div class="panel">
-          <h2 class="panel-title-with-action">
+        <div class="panel pair-build-panel">
+          <h2>
             <span data-i18n="html.splitAndBuild">Pair &amp; Build</span>
-            <button
-              id="swapPairBtn"
-              class="icon-btn"
-              type="button"
-              title="Click to swap dice pairs allocation"
-              aria-label="Swap location/build dice pairs"
-              data-i18n-attr="title:html.swapTitle;aria-label:html.swapAriaLabel"
-              style="display: none"
-            >
-              <img src="assets/img/swap.svg" alt="" class="swap-icon" />
-            </button>
+            <span
+              id="turnStatusChip"
+              class="status-chip turn-status-chip"
+              aria-live="polite"
+            ></span>
           </h2>
-          <div class="field">
-            <label data-i18n="html.locationDiceLabel">Location Dice</label>
-            <div class="dice-row" id="locDicePreview"></div>
-          </div>
-          <div class="field">
-            <label data-i18n="html.buildDiceLabel">Build Dice</label>
-            <div class="dice-row" id="buildDicePreview"></div>
+          <div class="pair-build-fields">
+            <div class="field">
+              <span class="field-label" data-i18n="html.locationDiceLabel">Location Dice</span>
+              <div class="dice-row" id="locDicePreview"></div>
+            </div>
+            <div class="field">
+              <span class="field-label" data-i18n="html.buildDiceLabel">Build Dice</span>
+              <div class="dice-row" id="buildDicePreview"></div>
+            </div>
           </div>
         </div>
 
         <div class="panel log-panel">
-          <h2 data-i18n="html.logTitle">Log</h2>
-          <div class="log-body">
-            <ul id="log"></ul>
-          </div>
+          <details class="log-drawer" id="logDrawer" open>
+            <summary>
+              <h2 class="panel-title">
+                <span data-i18n="html.logTitle">Log</span>
+                <span id="logUnreadBadge" class="log-unread-badge hidden"></span>
+              </h2>
+            </summary>
+            <div class="log-body">
+              <ul id="log"></ul>
+            </div>
+          </details>
         </div>
       </section>
     </main>
@@ -575,6 +694,6 @@
     </div>
 
     <script type="module" src="app/inline-init.js?v=v1"></script>
-    <script type="module" src="app/app.js?v=v24"></script>
+    <script type="module" src="app/app.js?v=v36"></script>
   </body>
 </html>

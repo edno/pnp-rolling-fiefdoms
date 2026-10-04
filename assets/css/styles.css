@@ -8,13 +8,25 @@
   --bg: #fffbe2;
   --panel: #ffffff;
   --border: #d0c6b8;
-  --accent: #e67e22;
+  /* Single brand orange (best contrast: 4.83:1 on white). --accent-strong is kept
+     as an alias so existing rules keep working. */
+  --accent: #b35900;
+  --accent-strong: var(--accent);
   --text: #2c2c2c;
   --muted: #7a7a7a;
   --danger: #c0392b;
   --grid: #cfd4d8;
   --ink: #000794;
   --footer-height: 76px;
+  --success: #1e8449;
+  --success-bg: rgba(46, 204, 113, 0.15);
+  --info: #1b5f8c;
+  --info-bg: rgba(46, 134, 193, 0.15);
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+  --font-ui: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
 * {
@@ -23,6 +35,8 @@
 
 html {
   scroll-behavior: smooth;
+  /* Safety net against any stray horizontal overflow; clip (unlike hidden) keeps sticky working. */
+  overflow-x: clip;
 }
 
 a {
@@ -38,6 +52,7 @@ body {
   background: var(--bg);
   color: var(--text);
   padding-bottom: var(--footer-height);
+  min-width: 320px;
 }
 
 header {
@@ -49,7 +64,6 @@ header {
   gap: 16px;
   justify-content: space-between;
   width: 100%;
-  min-width: calc(1100px + 180px + 16px + 32px);
   box-sizing: border-box;
 }
 
@@ -57,7 +71,7 @@ header h1 {
   margin: 0;
   font-family: "QT Black Forest", "Segoe UI", system-ui, -apple-system,
     sans-serif;
-  font-size: 36pt;
+  font-size: clamp(24px, 5vw, 36pt);
 }
 
 .site-title-group {
@@ -95,7 +109,7 @@ button.menu-item {
 .menu-icon {
   width: 48px;
   height: 48px;
-  border-radius: 16px;
+  border-radius: 16px; /* deliberate exception: not on the radius scale, matches menu icon art */
   background: var(--bg);
   border: 2px solid var(--border);
   display: inline-flex;
@@ -120,6 +134,7 @@ button.menu-item {
   font-size: 12px;
   font-weight: 700;
   text-align: center;
+  white-space: nowrap;
 }
 
 .locale-switcher {
@@ -175,17 +190,202 @@ button.menu-item {
 
 .action-banner {
   margin: 0;
-  padding: 10px 24px;
-  background: rgba(255, 255, 255, 0.5);
+  padding: 4px 24px;
+  background: transparent;
   border-bottom: 1px solid var(--border);
   font-weight: 900;
-  color: var(--accent);
-  min-height: 28px;
+  color: var(--accent-strong);
   text-align: center;
   font-size: 24px;
+  line-height: var(--ab-banner-line-h, 30px);
+  max-height: var(--ab-banner-max, 60px);
   width: 100%;
-  min-width: calc(1100px + 180px + 16px + 32px);
   box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  align-items: center;
+  justify-content: center;
+  column-gap: 0.3em;
+  overflow: hidden;
+}
+
+.action-bar {
+  grid-column: 1 / -1;
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  min-width: 0;
+  background: var(--panel);
+  padding: 0 max(16px, env(safe-area-inset-right)) 8px
+    max(16px, env(safe-area-inset-left));
+  /* Fixed-height action bar: one fixed height per breakpoint (via --ab-h) so
+     actions never shift the page, with its slots centered as a group.
+     Banner clamps to 2 lines; see AGENTS.md Appendix. */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: var(--ab-h);
+  box-sizing: border-box;
+  --ab-banner-line-h: 30px;
+  --ab-banner-max: max(calc(var(--ab-banner-line-h) * 2), calc(44px + 4px));
+  --ab-die: clamp(44px, 9vw, 64px);
+  --ab-main-h: calc(var(--ab-die) + 12px);
+  --ab-aux-h: 36px;
+  --ab-h: calc(var(--ab-banner-max) + var(--ab-main-h) + var(--ab-aux-h) + 8px);
+}
+
+/* Full-bleed background: the bar keeps its layout width, but its panel colour and
+   bottom border extend to both viewport edges (html has overflow-x: clip). */
+.action-bar::before {
+  content: "";
+  position: absolute;
+  /* The bar is horizontally centred in the viewport (main is centred), so
+     extending by half the viewport minus half the bar reaches both edges. */
+  inset: 0 calc(50% - 50vw);
+  z-index: -1;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  pointer-events: none;
+}
+
+.action-bar .action-banner {
+  border-bottom: none;
+}
+
+/* Final score banner (game over / ACTIVATION_DONE): visually distinct from the
+   regular turn-by-turn prompts so the end of the game reads as a milestone. */
+.action-banner.is-final {
+  background: transparent;
+  font-size: 26px;
+}
+
+/* The handwritten banner font has no bold weight: the score part uses the
+   panel-title face so it reads as bold. */
+/* Summary after the rank: inline after a dash on wide screens, on its own
+   (smaller) line on small screens (see the max-width: 600px block). */
+.action-banner.is-final .final-summary::before {
+  content: " — ";
+}
+
+.action-banner.is-final strong {
+  font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-weight: 700;
+}
+
+.action-bar-controls {
+  display: flex;
+  align-items: center;
+  justify-content: safe center;
+  min-width: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  gap: 12px;
+  height: var(--ab-main-h);
+  min-height: var(--ab-main-h);
+  box-sizing: border-box;
+  /* Room inside the scroll clip for the selected-die ring, the ± badge and the swap pulse. */
+  padding: 6px 8px;
+}
+
+.action-bar-controls::-webkit-scrollbar {
+  display: none;
+}
+
+.action-bar-controls > button {
+  width: auto;
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 0 16px;
+  min-height: 36px;
+  border-radius: var(--radius-sm);
+}
+
+#swapPairBtn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+#swapPairBtn:disabled {
+  pointer-events: none;
+}
+
+.swap-btn-wrap {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.action-bar-aux {
+  display: flex;
+  align-items: center;
+  justify-content: safe center;
+  min-width: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  gap: 8px;
+  height: var(--ab-aux-h);
+  min-height: var(--ab-aux-h);
+}
+
+.action-bar-aux::-webkit-scrollbar {
+  display: none;
+}
+
+.action-bar-aux > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  width: auto;
+  padding: 0 16px;
+  min-height: 36px;
+  border-radius: var(--radius-sm);
+}
+
+/* While a plot awaits Confirm, the aux row shows only Confirm / Change plot.
+   `.is-open`/`.has-confirm` are set by syncActionBarState() in app.js rather
+   than :has() on inline styles/attributes, which WebKit (iOS) doesn't
+   reliably re-evaluate after those mutations. */
+.action-bar-aux.has-confirm > #buildingPicker,
+.action-bar-aux.has-confirm > #influenceStepper {
+  display: none !important;
+}
+
+/* Collapse the aux row entirely (no reserved height) when none of its
+   possible contents are visible, so the bar's fixed --ab-h isn't padded
+   with empty space. */
+.action-bar-aux:not(.is-open) {
+  display: none;
+}
+
+#buildingPicker,
+#influenceStepper {
+  flex: 0 0 auto;
+}
+
+.building-picker {
+  display: none;
+}
+
+/* A single non-wrapping strip: as a plain block, its inline dice wrapped onto a
+   second (clipped) line when the flex row squeezed it, e.g. 4 dice + swap on
+   a 375px iPhone. If it can't fit, .action-bar-controls scrolls horizontally. */
+.action-bar #diceView {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.action-bar #diceView .die-badge {
+  width: var(--ab-die);
+  height: var(--ab-die);
+  margin-right: 0;
 }
 
 .action-banner.bump {
@@ -234,7 +434,6 @@ button.menu-item {
   right: 0;
   z-index: 10;
   width: 100%;
-  min-width: calc(1100px + 180px + 16px + 32px);
   box-sizing: border-box;
 }
 
@@ -343,10 +542,6 @@ button.menu-item {
   pointer-events: auto;
 }
 
-.back-to-top:hover {
-  background: var(--accent);
-  color: #fff;
-}
 
 .loading-overlay {
   position: fixed;
@@ -385,12 +580,16 @@ button.menu-item {
 }
 main {
   display: grid;
-  grid-template-columns: minmax(1100px, 1100px) minmax(180px, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 280px);
   gap: 16px;
-  padding: 16px;
+  padding: 16px max(16px, env(safe-area-inset-right)) 16px
+    max(16px, env(safe-area-inset-left));
   align-items: start;
+  /* Pack rows at the top: stretching them to fill min-height would push the
+     sheet down and let the (stretched) log column run past the sheet. */
+  align-content: start;
   position: relative;
-  min-height: calc(100vh - var(--footer-height) - 100px);
+  min-height: calc(100dvh - var(--footer-height) - 100px);
 }
 
 .board-panel {
@@ -398,7 +597,7 @@ main {
   border: none;
   border-radius: 8px;
   padding: 0px 12px;
-  width: 1100px;
+  width: 100%;
   max-width: 100%;
   margin: 0 auto;
   height: auto;
@@ -406,22 +605,55 @@ main {
 
 .sheet {
   position: relative;
+  display: grid;
+  grid-template-columns: 539fr 174fr 363fr;
+  gap: 0;
   width: 100%;
-  padding-top: 71%; /* image aspect ratio approx 1086/767 */
+  max-width: min(100%, max(640px, calc((100dvh - 140px) * 1076 / 764)));
+  margin: 0 auto;
   border-radius: 8px;
-  overflow: hidden;
-  contain: layout style paint;
+  /* Paper-page lift: drop-shadow follows the painted sheet windows (incl. the
+     portrait gaps) rather than the grid box. */
+  filter: drop-shadow(0 1px 1px rgba(60, 40, 10, 0.18)) drop-shadow(0 8px 18px rgba(60, 40, 10, 0.22));
 }
 
-.sheet > :not(.sheet-base) {
+.sheet-window {
+  position: relative;
+  overflow: hidden;
+}
+
+.sheet-window-board {
+  aspect-ratio: 539 / 764;
+}
+
+.sheet-window-middle {
+  aspect-ratio: 174 / 764;
+}
+
+.sheet-window-buildings {
+  aspect-ratio: 363 / 764;
+}
+
+.sheet-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1076px;
+  height: 764px;
+  transform-origin: 0 0;
+  transform: scale(var(--s, 1)) translate(calc(var(--crop-x, 0) * -1px), calc(var(--crop-y, 0) * -1px));
+}
+
+.sheet-canvas > :not(.sheet-base) {
   z-index: 1;
 }
 
 .sheet-base {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  top: 0;
+  left: 0;
+  width: 1076px;
+  height: 764px;
   object-fit: contain;
   z-index: 0;
   pointer-events: none;
@@ -470,6 +702,24 @@ main {
   font-size: 36px;
 }
 
+.cell-pending {
+  --ring-color: var(--accent-strong);
+  --ring-b: 5px;
+}
+
+/* While a plot/forfeit placement is pending confirm, dim the other tappable
+   candidates so the chosen one stands out; they remain fully tappable.
+   #board gets the has-pending class from JS (syncActionBarState()/renderBoard())
+   rather than :has(.cell-pending), which WebKit doesn't reliably re-evaluate
+   after class mutations on touch devices. */
+#board.has-pending .cell.highlight:not(.cell-pending) {
+  opacity: 0.45;
+}
+
+.cell .label.building-preview {
+  opacity: 0.5;
+}
+
 .cell .cell-score {
   margin-top: 4px;
   font-size: 14px;
@@ -495,8 +745,29 @@ main {
   transform: rotate(45deg);
 }
 
+/* Rotation-invariant touch target: a circle keeps its 76px diameter when the
+   45deg-rotated parent spins it, unlike a square (which would grow to ~107.5px
+   wide and overlap the neighboring node's hit area). Adjacent node centers in
+   .pop-node-grid are ~99.5px apart ((388px - 3*10px gap) / 4 cols + 10px gap),
+   so the 76px circle leaves ~23.5px of margin between touch targets. */
+.population-node::before {
+  content: "";
+  position: absolute;
+  inset: -13px;
+  border-radius: 50%;
+}
+
 .population-node.highlight {
   border: 2px solid var(--accent) !important;
+}
+
+/* Pending population placement awaiting Confirm: a stronger version of
+   .highlight (thicker border + slight tint), consistent with the node's
+   rhombus shape. Must not get the octagon ring (see the .cell-scoped
+   ring rule above) since .cell-pending is reused on population-node too. */
+.population-node.cell-pending {
+  border: 3px solid var(--accent) !important;
+  background-color: rgba(179, 89, 0, 0.18);
 }
 
 .population-node.disabled {
@@ -550,8 +821,9 @@ main {
   background-image: url("../img/pip-fill.svg");
 }
 
-.selected-building {
-  border: 2px solid var(--accent) !important;
+.cell.selected-building {
+  --ring-color: var(--accent);
+  --ring-b: 6px;
 }
 
 .population-node.selected-pop {
@@ -610,12 +882,53 @@ main {
 }
 
 .cell.highlight {
-  box-shadow: none;
-  border-radius: 0;
+  --ring-color: var(--accent);
+}
+
+/* Shared octagon ring for cell state markers (highlight, pending, selected
+   building) to match the printed octagon plots instead of a square outline.
+   Scoped to .cell only: .cell-pending is also used on .population-node
+   (rhombus-shaped) when a population placement is pending confirm, which
+   must not get the octagon ring (see .population-node.cell-pending below). */
+.cell.highlight::after,
+.cell.cell-pending::after,
+.cell.selected-building::after {
+  content: "";
+  position: absolute;
+  inset: var(--ring-inset, 0);
+  pointer-events: none;
+  --b: var(--ring-b, 4px);
+  --o: calc(50% * tan(-22.5deg));
+  --x: calc(var(--b) * cos(22.5deg));
+  --y: calc(var(--b) * sin(22.5deg));
+  background: var(--ring-color, var(--accent));
+  clip-path: polygon(
+    var(--o) 50%,
+    50% var(--o),
+    calc(100% - var(--o)) 50%,
+    50% calc(100% - var(--o)),
+    var(--o) 50%,
+    calc(50% + var(--o) + var(--y)) var(--x),
+    var(--x) calc(50% + var(--o) + var(--y)),
+    var(--x) calc(50% - var(--o) - var(--y)),
+    calc(50% + var(--o) + var(--y)) calc(100% - var(--x)),
+    calc(50% - var(--o) - var(--y)) calc(100% - var(--x)),
+    calc(100% - var(--x)) calc(50% - var(--o) - var(--y)),
+    calc(100% - var(--x)) calc(50% + var(--o) + var(--y)),
+    calc(50% - var(--o) - var(--y)) var(--x),
+    calc(50% + var(--o) + var(--y)) var(--x)
+  );
 }
 
 .cell.disabled {
   cursor: default;
+}
+
+/* Activation: buildings already fully staffed (or with no reachable
+   population from the selected square) are dimmed rather than highlighted,
+   so the player's eye is drawn to plots that still need workers. */
+.cell.activated-building.disabled {
+  opacity: 0.55;
 }
 
 .forfeit-icon {
@@ -754,8 +1067,11 @@ main {
   padding: 0;
 }
 
-.challenge-outcome-close-btn:hover {
-  background: var(--panel);
+
+/* JS-managed (setTurnHint() in app.js) rather than :has(#turnHint:empty),
+   since WebKit doesn't reliably re-evaluate :has() after text mutations. */
+#turnHintPanel.turn-hint-empty {
+  display: none;
 }
 
 .score-overlay {
@@ -944,18 +1260,20 @@ main {
 }
 
 .controls {
-  display: grid;
-  grid-template-rows: auto auto auto 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
-  align-self: start;
+  /* Stretch to the sheet's row so the log (size-contained below) fills the
+     remaining height and scrolls instead of extending past the play area. */
+  align-self: stretch;
   min-height: 0;
-  max-height: calc(1100px * 0.71 - 4px);
+  max-height: none;
 }
 
 .panel {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 12px;
   overflow: hidden;
   display: flex;
@@ -964,10 +1282,13 @@ main {
   content-visibility: auto;
 }
 
-.panel h2 {
+.panel h2,
+.panel-title {
   margin: 0 0 8px 0;
   font-size: calc(20px + 4pt);
   font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-weight: 700;
+  color: inherit;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -988,7 +1309,7 @@ main {
   background: var(--accent);
   color: #fff;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 6px 8px;
   cursor: pointer;
   display: inline-flex;
@@ -1048,13 +1369,8 @@ main {
   animation: swap-btn-pulse 4s ease-in-out;
 }
 
-.icon-btn:hover {
-  background: var(--accent);
-  filter: brightness(0.95);
-}
 
-.icon-btn-disabled,
-.icon-btn-disabled:hover {
+.icon-btn-disabled {
   background: var(--muted);
   filter: none;
 }
@@ -1064,12 +1380,13 @@ main {
   align-items: center;
   gap: 6px;
   padding: 2px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 13px;
-  font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: var(--font-ui);
   background: var(--muted-bg, rgba(0, 0, 0, 0.05));
   color: var(--text);
   border: 1px solid var(--border);
+  white-space: nowrap;
 }
 
 .status-chip.hidden {
@@ -1081,8 +1398,8 @@ main {
 }
 
 .status-chip.status-active {
-  background: rgba(46, 204, 113, 0.12);
-  color: #1e8449;
+  background: var(--success-bg);
+  color: var(--success);
   border-color: rgba(46, 204, 113, 0.45);
 }
 
@@ -1099,22 +1416,51 @@ main {
 }
 
 .status-chip.challenge-progress-badge {
-  background: rgba(46, 134, 193, 0.12);
-  color: #1b5f8c;
+  background: var(--info-bg);
+  color: var(--info);
   border-color: rgba(46, 134, 193, 0.4);
 }
 
-.field label {
+.sheet-status-row {
+  position: absolute;
+  top: calc(4 / 764 * 100%);
+  left: calc(280 / 539 * 100%);
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  z-index: 2;
+  white-space: nowrap;
+  max-width: calc(100% - 2 * 140 / 539 * 100%);
+}
+
+/* Turn badge sits at the right of the Pair & Build title. */
+.pair-build-panel .turn-status-chip {
+  margin-left: auto;
+  font-size: 14px;
+}
+
+.sheet-status-row .status-chip {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.field label,
+.field .field-label {
   font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
 button {
-  background: var(--accent);
+  background: var(--accent-strong);
   color: #fff;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 8px 12px;
+  font-family: var(--font-ui);
+  font-size: 16px;
   font-weight: 600;
+  line-height: 1.2;
   cursor: pointer;
 }
 
@@ -1123,16 +1469,57 @@ button:disabled {
   cursor: not-allowed;
 }
 
+:where(
+  button,
+  [role="button"],
+  summary,
+  a,
+  select,
+  input,
+  .die-badge,
+  .building-hit,
+  .guild-hit,
+  .cell,
+  .population-node,
+  .challenge-card
+):focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+
 .btn-label-inline {
   display: inline-block;
-  background: var(--accent);
+  background: var(--accent-strong);
   color: #fff;
-  border-radius: 6px;
+  border: none;
+  border-radius: var(--radius-sm);
   padding: 2px 8px;
-  font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: var(--font-ui);
   font-weight: 600;
   font-size: 0.85em;
   white-space: nowrap;
+}
+
+.btn-inline-action {
+  padding: 4px 14px;
+  font-size: 0.8em;
+  vertical-align: middle;
+  margin-block: 0;
+  cursor: pointer;
+  min-height: 36px;
+}
+
+.btn-inline-action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* .has-inline-roll/.has-inline-finish are set by syncActionBarState() in
+   app.js rather than :has(), which WebKit doesn't reliably re-evaluate
+   after the banner's inline action button is added/removed. */
+.action-bar.has-inline-roll #rollBtn,
+.action-bar.has-inline-finish #finishActivation {
+  display: none !important;
 }
 
 .link-btn {
@@ -1141,9 +1528,6 @@ button:disabled {
   border: 1px solid var(--border);
 }
 
-.link-btn:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.05);
-}
 
 .field {
   display: flex;
@@ -1162,7 +1546,9 @@ button:disabled {
 
 .guilds-overlay.disabled,
 .buildings-overlay.disabled {
-  pointer-events: none;
+  /* Stay hoverable/focusable while disabled so hovering a locked hit (e.g. during
+     activation, or while dice aren't locked for build) still shows its tooltip;
+     each hit's own click handler already no-ops while disabled/locked. */
   opacity: 0.4;
 }
 
@@ -1187,52 +1573,109 @@ button:disabled {
 .guild-hit,
 .building-hit {
   border: 2px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   pointer-events: auto;
   box-sizing: border-box;
   width: 100%;
   height: 100%;
+  background-color: transparent;
+  transition: background-color 120ms ease, border-color 120ms ease;
 }
 
-.guild-hit.available:hover,
-.building-hit.available:hover {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(60, 110, 113, 0.2);
+/* Available and selected share the same accent-colored family (matching the
+   dice selection look): available is a dashed outline with a faint tint,
+   selected becomes a solid outline with a fuller fill. */
+.guild-hit.available,
+.building-hit.available {
+  border: 2px dashed var(--accent);
+  background-color: rgba(179, 89, 0, 0.08);
 }
 
 .guild-hit.selected,
 .building-hit.selected {
-  background-color: rgba(230, 126, 34, 0.35) !important;
-  border-color: rgba(230, 126, 34, 1) !important;
-}
-
-.guild-hit.available,
-.building-hit.available {
-  border-color: rgba(57, 76, 109, 1);
+  background-color: rgba(179, 89, 0, 0.2) !important;
+  border: 2px solid var(--accent) !important;
 }
 
 .guild-hit.disabled,
 .building-hit.disabled {
-  cursor: not-allowed;
-  /* A challenge can reuse another building's grid slot (e.g. Barracks over Cottage's), stacking
-     two hitboxes in the same cell. The disabled one must not intercept clicks meant for a sibling
-     underneath it, even though its own click handler is already a no-op while disabled. */
-  pointer-events: none;
+  /* Stays hoverable/focusable (no pointer-events: none) so its tooltip still shows while
+     disabled; its own click handler is already a no-op in that state. A challenge can swap
+     one building code for another (e.g. Barracks over Cottage's) that would otherwise share
+     this grid slot, but activeBuildingHitboxes()/renderBuildingOverlay() render only the
+     hitbox that currently applies, so no sibling is ever stacked underneath to worry about. */
+  cursor: default;
 }
 
 .log-panel {
   display: flex;
   flex-direction: column;
-  min-height: 80px;
+  flex: 1 1 0;
+  min-height: 120px;
+  /* Contributes no intrinsic height, so long logs never grow the grid row. */
+  contain: size;
+}
+
+.log-drawer {
+  /* <details> content can't be a flex item, so the drawer itself scrolls,
+     with a sticky summary. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.log-drawer summary {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--panel);
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.log-drawer summary::-webkit-details-marker {
+  display: none;
+}
+
+.log-drawer summary .panel-title {
+  margin-bottom: 0;
+}
+
+.log-drawer summary::after {
+  content: "\25BE";
+  margin-left: auto;
+  transition: transform 0.15s ease;
+}
+
+.log-drawer:not([open]) summary::after {
+  transform: rotate(-90deg);
+}
+
+.log-unread-badge {
+  background: var(--accent-strong);
+  color: #fff;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+}
+
+.log-unread-badge.hidden {
+  display: none;
 }
 
 .log-body {
-  flex: 1 1 auto;
   min-height: 40px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
 }
 
 #log {
@@ -1249,8 +1692,10 @@ button:disabled {
 }
 
 select {
+  /* >= 16px so iOS (Safari/Chrome) doesn't auto-zoom the page when the select is tapped. */
+  font-size: 16px;
   padding: 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border);
 }
 
@@ -1259,7 +1704,7 @@ select {
   max-height: 200px;
   overflow-y: auto;
   background: var(--background);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   padding: 8px;
   font-size: 13px;
 }
@@ -1295,32 +1740,94 @@ select {
   cursor: pointer;
 }
 
-.die-influence-controls {
-  position: absolute;
-  top: 46px;
-  display: flex;
-  flex-direction: row;
-  gap: 2px;
-  z-index: 2;
-  width: auto;
-  align-items: center;
-  justify-content: center;
+.die-badge.influence-target {
+  outline: 2px dashed var(--accent-strong);
+  /* Drawn just inside the die: the dice row is a scroll-clipped strip with
+     little vertical padding, so an outer offset gets cut at the top. */
+  outline-offset: -2px;
 }
 
-.influence-btn {
+.influence-target-btn {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
   border: 1px solid rgba(0, 0, 0, 0.3);
-  background: var(--accent);
+  background: var(--accent-strong);
   color: white;
-  width: 18px;
-  height: 14px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1;
   padding: 0;
-  border-radius: 3px;
+  z-index: 2;
   cursor: pointer;
 }
 
-.influence-btn:disabled {
+.influence-target-btn.active {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 1px;
+}
+
+.influence-target-btn::before {
+  /* 32x32 hit area centred on the 22px badge (badge sits at top:-2px/right:-4px):
+     it reaches 5px above the badge, inside the dice row's 6px clip padding, and
+     covers well under half of a 44px die so taps on the die still select it.
+     32px stays above the 24px WCAG 2.2 AA minimum target size. */
+  content: "";
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  top: -5px;
+  right: -5px;
+}
+
+.influence-stepper:not([hidden]) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0;
+}
+
+.influence-stepper-label {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--text);
+}
+
+.influence-stepper-face svg {
+  width: 32px;
+  height: 32px;
+}
+
+.influence-stepper-die-label {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-strong);
+}
+
+.influence-stepper-value {
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+
+.influence-stepper-btn {
+  background: var(--panel);
+  color: var(--text);
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+}
+
+.influence-stepper-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
@@ -1443,13 +1950,6 @@ select {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .dice-rolling .die-badge,
-  #diceView.dice-rolling .die-badge {
-    animation: dice-bounce 0.45s ease;
-  }
-}
-
 .dice-row {
   display: flex;
   align-items: flex-end;
@@ -1489,29 +1989,21 @@ select {
 }
 
 .die-badge.location-selected {
-  background-color: rgba(230, 126, 34, 0.25);
+  background-color: rgba(179, 89, 0, 0.25);
   box-shadow: 0 0 0 2px var(--accent), 0 4px 8px rgba(0, 0, 0, 0.12);
 }
 
 .dice-locked {
   cursor: default !important;
   pointer-events: none !important;
-  filter: grayscale(0.75) saturate(0.8) !important;
-  opacity: 0.72 !important;
+  filter: grayscale(0.7) contrast(1.05) !important;
+  opacity: 0.85 !important;
 }
 
 .split-preview .die-badge {
   cursor: default;
   pointer-events: none;
   margin-bottom: 6px;
-}
-
-.split-preview .die-badge.has-influence-controls {
-  pointer-events: auto;
-}
-
-.split-preview .die-badge.has-influence-controls .influence-btn {
-  pointer-events: auto;
 }
 
 .die-placeholder {
@@ -1568,11 +2060,6 @@ select {
   margin-bottom: 12px;
 }
 
-#fullscreenToggle {
-  padding: 0px;
-  background-color: transparent;
-}
-
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -1591,11 +2078,11 @@ select {
 .modal-dialog {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 20px;
-  max-width: 720px;
+  max-width: min(720px, calc(100vw - 16px));
   width: 100%;
-  max-height: 85vh;
+  max-height: 85dvh;
   overflow-y: auto;
 }
 
@@ -1690,6 +2177,17 @@ select {
   cursor: pointer;
   font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
   font-size: 24px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Keep "IV. Name" as one piece: the badge is a flex container, so loose text nodes
+   would otherwise become separate flex items that wrap independently. */
+.challenge-badge .challenge-name {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .challenge-badge-info-icon {
@@ -1699,9 +2197,6 @@ select {
   opacity: 0.75;
 }
 
-.challenge-badge:hover .challenge-badge-info-icon {
-  opacity: 1;
-}
 
 .modal-locale-switcher {
   flex-shrink: 0;
@@ -1725,6 +2220,33 @@ select {
   scroll-snap-type: x mandatory;
   scroll-behavior: smooth;
   padding: 4px;
+  /* Fade the edge only on the side(s) with more cards to scroll to (classes set
+     in updateChallengeCarouselDots), wide enough that the peeking card dissolves
+     instead of reading as text cut mid-word. */
+  --fade-l: 0px;
+  --fade-r: 0px;
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    black var(--fade-l),
+    black calc(100% - var(--fade-r)),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    black var(--fade-l),
+    black calc(100% - var(--fade-r)),
+    transparent 100%
+  );
+}
+
+.challenge-carousel.can-scroll-left {
+  --fade-l: 56px;
+}
+
+.challenge-carousel.can-scroll-right {
+  --fade-r: 96px;
 }
 
 .carousel-nav {
@@ -1746,11 +2268,6 @@ select {
     transform 0.15s ease;
 }
 
-.carousel-nav:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  transform: scale(1.06);
-}
 
 .carousel-dots {
   display: flex;
@@ -1773,12 +2290,9 @@ select {
     transform 0.15s ease;
 }
 
-.carousel-dot:hover {
-  background: var(--accent);
-}
 
 .carousel-dot.active {
-  background: var(--accent);
+  background-color: var(--accent-strong);
   transform: scale(1.3);
 }
 
@@ -1800,8 +2314,9 @@ select {
 }
 
 .challenge-card {
-  flex: 0 0 250px;
-  height: 340px;
+  flex: 0 0 min(250px, 100%);
+  height: min(340px, calc(85dvh - 190px));
+  min-height: 220px;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -1809,11 +2324,11 @@ select {
   text-align: center;
   background: var(--bg);
   border: 2px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 16px 14px;
   cursor: pointer;
   color: var(--text);
-  font-family: "Roboto", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: var(--font-ui);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
   transition:
     border-color 0.15s ease,
@@ -1821,16 +2336,27 @@ select {
     transform 0.15s ease;
 }
 
-.challenge-card:hover {
-  border-color: var(--accent);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-  transform: translateY(-2px);
+
+.challenge-card.is-scrollable:not(.is-at-end) {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
+}
+
+.modal-dialog.is-scrollable:not(.is-at-end) {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
 }
 
 .challenge-card.selected {
   border-color: var(--accent);
-  background: rgba(230, 126, 34, 0.1);
-  box-shadow: 0 4px 12px rgba(230, 126, 34, 0.25);
+  background: rgba(179, 89, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(179, 89, 0, 0.25);
+}
+
+.challenge-tap-hint {
+  display: none;
+  margin: 0 0 8px 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
 }
 
 .challenge-card-normal {
@@ -1846,11 +2372,6 @@ select {
   box-shadow: none;
 }
 
-.challenge-card-disabled:hover {
-  border-color: var(--border);
-  box-shadow: none;
-  transform: none;
-}
 
 .challenge-card-badge {
   position: absolute;
@@ -1859,7 +2380,7 @@ select {
   background: var(--muted-bg, rgba(0, 0, 0, 0.06));
   color: var(--muted);
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 2px 8px;
   font-size: 10px;
   text-transform: uppercase;
@@ -1921,4 +2442,948 @@ button.secondary {
   background: var(--panel);
   color: var(--text);
   border: 1px solid var(--border);
+}
+
+.rf-popover {
+  white-space: pre-line;
+  position: fixed;
+  z-index: 1000;
+  max-width: min(280px, calc(100vw - 16px));
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.35;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
+/* Rich building tooltip content (see app/building-info.js's renderBuildingTooltip()):
+   a bold name + muted category title row, a divider, then compact label/value rows.
+   `.rf-popover`'s `white-space: pre-line` only affects its plain-text fallback; these
+   rows lay out normally since each is its own block element. */
+.rf-popover-title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: 5px;
+  margin-bottom: 4px;
+}
+
+.rf-popover-name {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.rf-popover-category {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.rf-popover-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0 0 5px;
+}
+
+.rf-popover-row {
+  margin: 2px 0;
+}
+
+.rf-popover-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.rf-popover-value {
+  color: var(--text);
+}
+
+.rf-popover-row-secondary {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--muted);
+}
+
+.rf-popover-row-warning {
+  font-size: 13px;
+  color: var(--danger);
+}
+
+/* Population & Housing tooltip (see app/pop-housing-info.js): the Population/Housing/
+   Vagrants stats share one row (label-value pairs joined by " · "), with the Vagrants
+   value only switching to the warning color when it's > 0. */
+.rf-popover-value-warning {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.has-popover {
+  pointer-events: auto;
+}
+
+.has-popover:not(.cell) {
+  cursor: help;
+}
+
+/* Clickable targets that also carry a tooltip keep the hand cursor. */
+.building-hit.available.has-popover,
+.guild-hit.available.has-popover,
+button.has-popover:not(:disabled) {
+  cursor: pointer;
+}
+
+/* Autoplay HUD: Dev/spectator mode overlay when ?autoplay is active */
+.rf-autoplay-hud {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 290px;
+  max-width: calc(100vw - 32px);
+  background: var(--panel, #fff8ee);
+  border: 1px solid var(--border, #d4a373);
+  border-radius: var(--radius-md, 8px);
+  padding: 10px 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  font-family: var(--font-ui, sans-serif);
+  font-size: 13px;
+  color: var(--text, #2c1810);
+  user-select: none;
+}
+
+.rf-autoplay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rf-autoplay-title {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.rf-autoplay-status {
+  font-size: 11px;
+  color: var(--muted, #666);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  text-align: right;
+}
+
+.rf-autoplay-close {
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--muted, #666);
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.rf-autoplay-close:hover {
+  color: var(--text, #2c1810);
+}
+
+.rf-autoplay-detail {
+  font-size: 11px;
+  color: var(--muted, #555);
+  font-family: monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.rf-autoplay-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rf-autoplay-btn-group {
+  display: flex;
+  gap: 4px;
+}
+
+.rf-autoplay-btn {
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid var(--border, #d4a373);
+  background: var(--bg, #fdfbf7);
+  color: var(--text, #2c1810);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.rf-autoplay-btn:hover:not(:disabled) {
+  background: var(--accent, #3c6e71);
+  color: #fff;
+  border-color: var(--accent, #3c6e71);
+}
+
+.rf-autoplay-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.rf-autoplay-btn.active {
+  background: var(--accent, #3c6e71);
+  color: #fff;
+  border-color: var(--accent, #3c6e71);
+}
+
+/* Responsive overrides: kept last so they win over the base rules above. */
+
+@media (min-width: 1101px) {
+  .controls {
+    max-height: calc(100dvh - var(--footer-height) - 100px);
+  }
+}
+
+@media (max-width: 1100px), (pointer: coarse) {
+  #fullscreenToggle {
+    display: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  main {
+    grid-template-columns: 1fr;
+  }
+
+  .action-bar {
+    order: 0;
+  }
+
+  .board-panel {
+    order: 1;
+  }
+
+  .controls {
+    order: 2;
+  }
+
+  .log-panel {
+    contain: none;
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+
+  .log-drawer {
+    max-height: 50dvh;
+  }
+
+  .pair-build-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+  }
+
+  .pair-build-fields .dice-row {
+    flex-wrap: wrap;
+  }
+
+  .building-picker:not([hidden]) {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 6px 8px;
+    padding: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .building-picker:not([hidden])::-webkit-scrollbar {
+    display: none;
+  }
+
+  .building-pick {
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: var(--radius-sm);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 13px;
+  }
+
+  .building-pick.selected {
+    border: 2px solid var(--accent);
+    background-color: rgba(179, 89, 0, 0.25);
+  }
+
+  .building-pick-pop {
+    font-size: 0.85em;
+    opacity: 0.8;
+  }
+}
+
+/* The action bar's two-row layout (banner above a centred dice row, with the
+   aux row as an overlay drawer underneath) is shared at every width except
+   short landscape, which keeps its own compact single-row grid below. */
+@media not (max-height: 500px) {
+  .action-bar {
+    /* The aux row is an overlay drawer (below), not a row in the flow, so
+       the bar's fixed height only covers the banner + main row. The banner
+       slot has a fixed height (text centred inside it), so the dice row always
+       sits at the same place, right above the drawer. */
+    --ab-h: calc(var(--ab-banner-max) + var(--ab-main-h) + 8px);
+    justify-content: flex-start;
+  }
+
+  .action-bar .action-banner {
+    height: var(--ab-banner-max);
+  }
+
+  /* Aux "drawer": anchored to the sticky bar's bottom edge, overlapping the
+     sheet below rather than pushing it, with an open/close slide+fade so the
+     bar never jumps height. The base `.action-bar-aux:not(.is-open)` rule
+     (above, higher specificity via :not()) still collapses it to display:none
+     when closed; `.is-open` is set by syncActionBarState() in app.js. */
+  .action-bar-aux {
+    position: absolute;
+    left: 0;
+    right: 0;
+    /* Only as wide as its content, centred under the bar, so it doesn't cover
+       more of the page (e.g. the side panels on desktop) than needed. */
+    width: fit-content;
+    max-width: 100%;
+    margin-inline: auto;
+    /* Tuck up under the bar's 8px bottom padding and the dice row's padding so
+       the gap below the dice matches the gap between drawer rows. */
+    top: calc(100% - 12px);
+    z-index: 15;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 6px 8px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    box-shadow: 0 6px 12px -4px rgba(0, 0, 0, 0.25);
+    padding: 0 max(16px, env(safe-area-inset-right)) 6px
+      max(16px, env(safe-area-inset-left));
+    /* Rows stack (stepper, then building buttons, then confirm), so the drawer
+       grows with its content; it overlays the sheet, so nothing below moves. */
+    height: auto;
+    min-height: 0;
+    box-sizing: border-box;
+    transform: translateY(-8px);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: transform 180ms ease, opacity 180ms ease,
+      visibility 0s linear 180ms;
+  }
+
+  .action-bar-aux.is-open {
+    transform: none;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition: transform 180ms ease, opacity 180ms ease, visibility 0s linear 0s;
+  }
+
+  /* Drawer rows: influence stepper first (right under the dice), then the
+     building picker; each takes a full row. Confirm/Change stay side by side. */
+  .action-bar-aux > #influenceStepper {
+    order: 1;
+    flex: 0 0 100%;
+  }
+
+  .action-bar-aux > #buildingPicker {
+    order: 2;
+    flex: 0 0 100%;
+    min-width: 0;
+  }
+
+  .action-bar-aux > #confirmPlotBtn,
+  .action-bar-aux > #cancelPlotBtn {
+    order: 3;
+  }
+
+  /* Before the roll (the only action is the inline Roll Dice button in the
+     prompt) there are no dice yet: drop the empty dice row and centre the
+     prompt in the bar. The bar keeps its fixed height, so nothing jumps when
+     the dice appear. */
+  .action-bar.is-pre-roll {
+    justify-content: center;
+    padding-bottom: 0;
+  }
+
+  .action-bar.is-pre-roll .action-bar-controls {
+    display: none;
+  }
+}
+
+/* Desktop-specific overrides for the shared two-row bar above: #buildingPicker
+   is never shown here (.building-picker is display: none regardless of its
+   [hidden] attribute); syncActionBarState() in app.js already ignores the
+   picker on desktop (pickerVisible requires isCompactLayout()), so the
+   drawer's open/closed state (.is-open) handles this correctly without a
+   desktop-specific override here. The banner can afford a larger, still
+   2-line-max font on desktop. */
+@media (min-width: 1101px) {
+  .action-bar {
+    /* Desktop prompts fit on one line, so the banner reserves one 32px line
+       (48px keeps room for the 36px inline button); --ab-h (shared rule above)
+       then resolves to 48 + 76 + 8 = 132px. */
+    --ab-banner-line-h: 32px;
+    --ab-banner-max: 48px;
+  }
+
+  .action-bar .action-banner {
+    font-size: 22px;
+  }
+
+}
+
+@media (orientation: portrait) and (max-width: 1024px) {
+  .sheet {
+    grid-template-columns: 174fr 363fr;
+    column-gap: 4px;
+  }
+
+  .sheet-window-board {
+    grid-column: 1 / -1;
+  }
+
+  .sheet-window-middle,
+  .sheet-window-buildings {
+    margin-top: 4px;
+  }
+}
+
+@media (max-width: 760px) {
+  header {
+    flex-wrap: wrap;
+    padding: 8px 12px 5px;
+  }
+
+  .top-menu {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 4px;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .menu-item {
+    width: 44px;
+    flex: 0 0 auto;
+  }
+
+  .menu-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    font-size: 20px;
+  }
+
+  .menu-icon img {
+    width: 26px;
+    height: 26px;
+  }
+
+  .menu-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  body {
+    padding-bottom: 0;
+  }
+
+  .site-footer {
+    position: static;
+  }
+
+  .footer-inner {
+    padding-right: 64px;
+  }
+
+  .back-to-top {
+    bottom: 16px;
+  }
+}
+
+@media (max-width: 740px), (pointer: coarse) {
+  .action-bar-controls {
+    flex-direction: row;
+    justify-content: center;
+    width: 100%;
+  }
+}
+
+@media (pointer: coarse) {
+  .action-bar {
+    --ab-aux-h: 44px;
+  }
+
+  .btn-inline-action {
+    min-height: 44px;
+  }
+
+  .action-bar-controls > button,
+  .action-bar-aux > button {
+    min-height: 44px;
+  }
+
+  #swapPairBtn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .swap-btn-wrap {
+    width: 44px;
+    height: 44px;
+  }
+
+  .influence-stepper-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .carousel-nav {
+    width: 44px;
+    height: 44px;
+  }
+
+  .carousel-dots {
+    gap: 0;
+    width: 100%;
+  }
+
+  .carousel-dot {
+    position: relative;
+    flex: 1 1 0;
+    max-width: 44px;
+    width: auto;
+    height: 44px;
+    padding: 0;
+    background: none;
+  }
+
+  .carousel-dot::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--border);
+    transform: translate(-50%, -50%);
+    transition: background 0.15s ease, transform 0.15s ease;
+  }
+
+  .carousel-dot.active {
+    background: none;
+    transform: none;
+  }
+
+  .carousel-dot.active::before {
+    background-color: var(--accent-strong);
+    transform: translate(-50%, -50%) scale(1.3);
+  }
+}
+
+@media (max-width: 600px) {
+  .landing-info {
+    padding: 0 16px;
+  }
+
+  main {
+    padding: 8px max(8px, env(safe-area-inset-right)) 8px
+      max(8px, env(safe-area-inset-left));
+  }
+
+  .panel {
+    padding: 8px;
+  }
+
+  .action-bar {
+    padding: 0 8px 6px;
+    --ab-banner-line-h: 23px;
+  }
+
+  .action-bar .action-banner {
+    border-bottom: none;
+    padding: 4px 8px;
+    font-size: 18px;
+  }
+
+  .action-bar-controls {
+    gap: 6px 8px;
+  }
+
+  .carousel-nav {
+    display: none;
+  }
+
+  .challenge-carousel-wrapper {
+    gap: 0;
+    margin: 10px 0;
+  }
+
+  /* Save vertical space in the challenge picker on small screens. */
+  #challengePicker p[data-i18n="challenges.picker.description"] {
+    display: none;
+  }
+
+  .modal-dialog {
+    padding: 12px 16px;
+  }
+
+  .modal-dialog h2 {
+    margin: 0 0 6px 0;
+    padding-top: 4px;
+  }
+
+  .carousel-dots {
+    margin: 4px 0 8px 0;
+  }
+
+  /* Centre the snapped card so it lines up with the card-width Cancel button below. */
+  .challenge-carousel {
+    padding-inline: calc((100% - min(250px, 100%)) / 2);
+    scroll-padding-inline: calc((100% - min(250px, 100%)) / 2);
+  }
+
+  .challenge-card {
+    height: min(300px, calc(85dvh - 140px));
+    scroll-snap-align: center;
+  }
+
+  /* Small screens: the centred card is auto-selected on scroll and tapping it
+     starts the game (challengeCardTapStarts in app.js), so Start is redundant. */
+  #challengeConfirmBtn {
+    display: none;
+  }
+
+  .challenge-tap-hint {
+    display: block;
+  }
+
+  /* Cancel (when shown) matches a challenge card's width. */
+  .modal-actions {
+    flex-direction: column-reverse;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .modal-actions > button {
+    width: min(250px, 100%);
+    min-height: 44px;
+    font-size: 18px;
+  }
+
+  .challenge-badge {
+    font-size: 18px;
+  }
+
+  .action-banner.is-final {
+    font-size: 20px;
+    line-height: 1.2;
+  }
+
+  .action-banner.is-final .final-summary {
+    flex-basis: 100%;
+    font-size: 16px;
+  }
+
+  .action-banner.is-final .final-summary::before {
+    content: none;
+  }
+}
+
+@media (max-height: 500px) {
+  header {
+    padding: 4px 12px;
+  }
+
+  header h1 {
+    font-size: 24px;
+  }
+
+  /* Save vertical space in the challenge picker so the Start button is
+     reachable without scrolling the dialog in short-landscape viewports. */
+  #challengePicker p[data-i18n="challenges.picker.description"] {
+    display: none;
+  }
+
+  .modal-dialog {
+    padding: 10px 16px;
+  }
+
+  .modal-dialog h2 {
+    margin: 0 0 4px 0;
+    padding-top: 2px;
+  }
+
+  .challenge-carousel-wrapper {
+    margin: 8px 0;
+  }
+
+  .carousel-dots {
+    margin: 2px 0 8px 0;
+  }
+
+  .challenge-card {
+    height: min(160px, calc(85dvh - 170px));
+    min-height: 140px;
+    padding: 10px 10px;
+  }
+
+  .menu-item {
+    min-width: 44px;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .menu-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .menu-icon img {
+    width: 22px;
+  }
+
+  .menu-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .site-footer {
+    position: static;
+  }
+
+  .footer-inner {
+    padding-right: 64px;
+  }
+
+  body {
+    padding-bottom: 0;
+  }
+
+  .back-to-top {
+    bottom: 16px;
+  }
+
+  .action-bar {
+    padding: 0 8px 4px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: var(--ab-banner-h) var(--ab-main-h);
+    grid-template-areas: "banner banner" "controls aux";
+    align-items: center;
+    align-content: center;
+    justify-content: center;
+    column-gap: 12px;
+    --ab-banner-line-h: 20px;
+    --ab-banner-h: 24px;
+    --ab-die: 44px;
+    --ab-aux-h: 52px;
+    --ab-h: calc(var(--ab-banner-h) + var(--ab-main-h) + 4px);
+  }
+
+  /* Compact short-landscape bar: banner clamps to one line, and the main
+     row + aux row share the same fixed-height grid row (aux right-aligned)
+     so the bar stays as short as possible without changing height. */
+  .action-bar .action-banner {
+    grid-area: banner;
+    padding: 2px 8px;
+    font-size: 16px;
+    display: block;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+  }
+
+  .building-picker:not([hidden]) {
+    padding: 0;
+  }
+
+  .action-bar-controls {
+    grid-area: controls;
+    justify-self: start;
+    gap: 6px 8px;
+    flex-wrap: nowrap;
+  }
+
+  .action-bar-aux {
+    grid-area: aux;
+    justify-self: stretch;
+    justify-content: safe center;
+    gap: 6px 8px;
+    /* Short landscape keeps the aux row inline (grid cell) rather than the
+       narrow-width overlay drawer; undo the drawer's positioning/animation. */
+    position: static;
+    top: auto;
+    left: auto;
+    right: auto;
+    z-index: auto;
+    box-shadow: none;
+    border-bottom: none;
+    padding: 0;
+    height: auto;
+    transform: none;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition: none;
+  }
+
+  /* Collapsed (closed) state is handled by the shared base rule
+     `.action-bar-aux:not(.is-open) { display: none }` (higher specificity
+     via :not(), so it wins over the unconditional display overrides above). */
+
+  .action-bar-controls > button {
+    min-height: 44px;
+  }
+
+  .sheet-status-row {
+    top: 0;
+  }
+
+  .sheet-status-row .status-chip {
+    font-size: 11px;
+    padding: 1px 8px;
+  }
+
+  .sheet {
+    max-width: min(100%, calc((100dvh - 60px) * 1076 / 764));
+  }
+}
+
+/* Short landscape + touch: the inline banner action button is 44px tall
+   (see the (pointer: coarse) rules below), so the banner row needs room
+   for it or it clips; grow the row (and the bar's fixed --ab-h follows). */
+@media (max-height: 500px) and (pointer: coarse) {
+  .action-bar {
+    --ab-banner-h: max(var(--ab-banner-line-h), 48px);
+  }
+}
+
+/* Wide screens: the board + side panel grid stops growing past ~1475px
+   (board-panel's own max-width), leaving an empty band on the right when the
+   viewport is centered on it instead; center the whole main area so header
+   and footer content line up with it. */
+@media (min-width: 1600px) {
+  main {
+    max-width: 1475px;
+    margin-inline: auto;
+  }
+
+  /* Full-width header background/border; only its content lines up with main. */
+  header {
+    padding-inline: max(24px, calc((100% - 1475px) / 2 + 24px));
+  }
+}
+
+@media (hover: hover) {
+  button:not(:disabled):hover {
+    filter: brightness(0.92);
+  }
+
+  .back-to-top:hover {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .challenge-outcome-close-btn:hover {
+    background: var(--panel);
+  }
+
+  .icon-btn:hover {
+    background: var(--accent);
+    filter: brightness(0.95);
+  }
+
+  .icon-btn-disabled:hover {
+    background: var(--muted);
+    filter: none;
+  }
+
+  .link-btn:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.05);
+  }
+
+  .guild-hit.available:hover,
+  .building-hit.available:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(60, 110, 113, 0.2);
+  }
+
+  .challenge-badge:hover .challenge-badge-info-icon {
+    opacity: 1;
+  }
+
+  .carousel-nav:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    transform: scale(1.06);
+  }
+
+  .carousel-dot:hover {
+    background-color: var(--accent);
+  }
+
+  .challenge-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+  }
+
+  .challenge-card-disabled:hover {
+    border-color: var(--border);
+    box-shadow: none;
+    transform: none;
+  }
+
+  .cell.highlight:hover::after {
+    --ring-b: 6px;
+  }
+}
+
+/* Kept last so it wins over the earlier breakpoint rules above, notably the
+   aux-drawer open/close transition (max-width: 1100px). */
+@media (prefers-reduced-motion: reduce) {
+  .dice-rolling .die-badge,
+  #diceView.dice-rolling .die-badge {
+    animation: dice-bounce 0.45s ease;
+  }
+
+  .action-bar-aux {
+    transition: none;
+  }
 }

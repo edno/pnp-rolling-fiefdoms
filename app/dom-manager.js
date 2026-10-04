@@ -15,11 +15,24 @@
 export const boardEl = document.getElementById("board");
 export const diceView = document.getElementById("diceView");
 export const turnHintEl = document.getElementById("turnHint");
+export const turnHintPanelEl = document.getElementById("turnHintPanel");
+export const actionBarEl = document.getElementById("actionBar");
+export const actionBarAuxEl = document.getElementById("actionBarAux");
+export const buildingPickerEl = document.getElementById("buildingPicker");
 export const locDicePreview = document.getElementById("locDicePreview");
 export const buildDicePreview = document.getElementById("buildDicePreview");
+export const influenceStepper = document.getElementById("influenceStepper");
+export const influenceStepperFace = document.getElementById("influenceStepperFace");
+export const influenceStepperDieLabel = document.getElementById("influenceStepperDieLabel");
+export const influenceStepperValue = document.getElementById("influenceStepperValue");
+export const influenceStepperMinus = document.getElementById("influenceStepperMinus");
+export const influenceStepperPlus = document.getElementById("influenceStepperPlus");
+export const influenceStepperReset = document.getElementById("influenceStepperReset");
 
 // Log & Overlays
 export const logEl = document.getElementById("log");
+export const logDrawerEl = document.getElementById("logDrawer");
+export const logUnreadBadge = document.getElementById("logUnreadBadge");
 export const scoreOverlayBuildingsEl = document.getElementById("scoreOverlayBuildings");
 export const scoreOverlayGuildsEl = document.getElementById("scoreOverlayGuilds");
 export const scoreOverlayReputationEl = document.getElementById("scoreOverlayReputation");
@@ -31,6 +44,9 @@ export const turnTrackOverlay = document.getElementById("turnTrackOverlay");
 export const finishActivationBtn = document.getElementById("finishActivation");
 export const newGameBtn = document.getElementById("newGameBtn");
 export const swapPairBtn = document.getElementById("swapPairBtn");
+export const swapBtnWrap = document.querySelector(".swap-btn-wrap");
+export const confirmPlotBtn = document.getElementById("confirmPlotBtn");
+export const cancelPlotBtn = document.getElementById("cancelPlotBtn");
 
 // UI Controls
 export const fullscreenBtn = document.getElementById("fullscreenToggle");
@@ -54,6 +70,7 @@ export const challengeInfoSetup = document.getElementById("challengeInfoSetup");
 export const challengeInfoCloseBtn = document.getElementById("challengeInfoCloseBtn");
 export const loadingOverlay = document.getElementById("loadingOverlay");
 export const sheetBaseImage = document.getElementById("sheetBaseImage");
+export const sheetBaseImages = Array.from(document.querySelectorAll(".sheet-base"));
 export const challengePickerEl = document.getElementById("challengePicker");
 export const challengeCardsEl = document.getElementById("challengeCards");
 export const challengeConfirmBtn = document.getElementById("challengeConfirmBtn");

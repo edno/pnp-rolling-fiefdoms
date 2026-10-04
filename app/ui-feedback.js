@@ -9,13 +9,45 @@
 import { actionBannerEl } from "./dom-manager.js";
 import { BUILDING_RULES } from "./rules.js";
 import { t, escapeHtml } from "./i18n.js";
+import { isCompactLayout } from "./layout-mode.js";
 
 /**
  * Wrap a button's label so it renders inline styled like the real button
  * (see .btn-label-inline in styles.css), for use inside t()-interpolated hints.
+ * When targetId is provided, the inline label is itself a real button that
+ * triggers the control with that id (see delegated click handler in app.js).
  */
-export function formatButtonLabelHtml(label) {
+export function formatButtonLabelHtml(label, targetId) {
+  if (targetId) {
+    return `<button type="button" class="btn-label-inline btn-inline-action" data-target="${escapeHtml(targetId)}">${escapeHtml(label)}</button>`;
+  }
   return `<span class="btn-label-inline">${escapeHtml(label)}</span>`;
+}
+
+/**
+ * app.js owns syncActionBarState() (it reads/toggles classes on #actionBar,
+ * which this module doesn't have references to) but flashHint() needs to
+ * re-run it whenever it replaces/restores the banner HTML, since that HTML
+ * determines `.has-inline-roll` / `.has-inline-finish`. Registered once from
+ * app.js to avoid a circular import.
+ */
+let actionBarSyncHook = null;
+export function registerActionBarSync(fn) {
+  actionBarSyncHook = fn;
+}
+
+/**
+ * Keep inline-action buttons inside the action banner disabled/enabled in
+ * sync with the real controls they target (#rollBtn, #finishActivation).
+ */
+export function syncInlineActionButtons() {
+  if (!actionBannerEl) return;
+  const inlineButtons = actionBannerEl.querySelectorAll(".btn-inline-action");
+  inlineButtons.forEach((btn) => {
+    const target = document.getElementById(btn.dataset.target);
+    const targetUnavailable = !target || target.disabled || target.style.display === "none";
+    btn.disabled = targetUnavailable;
+  });
 }
 
 const SCORE_RANKS = [
@@ -90,7 +122,7 @@ export function actionMessage(state, currentPhase, options = {}) {
       return t("activation.populationSelected", { remaining });
     }
     if (anyRemaining) return t("activation.selectPopulationNode");
-    return t("activation.finishWhenReady", { finishBtn: formatButtonLabelHtml(t("html.finishActivation")) });
+    return t("activation.finishWhenReady", { finishBtn: formatButtonLabelHtml(t("html.finishActivation"), "finishActivation") });
   }
 
   if (state.pendingSpringhouseTarget) {
@@ -128,7 +160,7 @@ export function actionMessage(state, currentPhase, options = {}) {
   }
 
   if (phase === TURN_PHASE.AWAIT_ROLL) {
-    return t("hints.pressRollToStart", { rollBtn: formatButtonLabelHtml(t("html.rollDice")) });
+    return t("hints.pressRollToStart", { rollBtn: formatButtonLabelHtml(t("html.rollDice"), "rollBtn") });
   }
 
   if (phase === TURN_PHASE.SPLITTING) {
@@ -143,13 +175,13 @@ export function actionMessage(state, currentPhase, options = {}) {
 
   if (phase === TURN_PHASE.BUILDING) {
     if (!state.buildChoice) {
-      return t("hints.selectBuildingFromOverlay");
+      return isCompactLayout() ? t("turn.selectBuildingPicker") : t("hints.selectBuildingFromOverlay");
     }
     return t("hints.clickHighlightedPlot");
   }
 
   if (!state.activeTurn) return t("hints.waitingForActivePlayer");
-  return t("hints.rollDiceToBegin", { rollBtn: formatButtonLabelHtml(t("html.rollDice")) });
+  return t("hints.rollDiceToBegin", { rollBtn: formatButtonLabelHtml(t("html.rollDice"), "rollBtn") });
 }
 
 /**
@@ -158,6 +190,11 @@ export function actionMessage(state, currentPhase, options = {}) {
  */
 export function updateActionBanner(state, currentPhase, options = {}) {
   if (!actionBannerEl) return;
+  if (flashHintTimer) {
+    clearTimeout(flashHintTimer);
+    flashHintTimer = null;
+    flashHintText = null;
+  }
   const newText = actionMessage(state, currentPhase, options);
   const prevText = actionBannerEl.dataset.msg || "";
   const changed = prevText !== newText;
@@ -172,4 +209,47 @@ export function updateActionBanner(state, currentPhase, options = {}) {
     void actionBannerEl.offsetWidth; // restart animation
     actionBannerEl.classList.add("bump");
   }
+  actionBannerEl.classList.toggle("is-final", currentPhase === TURN_PHASE.ACTIVATION_DONE);
+  syncInlineActionButtons();
+}
+
+let flashHintTimer = null;
+let flashHintText = null;
+
+/**
+ * Briefly show a transient hint message in the action banner, without
+ * permanently replacing the phase banner. The previous banner text is
+ * restored after ~3s (or overwritten sooner by the next updateActionBanner()).
+ */
+export function flashHint(text) {
+  if (!actionBannerEl || !text) return;
+  if (flashHintTimer) clearTimeout(flashHintTimer);
+  flashHintText = text;
+  const restoreText = actionBannerEl.dataset.msg || "";
+  if (text.includes("<")) {
+    actionBannerEl.innerHTML = text;
+  } else {
+    actionBannerEl.textContent = text;
+  }
+  actionBannerEl.classList.remove("bump");
+  void actionBannerEl.offsetWidth; // restart animation
+  actionBannerEl.classList.add("bump");
+  syncInlineActionButtons();
+  actionBarSyncHook?.();
+  flashHintTimer = setTimeout(() => {
+    flashHintTimer = null;
+    if (!actionBannerEl) return;
+    // Only restore if the banner is still showing this flash's text - if
+    // updateActionBanner() rendered a newer prompt in the meantime, leave it alone.
+    if (flashHintText !== text) return;
+    flashHintText = null;
+    actionBannerEl.dataset.msg = restoreText;
+    if (restoreText && restoreText.includes("<")) {
+      actionBannerEl.innerHTML = restoreText;
+    } else {
+      actionBannerEl.textContent = restoreText;
+    }
+    syncInlineActionButtons();
+    actionBarSyncHook?.();
+  }, 3000);
 }
