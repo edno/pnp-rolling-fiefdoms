@@ -49,6 +49,7 @@ const baseHtml = `
   <div id="buildDicePreview"></div>
   <div id="influenceStepper" hidden>
     <span id="influenceStepperFace"></span>
+    <span id="influenceStepperDieLabel"></span>
     <span id="influenceStepperValue"></span>
     <button id="influenceStepperMinus" type="button">-</button>
     <button id="influenceStepperPlus" type="button">+</button>
@@ -529,6 +530,20 @@ describe("score rank banner (jsdom)", () => {
     expect(msg).toContain("Final score 91");
     expect(msg).toContain("Legendary");
     expect(msg).toContain("echo through the ages");
+  });
+
+  it("marks the action banner as final once activation is complete, and not otherwise", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const banner = document.getElementById("actionBanner");
+
+    hooks.updateActionBanner();
+    expect(banner.classList.contains("is-final")).toBe(false);
+
+    hooks.state.activationComplete = true;
+    hooks.state.finalScore = 42;
+    hooks.updateActionBanner();
+    expect(banner.classList.contains("is-final")).toBe(true);
   });
 });
 
@@ -1017,6 +1032,12 @@ describe("plot confirm step (jsdom)", () => {
     expect(document.querySelectorAll("#locDicePreview .influence-target-btn").length).toBe(0);
     expect(document.querySelectorAll("#buildDicePreview .influence-target-btn").length).toBe(0);
 
+    // Every eligible die (including X dice with a resolved value, per the
+    // "influence can apply to any numeric die" rule) shows a titled ± badge.
+    document.querySelectorAll("#diceView .influence-target-btn").forEach((btn) => {
+      expect(btn.title.length).toBeGreaterThan(0);
+    });
+
     const badgeN2 = document.querySelector('#diceView .die-badge[data-idx="1"] .influence-target-btn');
     expect(badgeN2).toBeTruthy();
     const selectionBefore = hooks.state.locationSelection.slice();
@@ -1025,6 +1046,20 @@ describe("plot confirm step (jsdom)", () => {
     expect(hooks.state.locationSelection).toEqual(selectionBefore);
     expect(stepper.hidden).toBe(false);
     expect(document.getElementById("influenceStepperValue").textContent).toContain("4");
+    expect(document.getElementById("influenceStepperDieLabel").textContent).toBe("N2");
+
+    // Re-rendering the dice (as any subsequent influence/selection change does)
+    // gives the targeted die a distinct ring and its badge an active state.
+    hooks.updateDiceAssignments();
+    await flushMicrotasks();
+    expect(document.querySelector('#diceView .die-badge[data-idx="1"]').classList.contains("influence-target")).toBe(
+      true,
+    );
+    expect(
+      document
+        .querySelector('#diceView .die-badge[data-idx="1"] .influence-target-btn')
+        .classList.contains("active"),
+    ).toBe(true);
 
     // Tapping another die's badge moves the stepper target without touching selection.
     const badgeN1 = document.querySelector('#diceView .die-badge[data-idx="0"] .influence-target-btn');
@@ -1032,6 +1067,14 @@ describe("plot confirm step (jsdom)", () => {
     await flushMicrotasks();
     expect(hooks.state.locationSelection).toEqual(selectionBefore);
     expect(document.getElementById("influenceStepperValue").textContent).toContain("2");
+    hooks.updateDiceAssignments();
+    await flushMicrotasks();
+    expect(document.querySelector('#diceView .die-badge[data-idx="0"]').classList.contains("influence-target")).toBe(
+      true,
+    );
+    expect(document.querySelector('#diceView .die-badge[data-idx="1"]').classList.contains("influence-target")).toBe(
+      false,
+    );
 
     document.getElementById("influenceStepperPlus").click();
     await flushMicrotasks();
@@ -1478,6 +1521,78 @@ describe("challenge picker scroll cue (jsdom)", () => {
       expect(card.classList.contains("is-scrollable")).toBe(true);
       expect(card.classList.contains("is-at-end")).toBe(false);
     });
+  });
+});
+
+describe("challenge picker carousel selection on small screens (jsdom)", () => {
+  it("selects the card nearest the carousel center once scroll settles, only on small screens", async () => {
+    await setupApp({ enableHooks: true, withChallengePicker: true });
+    document.getElementById("newGameBtn")?.click();
+
+    const carousel = document.getElementById("challengeCards");
+    const cards = Array.from(carousel.querySelectorAll(".challenge-card"));
+    expect(cards.length).toBeGreaterThan(1);
+
+    // The "normal game" card (idx 0) is selected by default; stub geometry so
+    // the *second* card (idx 1) is the one centered in the carousel, to prove
+    // the scroll-settle logic actually moves the selection off the default.
+    Object.defineProperty(carousel, "getBoundingClientRect", {
+      value: () => ({ left: 0, width: 300, top: 0, height: 100, right: 300, bottom: 100 }),
+      configurable: true,
+    });
+    cards.forEach((card, idx) => {
+      Object.defineProperty(card, "getBoundingClientRect", {
+        value: () => ({
+          left: idx === 1 ? 100 : 400,
+          width: 100,
+          top: 0,
+          height: 100,
+          right: idx === 1 ? 200 : 500,
+          bottom: 100,
+        }),
+        configurable: true,
+      });
+    });
+
+    // Simulate a small (<=600px) screen where carousel arrows are hidden.
+    window.matchMedia = (query) => ({
+      matches: query.includes("max-width: 600px"),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    });
+
+    carousel.dispatchEvent(new Event("scroll"));
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    await flushMicrotasks();
+
+    expect(cards[1].classList.contains("selected")).toBe(true);
+    expect(cards[0].classList.contains("selected")).toBe(false);
+  });
+
+  it("does not auto-select on larger screens", async () => {
+    await setupApp({ enableHooks: true, withChallengePicker: true });
+    document.getElementById("newGameBtn")?.click();
+
+    const carousel = document.getElementById("challengeCards");
+    const cards = Array.from(carousel.querySelectorAll(".challenge-card"));
+    expect(cards.length).toBeGreaterThan(1);
+
+    window.matchMedia = (query) => ({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    });
+
+    // The "normal game" card (id === null, the default pickedChallengeId) is
+    // selected by default on render; capture that baseline before scrolling.
+    const selectedBefore = cards.map((card) => card.classList.contains("selected"));
+
+    carousel.dispatchEvent(new Event("scroll"));
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    await flushMicrotasks();
+
+    const selectedAfter = cards.map((card) => card.classList.contains("selected"));
+    expect(selectedAfter).toEqual(selectedBefore);
   });
 });
 

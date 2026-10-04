@@ -83,10 +83,15 @@ describe("beginTurn", () => {
     const fullBoard = Array.from({ length: 5 }, () =>
       Array.from({ length: 5 }, () => ({ building: "X", forfeited: false, springBoost: 0 })),
     );
-    beginTurn(state, dice, fullBoard, helpers);
+    const { messages } = beginTurn(state, dice, fullBoard, helpers);
     expect(state.activeTurn).toBe(false);
     expect(state.locationSelection).toEqual([0, 1]);
     expect(state.forceForfeit).toBe(true);
+    // The forced-forfeit message includes the current turn number so repeated
+    // identical banners/log entries are distinguishable turn to turn.
+    const forfeitMsg = messages.find((m) => m.kind === "location");
+    expect(forfeitMsg.text).toBe(t("location.noValidPairsForfeit", { turn: state.turnIndex }));
+    expect(forfeitMsg.text).toContain(String(state.turnIndex));
   });
 
   it("marks pestilence and computes pestilence info", () => {

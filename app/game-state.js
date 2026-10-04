@@ -272,7 +272,9 @@ export function beginTurn(
     if (allPairs.length === 0 && !isPestilence) {
       messages.push({
         kind: "location",
-        text: state.forceForfeit ? t("location.noValidPairsForfeit") : t("location.noValidPairsSpendInfluence"),
+        text: state.forceForfeit
+          ? t("location.noValidPairsForfeit", { turn: state.turnIndex })
+          : t("location.noValidPairsSpendInfluence"),
       });
     }
   } else {
@@ -467,7 +469,7 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
     } else {
       forceForfeit = true;
       invalidSelection = false;
-      if (!prevForce) message = t("location.noValidPairsForfeit");
+      if (!prevForce) message = t("location.noValidPairsForfeit", { turn: state.turnIndex });
     }
   }
 
@@ -492,10 +494,10 @@ export function evaluateLocationSelection(state, { uniqueLocationPairs, filterAv
         }
       } else if (!hadGeneralRescue) {
         forceForfeit = true;
-        if (!prevForce) message = t("location.noValidPairsForfeit");
+        if (!prevForce) message = t("location.noValidPairsForfeit", { turn: state.turnIndex });
       }
     } else if (forceForfeit && !prevForce) {
-      message = t("location.noValidPairsForfeit");
+      message = t("location.noValidPairsForfeit", { turn: state.turnIndex });
     }
   } else {
     if (locationDice.length === 2) {

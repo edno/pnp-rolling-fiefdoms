@@ -19,6 +19,7 @@ export const locDicePreview = document.getElementById("locDicePreview");
 export const buildDicePreview = document.getElementById("buildDicePreview");
 export const influenceStepper = document.getElementById("influenceStepper");
 export const influenceStepperFace = document.getElementById("influenceStepperFace");
+export const influenceStepperDieLabel = document.getElementById("influenceStepperDieLabel");
 export const influenceStepperValue = document.getElementById("influenceStepperValue");
 export const influenceStepperMinus = document.getElementById("influenceStepperMinus");
 export const influenceStepperPlus = document.getElementById("influenceStepperPlus");

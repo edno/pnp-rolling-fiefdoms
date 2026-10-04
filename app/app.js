@@ -69,6 +69,7 @@ import {
   buildDicePreview,
   influenceStepper,
   influenceStepperFace,
+  influenceStepperDieLabel,
   influenceStepperValue,
   influenceStepperMinus,
   influenceStepperPlus,
@@ -1277,6 +1278,7 @@ function renderInfluenceStepper() {
     clearElement(influenceStepperFace);
     influenceStepperFace.appendChild(createDieFaceSVG(adjustedDie, { showLabel: false }));
   }
+  if (influenceStepperDieLabel) influenceStepperDieLabel.textContent = die.label;
   if (influenceStepperValue) {
     const adjusted = typeof adjustedDie.resolved === "number" ? adjustedDie.resolved : base;
     influenceStepperValue.textContent = delta !== 0 ? `${base} → ${adjusted}` : `${base}`;
@@ -1307,7 +1309,7 @@ function renderDice() {
     } else if (state.forceForfeitAdvisory && !state.forceForfeit) {
       setTurnHint(t("location.noValidPairsSpendInfluence"));
     } else if (forceForfeitActive()) {
-      setTurnHint(t("location.noValidPairsForfeit"));
+      setTurnHint(t("location.noValidPairsForfeit", { turn: state.turnIndex }));
     } else if (!state.activeTurn) {
       setTurnHint(nonActiveAutoHintText());
     } else {
@@ -1993,29 +1995,6 @@ function highlightLocations() {
       });
     return;
   }
-  if (state.activationMode) {
-    const sel = state.activationSelection.building;
-    forEachCell((cell) => {
-      const r = parseInt(cell.dataset.row, 10);
-      const c = parseInt(cell.dataset.col, 10);
-      const data = state.board[r][c];
-      const req = Math.max(
-        0,
-        (BUILDING_RULES[data.building]?.requirement || 0) - (Number(data.springBoost) || 0),
-      );
-      const filled = Math.max(0, state.workerAllocations?.[r]?.[c] || 0);
-      const canSelect = data.building && !data.forfeited && req > filled;
-      if (sel && sel[0] === r && sel[1] === c) {
-        cell.classList.add("selected-building");
-      }
-      if (canSelect) {
-        cell.classList.add("highlight");
-      } else {
-        cell.classList.add("disabled");
-      }
-    });
-    return;
-  }
   if (state.pendingSpringhouseTarget) {
     const options = state.pendingSpringhouseTarget.options || [];
     forEachCell((cell) => {
@@ -2537,12 +2516,18 @@ function setupChallengePicker() {
   }
   if (challengeCardsEl) {
     let scrollRaf = null;
+    let scrollSettleTimer = null;
     challengeCardsEl.addEventListener("scroll", () => {
       if (scrollRaf) return;
       scrollRaf = requestAnimationFrame(() => {
         scrollRaf = null;
         updateChallengeCarouselDots();
       });
+      if (scrollSettleTimer) clearTimeout(scrollSettleTimer);
+      scrollSettleTimer = setTimeout(() => {
+        scrollSettleTimer = null;
+        selectCenteredChallengeCardOnSmallScreens();
+      }, 120);
     });
   }
   document.addEventListener("keydown", (e) => {
@@ -2651,6 +2636,34 @@ function updateChallengeCarouselDots() {
     activeIndex = dots.length - 1;
   }
   dots.forEach((dot, idx) => dot.classList.toggle("active", idx === activeIndex));
+}
+
+// On small screens (<=600px, see @media (max-width: 600px) in styles.css) the carousel
+// arrows are hidden and cards snap-center on swipe/dot-tap, so there's no click to select
+// the card the player ends up looking at. Once scroll settles on such screens, select the
+// card nearest the carousel's horizontal center (matching click-to-select behavior),
+// skipping disabled/placeholder cards so the previous selection is kept.
+function selectCenteredChallengeCardOnSmallScreens() {
+  if (!challengeCardsEl) return;
+  if (!window.matchMedia || !window.matchMedia("(max-width: 600px)").matches) return;
+  const cards = Array.from(challengeCardsEl.querySelectorAll(".challenge-card"));
+  if (!cards.length) return;
+  const containerRect = challengeCardsEl.getBoundingClientRect();
+  const containerCenter = containerRect.left + containerRect.width / 2;
+  let nearest = null;
+  let nearestDist = Infinity;
+  cards.forEach((card) => {
+    if (card.classList.contains("challenge-card-disabled")) return;
+    const rect = card.getBoundingClientRect();
+    const cardCenter = rect.left + rect.width / 2;
+    const dist = Math.abs(cardCenter - containerCenter);
+    if (dist < nearestDist) {
+      nearestDist = dist;
+      nearest = card;
+    }
+  });
+  if (!nearest) return;
+  nearest.click();
 }
 
 function openChallengePicker() {
@@ -2800,7 +2813,7 @@ function renderChallengeCards() {
       pickedChallengeId = entry.id;
       challengeCardsEl.querySelectorAll(".challenge-card").forEach((el) => el.classList.remove("selected"));
       card.classList.add("selected");
-      card.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+      card.scrollIntoView?.({ behavior: "smooth", inline: "center", block: "nearest" });
     };
     card.addEventListener("scroll", () => updateScrollCue(card));
     challengeCardsEl.appendChild(card);
@@ -3070,7 +3083,7 @@ function updateSwapButton() {
     swapPairBtn.style.display = hidden ? "none" : "inline-block";
     swapPairBtn.disabled = !showSwap;
     swapPairBtn.classList.toggle("icon-btn-disabled", !hidden && !showSwap);
-    swapPairBtn.title = showSwap || hidden ? t("html.swapTitle") : t(reasonKey);
+    setPopover(swapPairBtn, showSwap || hidden ? t("html.swapTitle") : t(reasonKey));
     applySwapButtonPulse(showSwap);
   }
 }
@@ -3110,7 +3123,7 @@ function updateTurnStatusChip() {
   } else {
     turnStatusChip.textContent = label;
     turnStatusChip.setAttribute("aria-label", label);
-    turnStatusChip.title = label;
+    turnStatusChip.removeAttribute("title");
     turnStatusChip.classList.remove("hidden");
     turnStatusChip.removeAttribute("aria-hidden");
     turnStatusChip.classList.toggle("status-active", active);
@@ -3414,12 +3427,17 @@ function makeDieBadge(
     targetBtn.className = "influence-target-btn";
     targetBtn.textContent = "±";
     targetBtn.setAttribute("aria-label", t("influence.useOnDie", { die: die.label }));
+    targetBtn.title = t("influence.badgeTitle");
+    if (influenceUiDie === die.label) targetBtn.classList.add("active");
     targetBtn.addEventListener("click", (event) => {
       event.stopPropagation();
       influenceUiDie = die.label;
       renderInfluenceStepper();
     });
     badge.appendChild(targetBtn);
+  }
+  if (influenceUiDie === die.label && effectiveIdx >= 0) {
+    badge.classList.add("influence-target");
   }
   return badge;
 }
@@ -3540,7 +3558,7 @@ function updateDiceAssignments(renderOnly = false) {
     } else if (state.forceForfeitAdvisory) {
       setTurnHint(t("location.noValidPairsSpendInfluence"));
     } else if (forceForfeitActive()) {
-      setTurnHint(t("location.noValidPairsForfeit"));
+      setTurnHint(t("location.noValidPairsForfeit", { turn: state.turnIndex }));
     } else if (!state.activeTurn) {
       setTurnHint(nonActiveAutoHintText());
     } else {
@@ -4019,5 +4037,7 @@ function autoForfeitUnfillable(finalize = false) {
       rollDice,
       newGame,
       log,
+      updateActionBanner,
+      currentScore,
     };
   }

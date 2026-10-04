@@ -197,6 +197,7 @@ export function updateActionBanner(state, currentPhase, options = {}) {
     void actionBannerEl.offsetWidth; // restart animation
     actionBannerEl.classList.add("bump");
   }
+  actionBannerEl.classList.toggle("is-final", currentPhase === TURN_PHASE.ACTIVATION_DONE);
   syncInlineActionButtons();
 }
 
