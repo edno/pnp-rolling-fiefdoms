@@ -4283,7 +4283,6 @@ function autoForfeitUnfillable(finalize = false) {
     import("./autoplay.js").then((mod) => {
       mod.initAutoplay({
         speed: speedParam,
-        loop: autoplayParam === "loop" || _params.has("loop"),
       });
     }).catch((err) => {
       console.error("Failed to load autoplay module:", err);

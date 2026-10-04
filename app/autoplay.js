@@ -381,15 +381,12 @@ export function startAutoplaySession(options = {}) {
   let isPaused = options.paused ?? false;
   let isStopped = false;
   let singleStepRequested = false;
-  let loop = options.loop ?? false;
 
   const session = {
     get isPaused() { return isPaused; },
     get isStopped() { return isStopped; },
     get trace() { return trace; },
     get stepDelay() { return stepDelay; },
-    get loop() { return loop; },
-    set loop(value) { loop = value; },
     setSpeed(ms) {
       stepDelay = Math.max(10, Number(ms) || 350);
     },
@@ -432,28 +429,6 @@ export function startAutoplaySession(options = {}) {
       if (h.state.finalScore !== undefined && h.state.finalScore !== null) {
         stopReason = "final-score";
         if (options.onStep) options.onStep("final-score", { stopReason, finalScore: h.state.finalScore });
-
-        if (loop && !isStopped) {
-          await wait(1500);
-          if (isStopped) break;
-          if (typeof h.newGame === "function") {
-            h.newGame();
-          } else {
-            const playAgainBtn = Array.from(document.querySelectorAll("button, .btn")).find(
-              (b) => isElementVisible(b) && /play again/i.test(b.textContent)
-            );
-            if (playAgainBtn) playAgainBtn.click();
-          }
-          repeatGuard = 0;
-          lastAction = null;
-          lastProgressKey = null;
-          stepsSinceProgress = 0;
-          lastProgressAt = Date.now();
-          exhaustedActivationPopNodes.clear();
-          resetInfluenceRotation();
-          await wait(stepDelay);
-          continue;
-        }
         break;
       }
 
@@ -536,8 +511,6 @@ export function initAutoplay(options = {}) {
   else if (speedParam === "instant" || speedParam === "max") delay = 25;
   else if (/^\d+$/.test(speedParam)) delay = Math.max(10, parseInt(speedParam, 10));
 
-  let loop = !!options.loop;
-
   let hud = document.getElementById("rfAutoplayHud");
   if (!hud) {
     hud = document.createElement("div");
@@ -562,9 +535,6 @@ export function initAutoplay(options = {}) {
           <button class="rf-autoplay-btn rf-speed-btn" data-speed="80" type="button">Fast</button>
           <button class="rf-autoplay-btn rf-speed-btn" data-speed="25" type="button">Max</button>
         </div>
-        <label class="rf-autoplay-loop-label">
-          <input type="checkbox" id="rfAutoplayLoopToggle" ${loop ? "checked" : ""} /> Loop
-        </label>
       </div>
     `;
     document.body.appendChild(hud);
@@ -575,7 +545,6 @@ export function initAutoplay(options = {}) {
   const pauseBtn = document.getElementById("rfAutoplayPauseBtn");
   const stepBtn = document.getElementById("rfAutoplayStepBtn");
   const closeBtn = document.getElementById("rfAutoplayClose");
-  const loopToggle = document.getElementById("rfAutoplayLoopToggle");
   const speedBtns = Array.from(hud.querySelectorAll(".rf-speed-btn"));
 
   const updateSpeedButtons = (currentDelay) => {
@@ -591,7 +560,6 @@ export function initAutoplay(options = {}) {
   const startSession = () => {
     session = startAutoplaySession({
       stepDelay: delay,
-      loop,
       onStep: (action, meta) => {
         if (detailEl) detailEl.textContent = `T${meta?.turn ?? "?"} [${meta?.phase ?? ""}] ${action}`;
         if (statusEl) statusEl.textContent = "Running";
@@ -649,13 +617,6 @@ export function initAutoplay(options = {}) {
       if (session) session.setSpeed(delay);
     };
   });
-
-  if (loopToggle) {
-    loopToggle.onchange = () => {
-      loop = loopToggle.checked;
-      if (session) session.loop = loop;
-    };
-  }
 
   closeBtn.onclick = () => {
     if (session) session.stop();

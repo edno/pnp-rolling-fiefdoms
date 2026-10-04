@@ -2648,14 +2648,6 @@ button.has-popover:not(:disabled) {
   border-color: var(--accent, #3c6e71);
 }
 
-.rf-autoplay-loop-label {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  cursor: pointer;
-}
-
 /* Responsive overrides: kept last so they win over the base rules above. */
 
 @media (min-width: 1101px) {
