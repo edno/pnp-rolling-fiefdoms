@@ -563,6 +563,9 @@ main {
   padding: 16px max(16px, env(safe-area-inset-right)) 16px
     max(16px, env(safe-area-inset-left));
   align-items: start;
+  /* Pack rows at the top: stretching them to fill min-height would push the
+     sheet down and let the (stretched) log column run past the sheet. */
+  align-content: start;
   position: relative;
   min-height: calc(100dvh - var(--footer-height) - 100px);
 }
