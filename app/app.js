@@ -175,6 +175,19 @@ const SFX_ICON_OFF = "assets/img/sfx-off.svg";
 const DEFAULT_DICE_ANIM_MS = 1200;
 const SFX_STORAGE_KEY = "rf-sfx-enabled";
 
+// Enable test hooks if ?autoplay is present in URL
+const autoplayRequested =
+  typeof window !== "undefined" && new URLSearchParams(window.location.search).has("autoplay");
+if (autoplayRequested) {
+  window.__RF_ENABLE_TEST_HOOKS__ = true;
+}
+
+// Autoplay must never play dice/build sound effects, at any speed, regardless of the player's
+// saved SFX preference (SFX_STORAGE_KEY) — but it must not overwrite that saved preference
+// either, so a later normal session (without ?autoplay) still sees whatever the player chose.
+// This is a pure in-memory override, checked everywhere audio would otherwise play.
+const autoplayMuted = autoplayRequested;
+
 const state = createState();
 
 let controlsReady = false;
@@ -225,14 +238,18 @@ function persistSfxPreference() {
 
 function updateSfxToggleButton() {
   if (!sfxToggleBtn) return;
-  sfxToggleBtn.setAttribute("aria-pressed", sfxEnabled ? "true" : "false");
-  sfxToggleBtn.classList.toggle("is-off", !sfxEnabled);
+  // Reflect the effective (autoplay-muted) state in the header toggle, without touching the
+  // underlying sfxEnabled preference that gets persisted to localStorage.
+  const effectiveOn = sfxEnabled && !autoplayMuted;
+  sfxToggleBtn.setAttribute("aria-pressed", effectiveOn ? "true" : "false");
+  sfxToggleBtn.classList.toggle("is-off", !effectiveOn);
+  sfxToggleBtn.disabled = autoplayMuted;
   if (sfxToggleLabel) {
-    sfxToggleLabel.textContent = sfxEnabled ? t("sfx.on") : t("sfx.off");
+    sfxToggleLabel.textContent = effectiveOn ? t("sfx.on") : t("sfx.off");
   }
   if (sfxToggleIcon) {
-    sfxToggleIcon.src = sfxEnabled ? SFX_ICON_ON : SFX_ICON_OFF;
-    sfxToggleIcon.alt = sfxEnabled ? t("sfx.onAlt") : t("sfx.offAlt");
+    sfxToggleIcon.src = effectiveOn ? SFX_ICON_ON : SFX_ICON_OFF;
+    sfxToggleIcon.alt = effectiveOn ? t("sfx.onAlt") : t("sfx.offAlt");
   }
 }
 
@@ -296,13 +313,14 @@ function setSfxEnabled(enabled) {
 }
 
 function toggleSfxEnabled() {
+  if (autoplayMuted) return;
   setSfxEnabled(!sfxEnabled);
 }
 
 updateSfxToggleButton();
 
 function safePlayAudio(instance, source, { onCreate } = {}) {
-  if (!sfxEnabled || typeof Audio === "undefined") return null;
+  if (!sfxEnabled || autoplayMuted || typeof Audio === "undefined") return null;
   if (!instance) {
     instance = new Audio(source);
     instance.preload = "auto";
@@ -323,12 +341,12 @@ function safePlayAudio(instance, source, { onCreate } = {}) {
 }
 
 function playSfx() {
-  if (!sfxEnabled) return;
+  if (!sfxEnabled || autoplayMuted) return;
   sfxAudio = safePlayAudio(sfxAudio, SFX_PATH);
 }
 
 function playDiceSfx() {
-  if (!sfxEnabled) return;
+  if (!sfxEnabled || autoplayMuted) return;
   const updateDuration = (audio) => {
     if (!audio) return;
     const duration = typeof audio.duration === "number" ? audio.duration : NaN;
@@ -539,7 +557,16 @@ async function init() {
     await setupControls();
     controlsReady = true;
   }
-  openChallengePicker();
+  // ?autoplay=N where N is a digit: 0 = normal game, 1-8 = challenge by 1-based index.
+  // Skip the challenge picker and start the right game directly.
+  const _apParam = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("autoplay");
+  if (_apParam !== null && /^\d+$/.test(_apParam)) {
+    const _apIdx = parseInt(_apParam, 10);
+    const _apChallengeId = _apIdx === 0 ? null : (CHALLENGE_ORDER[_apIdx - 1] || null);
+    newGame(_apChallengeId);
+  } else {
+    openChallengePicker();
+  }
 }
 
 function activeChallenge() {
@@ -4052,4 +4079,23 @@ function autoForfeitUnfillable(finalize = false) {
       updateActionBanner,
       currentScore,
     };
+  }
+
+  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("autoplay")) {
+    const _params = new URLSearchParams(window.location.search);
+    const autoplayParam = _params.get("autoplay");
+    // When autoplay value is a game index (digit), read speed from ?speed= instead,
+    // so ?autoplay=3 (challenge III) and ?autoplay=fast (speed only) both work.
+    const isGameIndex = autoplayParam !== null && /^\d+$/.test(autoplayParam);
+    const speedParam = isGameIndex
+      ? (_params.get("speed") || "normal")
+      : autoplayParam;
+    import("./autoplay.js").then((mod) => {
+      mod.initAutoplay({
+        speed: speedParam,
+        loop: autoplayParam === "loop" || _params.has("loop"),
+      });
+    }).catch((err) => {
+      console.error("Failed to load autoplay module:", err);
+    });
   }
