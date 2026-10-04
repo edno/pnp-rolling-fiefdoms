@@ -2643,6 +2643,9 @@ function updateChallengeCarouselDots() {
     activeIndex = dots.length - 1;
   }
   dots.forEach((dot, idx) => dot.classList.toggle("active", idx === activeIndex));
+  // Edge fades only where there is more to scroll (see .challenge-carousel in styles.css).
+  challengeCardsEl.classList.toggle("can-scroll-left", challengeCardsEl.scrollLeft > 4);
+  challengeCardsEl.classList.toggle("can-scroll-right", challengeCardsEl.scrollLeft < maxScrollLeft - 4);
 }
 
 // On small screens (<=600px, see @media (max-width: 600px) in styles.css) the carousel
@@ -2700,6 +2703,7 @@ function openChallengePicker() {
   requestAnimationFrame(() => {
     if (challengePickerEl.hidden) return;
     challengeCardsEl.querySelectorAll(".challenge-card").forEach((card) => updateScrollCue(card));
+    updateChallengeCarouselDots();
   });
 }
 

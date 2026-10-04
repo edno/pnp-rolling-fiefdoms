@@ -2152,22 +2152,33 @@ select {
   scroll-snap-type: x mandatory;
   scroll-behavior: smooth;
   padding: 4px;
-  /* Soften the hard clip on the partially-visible next/previous card with a
-     fade at both edges instead of cutting it off mid-word. */
+  /* Fade the edge only on the side(s) with more cards to scroll to (classes set
+     in updateChallengeCarouselDots), wide enough that the peeking card dissolves
+     instead of reading as text cut mid-word. */
+  --fade-l: 0px;
+  --fade-r: 0px;
   mask-image: linear-gradient(
     to right,
     transparent 0,
-    black 24px,
-    black calc(100% - 24px),
+    black var(--fade-l),
+    black calc(100% - var(--fade-r)),
     transparent 100%
   );
   -webkit-mask-image: linear-gradient(
     to right,
     transparent 0,
-    black 24px,
-    black calc(100% - 24px),
+    black var(--fade-l),
+    black calc(100% - var(--fade-r)),
     transparent 100%
   );
+}
+
+.challenge-carousel.can-scroll-left {
+  --fade-l: 56px;
+}
+
+.challenge-carousel.can-scroll-right {
+  --fade-r: 96px;
 }
 
 .carousel-nav {
