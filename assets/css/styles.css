@@ -361,9 +361,21 @@ button.menu-item {
   display: none;
 }
 
+/* A single non-wrapping strip: as a plain block, its inline dice wrapped onto a
+   second (clipped) line when the flex row squeezed it, e.g. 4 dice + swap on
+   a 375px iPhone. If it can't fit, .action-bar-controls scrolls horizontally. */
+.action-bar #diceView {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 10px;
+}
+
 .action-bar #diceView .die-badge {
   width: var(--ab-die);
   height: var(--ab-die);
+  margin-right: 0;
 }
 
 .action-banner.bump {
