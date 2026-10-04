@@ -8,8 +8,10 @@
   --bg: #fffbe2;
   --panel: #ffffff;
   --border: #d0c6b8;
-  --accent: #e67e22;
-  --accent-strong: #b35900;
+  /* Single brand orange (best contrast: 4.83:1 on white). --accent-strong is kept
+     as an alias so existing rules keep working. */
+  --accent: #b35900;
+  --accent-strong: var(--accent);
   --text: #2c2c2c;
   --muted: #7a7a7a;
   --danger: #c0392b;
@@ -1523,12 +1525,12 @@ button:disabled {
 .guild-hit.available,
 .building-hit.available {
   border: 2px dashed var(--accent);
-  background-color: rgba(230, 126, 34, 0.08);
+  background-color: rgba(179, 89, 0, 0.08);
 }
 
 .guild-hit.selected,
 .building-hit.selected {
-  background-color: rgba(230, 126, 34, 0.2) !important;
+  background-color: rgba(179, 89, 0, 0.2) !important;
   border: 2px solid var(--accent) !important;
 }
 
@@ -1916,7 +1918,7 @@ select {
 }
 
 .die-badge.location-selected {
-  background-color: rgba(230, 126, 34, 0.25);
+  background-color: rgba(179, 89, 0, 0.25);
   box-shadow: 0 0 0 2px var(--accent), 0 4px 8px rgba(0, 0, 0, 0.12);
 }
 
@@ -2279,8 +2281,8 @@ select {
 
 .challenge-card.selected {
   border-color: var(--accent);
-  background: rgba(230, 126, 34, 0.1);
-  box-shadow: 0 4px 12px rgba(230, 126, 34, 0.25);
+  background: rgba(179, 89, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(179, 89, 0, 0.25);
 }
 
 .challenge-card-normal {
@@ -2455,7 +2457,7 @@ button.secondary {
 
   .building-pick.selected {
     border: 2px solid var(--accent);
-    background-color: rgba(230, 126, 34, 0.25);
+    background-color: rgba(179, 89, 0, 0.25);
   }
 
   .building-pick-pop {
