@@ -215,7 +215,6 @@ button.menu-item {
   z-index: 15;
   min-width: 0;
   background: var(--panel);
-  border-bottom: 1px solid var(--border);
   padding: 0 max(16px, env(safe-area-inset-right)) 8px
     max(16px, env(safe-area-inset-left));
   /* Fixed-height action bar: one fixed height per breakpoint (via --ab-h) so
@@ -232,6 +231,20 @@ button.menu-item {
   --ab-main-h: calc(var(--ab-die) + 12px);
   --ab-aux-h: 36px;
   --ab-h: calc(var(--ab-banner-max) + var(--ab-main-h) + var(--ab-aux-h) + 8px);
+}
+
+/* Full-bleed background: the bar keeps its layout width, but its panel colour and
+   bottom border extend to both viewport edges (html has overflow-x: clip). */
+.action-bar::before {
+  content: "";
+  position: absolute;
+  /* The bar is horizontally centred in the viewport (main is centred), so
+     extending by half the viewport minus half the bar reaches both edges. */
+  inset: 0 calc(50% - 50vw);
+  z-index: -1;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  pointer-events: none;
 }
 
 .action-bar .action-banner {
@@ -557,6 +570,9 @@ main {
   max-width: min(100%, max(640px, calc((100dvh - 140px) * 1076 / 764)));
   margin: 0 auto;
   border-radius: 8px;
+  /* Paper-page lift: drop-shadow follows the painted sheet windows (incl. the
+     portrait gaps) rather than the grid box. */
+  filter: drop-shadow(0 1px 1px rgba(60, 40, 10, 0.18)) drop-shadow(0 8px 18px rgba(60, 40, 10, 0.22));
 }
 
 .sheet-window {
