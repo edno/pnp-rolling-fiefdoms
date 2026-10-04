@@ -191,7 +191,7 @@ button.menu-item {
 .action-banner {
   margin: 0;
   padding: 4px 24px;
-  background: rgba(255, 255, 255, 0.5);
+  background: transparent;
   border-bottom: 1px solid var(--border);
   font-weight: 900;
   color: var(--accent-strong);
@@ -256,9 +256,15 @@ button.menu-item {
 /* Final score banner (game over / ACTIVATION_DONE): visually distinct from the
    regular turn-by-turn prompts so the end of the game reads as a milestone. */
 .action-banner.is-final {
-  background: color-mix(in srgb, var(--accent-strong) 18%, transparent);
-  border-radius: var(--radius-sm);
+  background: transparent;
   font-size: 26px;
+}
+
+/* The handwritten banner font has no bold weight: the score part uses the
+   panel-title face so it reads as bold. */
+.action-banner.is-final strong {
+  font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-weight: 700;
 }
 
 .action-bar-controls {
