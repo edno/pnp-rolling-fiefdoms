@@ -1995,11 +1995,6 @@ select {
   margin-bottom: 12px;
 }
 
-#fullscreenToggle {
-  padding: 0px;
-  background-color: transparent;
-}
-
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -2402,15 +2397,15 @@ button.secondary {
 
 /* Responsive overrides: kept last so they win over the base rules above. */
 
-@media (max-width: 1100px), (pointer: coarse) {
-  #fullscreenToggle {
-    display: none;
-  }
-}
-
 @media (min-width: 1101px) {
   .controls {
     max-height: calc(100dvh - var(--footer-height) - 100px);
+  }
+}
+
+@media (max-width: 1100px), (pointer: coarse) {
+  #fullscreenToggle {
+    display: none;
   }
 }
 
