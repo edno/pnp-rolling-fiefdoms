@@ -262,6 +262,12 @@ button.menu-item {
 
 /* The handwritten banner font has no bold weight: the score part uses the
    panel-title face so it reads as bold. */
+/* Summary after the rank: inline after a dash on wide screens, on its own
+   (smaller) line on small screens (see the max-width: 600px block). */
+.action-banner.is-final .final-summary::before {
+  content: " — ";
+}
+
 .action-banner.is-final strong {
   font-family: "Lobster Two", "Segoe UI", system-ui, -apple-system, sans-serif;
   font-weight: 700;
@@ -2963,6 +2969,20 @@ button.secondary {
 
   .challenge-badge {
     font-size: 18px;
+  }
+
+  .action-banner.is-final {
+    font-size: 20px;
+    line-height: 1.2;
+  }
+
+  .action-banner.is-final .final-summary {
+    flex-basis: 100%;
+    font-size: 16px;
+  }
+
+  .action-banner.is-final .final-summary::before {
+    content: none;
   }
 }
 
