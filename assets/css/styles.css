@@ -310,6 +310,16 @@ button.menu-item {
   align-self: center;
 }
 
+#swapPairBtn:disabled {
+  pointer-events: none;
+}
+
+.swap-btn-wrap {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-self: center;
+}
+
 .action-bar-aux {
   display: flex;
   align-items: center;
@@ -1536,7 +1546,9 @@ button:disabled {
 
 .guilds-overlay.disabled,
 .buildings-overlay.disabled {
-  pointer-events: none;
+  /* Stay hoverable/focusable while disabled so hovering a locked hit (e.g. during
+     activation, or while dice aren't locked for build) still shows its tooltip;
+     each hit's own click handler already no-ops while disabled/locked. */
   opacity: 0.4;
 }
 
@@ -1588,11 +1600,12 @@ button:disabled {
 
 .guild-hit.disabled,
 .building-hit.disabled {
-  cursor: not-allowed;
-  /* A challenge can reuse another building's grid slot (e.g. Barracks over Cottage's), stacking
-     two hitboxes in the same cell. The disabled one must not intercept clicks meant for a sibling
-     underneath it, even though its own click handler is already a no-op while disabled. */
-  pointer-events: none;
+  /* Stays hoverable/focusable (no pointer-events: none) so its tooltip still shows while
+     disabled; its own click handler is already a no-op in that state. A challenge can swap
+     one building code for another (e.g. Barracks over Cottage's) that would otherwise share
+     this grid slot, but activeBuildingHitboxes()/renderBuildingOverlay() render only the
+     hitbox that currently applies, so no sibling is ever stacked underneath to worry about. */
+  cursor: default;
 }
 
 .log-panel {
@@ -2880,6 +2893,11 @@ button.secondary {
   }
 
   #swapPairBtn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .swap-btn-wrap {
     width: 44px;
     height: 44px;
   }

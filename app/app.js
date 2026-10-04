@@ -90,6 +90,7 @@ import {
   finishActivationBtn,
   newGameBtn,
   swapPairBtn,
+  swapBtnWrap,
   confirmPlotBtn,
   cancelPlotBtn,
   fullscreenBtn,
@@ -169,6 +170,7 @@ import { initSheetWindows } from "./sheet-layout.js";
 import { onMouseHover } from "./hover.js";
 import { initPopovers, setPopover } from "./popover.js";
 import { updateScrollCue } from "./scroll-cue.js";
+import { buildingTooltip } from "./building-info.js";
 
 const BOARD_SIZE = 5;
 const POPULATION_GRID_SIZE = 4;
@@ -855,7 +857,9 @@ async function setupControls() {
   }
   if (swapPairBtn) {
     swapPairBtn.onclick = () => toggleLockedPairChoice();
-    swapPairBtn.style.display = "none";
+  }
+  if (swapBtnWrap) {
+    swapBtnWrap.style.display = "none";
   }
   if (confirmPlotBtn) {
     confirmPlotBtn.onclick = () => confirmPendingPlot();
@@ -1518,6 +1522,26 @@ function enforceBuildingSelection(options = []) {
   }
 }
 
+// buildingHitboxes stacks two codes in the same sheet grid slot wherever a challenge's
+// `rules.buildingOverrides` can swap one for the other (Cottage/Barracks, Windmill/Piscary):
+// at most one of each pair is ever reachable in a given game, so only render the one that
+// currently applies. This replaces the old "both rendered, the inactive one disabled" setup,
+// which required `pointer-events: none` on disabled hits to stop them from swallowing
+// hover/clicks meant for their sibling underneath.
+const STACKED_BUILDING_SLOTS = [
+  ["C", "B"],
+  ["W", "P"],
+];
+
+function activeBuildingHitboxes() {
+  const overrides = activeChallenge()?.rules?.buildingOverrides || {};
+  const hidden = new Set();
+  STACKED_BUILDING_SLOTS.forEach(([base, swapped]) => {
+    hidden.add(overrides[base] === swapped ? base : swapped);
+  });
+  return buildingHitboxes.filter((hit) => !hidden.has(hit.code));
+}
+
 function renderBuildingOverlay(options = [], disabled = false) {
   const overlay = document.getElementById("buildingsOverlay");
   if (!overlay) return;
@@ -1556,7 +1580,7 @@ function renderBuildingOverlay(options = [], disabled = false) {
   const disableOverlay = forceDisabled || !options?.length;
   overlay.classList.toggle("disabled", disableOverlay);
   const optionMap = new Map(options.map((o) => [o.code, o]));
-  buildingHitboxes.forEach((hit) => {
+  activeBuildingHitboxes().forEach((hit) => {
     const opt = disableOverlay ? null : optionMap.get(hit.code);
     const div = document.createElement("div");
     div.className = "building-hit";
@@ -1573,6 +1597,9 @@ function renderBuildingOverlay(options = [], disabled = false) {
     } else {
       div.classList.add("disabled");
     }
+    setPopover(div, buildingTooltip(hit.code, { context: "sheet", buildingOverrides: activeChallenge()?.rules?.buildingOverrides }), {
+      tap: false,
+    });
     div.addEventListener("click", (e) => {
       e.stopPropagation();
       if (div.classList.contains("disabled")) return;
@@ -1738,6 +1765,17 @@ function renderBoard() {
           (BUILDING_RULES[data.building]?.requirement || 0) - (Number(data.springBoost) || 0),
         );
         const filled = Math.max(0, state.workerAllocations?.[r]?.[c] || 0);
+        setPopover(
+          cell,
+          buildingTooltip(data.building, {
+            context: "board",
+            guildLabel: data.building === "G" ? data.buildingLabel : undefined,
+            springBoost: data.springBoost,
+            filled: state.activationMode ? filled : undefined,
+            buildingOverrides: activeChallenge()?.rules?.buildingOverrides,
+          }),
+          { tap: false },
+        );
         const isActivated = req === 0 || filled >= req;
         if (isActivated) {
           cell.classList.add("activated-building");
@@ -2031,18 +2069,24 @@ function highlightLocations() {
             : true);
         if (canSelect) {
           cell.classList.add("highlight");
-          setPopover(cell, t("build.workersTitle", { filled, req }), { tap: false });
         } else {
           cell.classList.add("disabled");
-          if (data.building && req > 0) {
-            setPopover(
-              cell,
-              data.activationForfeit
-                ? t("build.workersForfeitedTitle", { filled, req })
-                : t("build.workersTitle", { filled, req }),
-              { tap: false }
-            );
+        }
+        // Merge the building-info tooltip renderBoard() already set on this cell with
+        // activation-mode's filled/required (and, if applicable, forfeited) detail, rather
+        // than overwriting it with workers-only text.
+        if (data.building && !data.forfeited) {
+          let tooltip = buildingTooltip(data.building, {
+            context: "board",
+            guildLabel: data.building === "G" ? data.buildingLabel : undefined,
+            springBoost: data.springBoost,
+            filled,
+            buildingOverrides: activeChallenge()?.rules?.buildingOverrides,
+          });
+          if (data.activationForfeit) {
+            tooltip = `${tooltip}\n${t("build.workersForfeitedTitle", { filled, req })}`;
           }
+          setPopover(cell, tooltip, { tap: false });
         }
         if ((req === 0 && data.building) || filled >= req) {
           cell.classList.add("activated-building");
@@ -2984,7 +3028,10 @@ function renderGuildOverlay(available = []) {
       state.activationMode ||
       forceForfeitActive() ||
       state.pestilence);
-  overlay.style.pointerEvents = available.length && !locked ? "auto" : "none";
+  // Always keep pointer events on so disabled hits can still show their tooltip on
+  // hover/focus; onclick below already no-ops while locked/unavailable.
+  overlay.style.pointerEvents = "auto";
+  overlay.classList.toggle("disabled", locked || !available.length);
   clearElement(overlay);
   const availableSet = new Set(available);
   guildHitboxes.forEach((hit) => {
@@ -3001,6 +3048,11 @@ function renderGuildOverlay(available = []) {
     if (state.selectedGuildType === hit.code) {
       div.classList.add("selected");
     }
+    setPopover(
+      div,
+      buildingTooltip("G", { context: "sheet", guildLabel: hit.code, buildingOverrides: activeChallenge()?.rules?.buildingOverrides }),
+      { tap: false },
+    );
     div.onclick = () => {
       if (locked || !div.classList.contains("available")) return;
       if (centerBuildingActive) {
@@ -3200,14 +3252,24 @@ function syncActionBarState() {
 }
 
 function updateSwapButton() {
-  if (swapPairBtn) {
+  if (swapPairBtn && swapBtnWrap) {
     const reasonKey = soloSwapUnavailableReasonKey();
     const hidden = reasonKey === "hidden";
     const showSwap = reasonKey === null;
-    swapPairBtn.style.display = hidden ? "none" : "inline-block";
+    swapBtnWrap.style.display = hidden ? "none" : "inline-flex";
     swapPairBtn.disabled = !showSwap;
     swapPairBtn.classList.toggle("icon-btn-disabled", !hidden && !showSwap);
-    setPopover(swapPairBtn, showSwap || hidden ? t("html.swapTitle") : t(reasonKey));
+
+    // When enabled, set popover on button with tap:false; when disabled, set on wrapper with default tap
+    if (showSwap || hidden) {
+      // Enabled or hidden: show title on button, disable tap
+      setPopover(swapPairBtn, t("html.swapTitle"), { tap: false });
+      setPopover(swapBtnWrap, null);
+    } else {
+      // Disabled: show reason on wrapper, allow tap to show popover
+      setPopover(swapBtnWrap, t(reasonKey));
+      setPopover(swapPairBtn, null);
+    }
     applySwapButtonPulse(showSwap);
   }
 }

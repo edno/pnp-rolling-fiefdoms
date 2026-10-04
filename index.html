@@ -39,7 +39,7 @@
     <title>Rolling Fiefdoms - Online Solo</title>
     <link rel="canonical" href="https://rolling-fiefdoms.edno.io/" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="modulepreload" href="app/app.js?v=v31" />
+    <link rel="modulepreload" href="app/app.js?v=v32" />
     <link rel="icon" type="image/png" href="assets/img/ink-splatter.png" />
     <script type="application/ld+json">
       {
@@ -78,8 +78,8 @@
         z-index: 999;
       }
     </style>
-    <link rel="stylesheet" href="assets/css/fonts.css?v=v31" />
-    <link rel="stylesheet" href="assets/css/styles.css?v=v31" />
+    <link rel="stylesheet" href="assets/css/fonts.css?v=v32" />
+    <link rel="stylesheet" href="assets/css/styles.css?v=v32" />
   </head>
   <body class="loading">
     <header>
@@ -266,16 +266,17 @@
           <div class="action-bar-controls">
             <button id="rollBtn" data-i18n="html.rollDice">Roll Dice</button>
             <div id="diceView"></div>
-            <button
-              id="swapPairBtn"
-              class="icon-btn"
-              type="button"
-              aria-label="Swap location/build dice pairs"
-              data-i18n-attr="aria-label:html.swapAriaLabel"
-              style="display: none"
-            >
-              <img src="assets/img/swap.svg" alt="" class="swap-icon" />
-            </button>
+            <span class="swap-btn-wrap" style="display: none">
+              <button
+                id="swapPairBtn"
+                class="icon-btn"
+                type="button"
+                aria-label="Swap location/build dice pairs"
+                data-i18n-attr="aria-label:html.swapAriaLabel"
+              >
+                <img src="assets/img/swap.svg" alt="" class="swap-icon" />
+              </button>
+            </span>
             <button id="finishActivation" style="display: none" data-i18n="html.finishActivation">
               Finish Activation
             </button>
@@ -693,6 +694,6 @@
     </div>
 
     <script type="module" src="app/inline-init.js?v=v1"></script>
-    <script type="module" src="app/app.js?v=v31"></script>
+    <script type="module" src="app/app.js?v=v32"></script>
   </body>
 </html>

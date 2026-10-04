@@ -23,6 +23,45 @@ export default {
     A: "Aumônerie",
     G: "Guilde",
   },
+  // Texte des infobulles au survol/focus pour les bâtiments (voir buildingTooltip()
+  // dans app/building-info.js), affiché à la fois sur le panneau Bâtiments/Guildes
+  // et sur les bâtiments posés sur le plateau.
+  buildingInfo: {
+    workers: "Ouvriers : {req}",
+    workersReduced: "Ouvriers : {req} ({base} − {boost} Source)",
+    filled: "Remplis : {filled}/{req}",
+    onceBuilt: "Constructible une seule fois par partie.",
+    guildsLimit: "Jusqu'à 2 Guildes, de types différents, par partie.",
+    onBuildSpringhouse: "À la construction : réduit d'1 le nombre d'ouvriers requis d'un bâtiment adjacent.",
+    guildConditionGeneric: "15 PR si sa condition est remplie.",
+    guildNameByTarget: {
+      F: "Guilde des Fermiers",
+      Q: "Guilde des Carriers",
+      W: "Guilde des Meuniers",
+      P: "Guilde des Pêcheurs",
+      M: "Guilde des Halliers",
+    },
+    guildCondition: {
+      F: "15 PR si 4+ Fermes actives forment un groupe contigu.",
+      Q: "15 PR si 4+ Carrières actives forment un groupe contigu.",
+      W: "15 PR si 4+ Moulins actifs se trouvent en bordure du plateau.",
+      P: "15 PR si une Pêcherie active se trouve sur chacun des 4 bords du plateau.",
+      M: "15 PR si 4+ Halles actives se trouvent dans le carré central 3×3.",
+    },
+    scoring: {
+      C: "2 PR si occupé par de la population ; loge 4 population.",
+      B: "5 PR sur une parcelle en diagonale de coin à coin ; loge 8 population.",
+      F: "3 PR, +2 si adjacent à une Source.",
+      Q: "3 PR, +1 si une autre Carrière partage sa ligne ou sa colonne.",
+      W: "3 PR, +1 par Moulin adjacent.",
+      P: "3 PR, +1 par Halle active adjacente.",
+      M: "PR égal à la population qu'elle capte à proximité.",
+      S: "0 PR, −1 par parcelle renoncée adjacente.",
+      T: "5 PR, +2 par type de bâtiment Basique/Spécial unique sur sa ligne et sa colonne.",
+      U: "5/8/12/15 PR pour 1/2/3/4 bâtiments Avancés uniques construits.",
+      A: "Annule jusqu'à 12 PR de pénalité de vagabonds.",
+    },
+  },
   html: {
     siteTitle: "Rolling Fiefdoms",
     quickLinksLabel: "Liens rapides",
