@@ -30,16 +30,35 @@ let descCounter = 0;
 // call sweeps entries whose owner has been disconnected from the document.
 const descOwners = new Map();
 
-function sweepDisconnectedDescriptions(exceptEl = null) {
+function sweepDisconnectedDescriptions() {
   for (const [descId, ref] of descOwners) {
     const owner = ref.deref();
-    if (owner === exceptEl) continue;
     if (!owner || !owner.isConnected) {
       const descEl = document.getElementById(descId);
       if (descEl) descEl.remove();
       descOwners.delete(descId);
     }
   }
+}
+
+// setPopover() runs for every target on every render pass (40+ targets per
+// pass), and a per-call sweep over descOwners (40-80 entries, each requiring
+// a getElementById) made that quadratic. Instead, amortize to a single sweep
+// per microtask: each setPopover() call just schedules a sweep (a no-op if
+// one is already pending), which runs once after the whole synchronous
+// render pass completes rather than once per target. By the time it runs,
+// any element that's still meant to be connected (including the one just
+// passed to setPopover) has already been attached by the synchronous render
+// code that called setPopover, so it's never wrongly swept.
+let sweepPending = false;
+
+function scheduleSweep() {
+  if (sweepPending) return;
+  sweepPending = true;
+  queueMicrotask(() => {
+    sweepPending = false;
+    sweepDisconnectedDescriptions();
+  });
 }
 // Tracks the target/time a focusin just showed the popover for, so the click
 // that follows a tap (pointerdown -> focusin -> click) doesn't immediately
@@ -129,8 +148,9 @@ export function setPopover(el, text, options = {}) {
 
   // Re-renders (clearElement + rebuild) discard the old target elements without
   // ever calling setPopover(el, null) on them, so sweep description spans whose
-  // owner is no longer connected before creating a new one.
-  sweepDisconnectedDescriptions(el);
+  // owner is no longer connected. Amortized to one sweep per microtask (see
+  // scheduleSweep) instead of running over the whole map on every call.
+  scheduleSweep();
 
   // Reuse the description span this helper owns (if any); otherwise create
   // a new one and append its id to any existing aria-describedby ids.
@@ -311,6 +331,16 @@ function showPopover(target) {
   const popoverEl = getPopoverEl();
 
   currentTarget = target;
+
+  // Reset any maxHeight/overflow cap left over from a previous popover
+  // before setting content and measuring. With border-box sizing, an
+  // uncleared cap from a prior (taller) popover would make this one measure
+  // as exactly maxHeight regardless of its real content height, so the
+  // "is it taller than the viewport" check below would wrongly pass and the
+  // cap (and the top computed from it) would be wrong.
+  popoverEl.style.maxHeight = "";
+  popoverEl.style.overflow = "";
+
   const render = richRenderers.get(target);
   if (render) {
     render(popoverEl);
@@ -320,7 +350,21 @@ function showPopover(target) {
   popoverEl.hidden = false;
 
   const rect = target.getBoundingClientRect();
-  const popoverRect = popoverEl.getBoundingClientRect();
+  let popoverRect = popoverEl.getBoundingClientRect();
+
+  const margin = 8;
+
+  // If the popover is taller than the viewport, cap its height instead of
+  // letting it render off-screen, and clamp its top so it always stays
+  // within [margin, innerHeight - height - margin]. Re-measure after
+  // applying the cap so top/left below are computed from the final
+  // (possibly capped) height, not the pre-cap one.
+  const maxHeight = window.innerHeight - margin * 2;
+  if (popoverRect.height > maxHeight) {
+    popoverEl.style.maxHeight = maxHeight + "px";
+    popoverEl.style.overflow = "auto";
+    popoverRect = popoverEl.getBoundingClientRect();
+  }
 
   // Try positioning above
   let top = rect.top - popoverRect.height - 8;
@@ -331,19 +375,6 @@ function showPopover(target) {
     top = rect.bottom + 8;
   }
 
-  const margin = 8;
-
-  // If the popover is taller than the viewport, cap its height instead of
-  // letting it render off-screen, and clamp its top so it always stays
-  // within [margin, innerHeight - height - margin].
-  const maxHeight = window.innerHeight - margin * 2;
-  if (popoverRect.height > maxHeight) {
-    popoverEl.style.maxHeight = maxHeight + "px";
-    popoverEl.style.overflow = "auto";
-  } else {
-    popoverEl.style.maxHeight = "";
-    popoverEl.style.overflow = "";
-  }
   const maxTop = window.innerHeight - popoverRect.height - margin;
   if (top > maxTop) {
     top = maxTop;

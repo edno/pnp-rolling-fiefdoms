@@ -2513,6 +2513,14 @@ button.secondary {
   color: var(--danger);
 }
 
+/* Population & Housing tooltip (see app/pop-housing-info.js): the Population/Housing/
+   Vagrants stats share one row (label-value pairs joined by " · "), with the Vagrants
+   value only switching to the warning color when it's > 0. */
+.rf-popover-value-warning {
+  color: var(--danger);
+  font-weight: 600;
+}
+
 .has-popover {
   pointer-events: auto;
 }

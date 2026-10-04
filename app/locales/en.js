@@ -42,8 +42,8 @@ export default {
     labourersReducedValue: "{req} ({base} − {boost} Springhouse)",
     labourersNone: "No Labourers needed",
     filledValue: "{filled}/{req}",
-    advancedNote: "Sum only · Max. 1",
-    guildsNote: "Sum only · Max. 2, unique types",
+    advancedNote: "Max. 1",
+    guildsNote: "Max. 2, unique types",
     onBuildSpringhouse: "On build: remove 1 Labourer requirement (min 0) from an adjacent building.",
     onBuildCottage: "On build: outline 1 Housing unit (houses 4 Population).",
     guildConditionGeneric: "15 RP if its condition is met.",
@@ -74,6 +74,20 @@ export default {
       U: "5/8/12/15 RP for 1/2/3/4 unique Advanced buildings built.",
       A: "Cancels up to 12 RP of vagrant penalty.",
     },
+  },
+  // Hover/focus tooltip copy for the player sheet's Population & Housing section
+  // (see app/pop-housing-info.js's popHousingTooltip()/popHousingTooltipParts()).
+  popHousingInfo: {
+    title: "Population & Housing",
+    labels: {
+      population: "Population",
+      housing: "Housing",
+      vagrants: "Vagrants",
+    },
+    cottageLine: "Each Cottage outlines 1 Housing unit (4 Population).",
+    barracksLine: "Each active Barracks provides 2 Housing units (8 Population).",
+    vagrantLine: "Population above Housing becomes Vagrants: −1 RP each.",
+    influenceNote: "Covering a ★ on the track grants 1 Influence.",
   },
   html: {
     siteTitle: "Rolling Fiefdoms",

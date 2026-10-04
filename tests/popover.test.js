@@ -51,7 +51,7 @@ describe("setPopover", () => {
     expect(document.getElementById(descId).textContent).toBe("Second text");
   });
 
-  it("doesn't leak description spans when targets are replaced across re-renders", () => {
+  it("doesn't leak description spans when targets are replaced across re-renders", async () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     for (let i = 0; i < 100; i += 1) {
@@ -60,8 +60,48 @@ describe("setPopover", () => {
       container.appendChild(el);
       setPopover(el, `Text ${i}`);
     }
+    // The sweep that removes stale description spans is amortized to a single
+    // microtask per batch of setPopover() calls rather than running inline on
+    // every call, so give it a tick to run before asserting.
+    await Promise.resolve();
     const spans = document.querySelectorAll("[id^='rf-pop-desc-']");
     expect(spans.length).toBe(1);
+    container.remove();
+  });
+
+  it("amortizes the sweep to a single pass per microtask instead of per call", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const spanCount = () => document.querySelectorAll("[id^='rf-pop-desc-']").length;
+
+    // A previous test's sweep may still be pending (the amortized sweep only
+    // runs on the *next* setPopover() call after an element disconnects, not
+    // immediately), so run one dummy call-and-flush cycle first to settle
+    // the map before measuring this test's own baseline.
+    const flusher = document.createElement("button");
+    container.appendChild(flusher);
+    setPopover(flusher, "flush");
+    await Promise.resolve();
+    const baseline = spanCount();
+    const els = [];
+    for (let i = 0; i < 10; i += 1) {
+      const el = document.createElement("button");
+      container.appendChild(el);
+      els.push(el);
+      setPopover(el, `Text ${i}`);
+    }
+    // All 10 owned description spans should exist immediately...
+    expect(spanCount() - baseline).toBe(10);
+
+    // ...removing one target from the DOM shouldn't synchronously sweep it...
+    els[0].remove();
+    setPopover(els[1], "Updated text");
+    expect(spanCount() - baseline).toBe(10);
+
+    // ...but it should be gone after the scheduled sweep runs.
+    await Promise.resolve();
+    expect(spanCount() - baseline).toBe(9);
+
     container.remove();
   });
 
@@ -614,6 +654,53 @@ describe("popover positioning clamp", () => {
 
     expect(popover.style.maxHeight).toBe("34px");
     expect(popover.style.overflow).toBe("auto");
+  });
+
+  it("clears a stale maxHeight cap before measuring a new popover (border-box re-measure bug)", () => {
+    Object.defineProperty(window, "innerHeight", { value: 50, configurable: true });
+    Object.defineProperty(window, "innerWidth", { value: 400, configurable: true });
+
+    initPopovers(root);
+    const btn1 = document.createElement("button");
+    btn1.dataset.popover = "First";
+    const btn2 = document.createElement("button");
+    btn2.dataset.popover = "Second";
+    root.appendChild(btn1);
+    root.appendChild(btn2);
+    const popover = document.querySelector(".rf-popover");
+
+    btn1.getBoundingClientRect = () => ({ top: 5, bottom: 20, left: 10, right: 90, width: 80, height: 15 });
+    btn2.getBoundingClientRect = () => ({ top: 5, bottom: 20, left: 10, right: 90, width: 80, height: 15 });
+
+    // Simulate real border-box layout: once a maxHeight/overflow cap is
+    // applied, getBoundingClientRect() reports the *clamped* height until
+    // the cap is cleared again (jsdom doesn't lay out CSS, so a plain fixed
+    // stub can't reproduce this, which is why the bug wasn't caught before).
+    let realHeight = 200; // first popover: way over the viewport
+    popover.getBoundingClientRect = () => {
+      const capped = parseFloat(popover.style.maxHeight);
+      const height = Number.isFinite(capped) ? Math.min(realHeight, capped) : realHeight;
+      return { top: 0, bottom: height, left: 0, right: 100, width: 100, height };
+    };
+
+    btn1.click(); // caps at 34px (innerHeight 50 - 2*margin 8)
+    expect(popover.style.maxHeight).toBe("34px");
+
+    // Second popover is shorter (40px) than the stale cap's measured value
+    // would suggest, but still taller than the 34px cap, so it must be
+    // capped again. If the stale maxHeight isn't cleared before measuring,
+    // the element measures as min(40, 34) = 34, "34 > 34" is false, the cap
+    // is wrongly removed, and the popover renders at its real 40px past the
+    // viewport bottom.
+    realHeight = 40;
+    btn2.click();
+
+    expect(popover.style.maxHeight).toBe("34px");
+    expect(popover.style.overflow).toBe("auto");
+    const top = parseFloat(popover.style.top);
+    const finalHeight = Math.min(realHeight, 34);
+    expect(top).toBeGreaterThanOrEqual(8);
+    expect(top).toBeLessThanOrEqual(window.innerHeight - finalHeight - 8);
   });
 });
 

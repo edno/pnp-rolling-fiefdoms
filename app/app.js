@@ -150,6 +150,7 @@ import {
   formatButtonLabelHtml,
   flashHint,
   syncInlineActionButtons,
+  registerActionBarSync,
   TURN_PHASE,
 } from "./ui-feedback.js";
 import {
@@ -171,6 +172,12 @@ import { onMouseHover } from "./hover.js";
 import { initPopovers, setPopover } from "./popover.js";
 import { updateScrollCue } from "./scroll-cue.js";
 import { buildingTooltip, renderBuildingTooltip } from "./building-info.js";
+import { popHousingTooltip, renderPopHousingTooltip } from "./pop-housing-info.js";
+
+// flashHint() (ui-feedback.js) replaces/restores the banner HTML, which
+// affects `.has-inline-roll` / `.has-inline-finish`; register syncActionBarState
+// so it can re-run that sync without a circular import.
+registerActionBarSync(() => syncActionBarState());
 
 const BOARD_SIZE = 5;
 const POPULATION_GRID_SIZE = 4;
@@ -1437,6 +1444,7 @@ function renderDice() {
   if (influenceLocked) {
     influenceUiDie = null;
     if (influenceStepper) influenceStepper.hidden = true;
+    syncActionBarState();
   } else {
     renderInfluenceStepper();
   }
@@ -2717,12 +2725,14 @@ if (typeof window !== "undefined") {
 
 // The building picker's visibility in the aux drawer depends on isCompactLayout()
 // (desktop never shows it even when populated), so crossing the 1100px breakpoint
-// (e.g. rotating a tablet) must re-sync the drawer's open/closed state.
+// (e.g. rotating a tablet) must re-sync the drawer's open/closed state. actionMessage()
+// also branches on isCompactLayout() (picker vs. overlay hint text), so the banner needs
+// re-rendering too, or it can keep showing the wrong-layout's wording after the crossing.
 if (typeof window !== "undefined" && window.matchMedia) {
   const compactLayoutQuery = window.matchMedia("(max-width: 1100px)");
   const onCompactLayoutChange = () => {
     renderBuildingPicker();
-    syncActionBarState();
+    updateActionBanner(); // also re-syncs action bar state
   };
   if (typeof compactLayoutQuery.addEventListener === "function") {
     compactLayoutQuery.addEventListener("change", onCompactLayoutChange);
@@ -2778,7 +2788,6 @@ function selectCenteredChallengeCardOnSmallScreens() {
   let nearest = null;
   let nearestDist = Infinity;
   cards.forEach((card) => {
-    if (card.classList.contains("challenge-card-disabled")) return;
     const rect = card.getBoundingClientRect();
     const cardCenter = rect.left + rect.width / 2;
     const dist = Math.abs(cardCenter - containerCenter);
@@ -2787,7 +2796,10 @@ function selectCenteredChallengeCardOnSmallScreens() {
       nearest = card;
     }
   });
-  if (!nearest) return;
+  // If the card the player actually scrolled to is a disabled placeholder, leave the
+  // previous selection alone rather than selecting (and smooth-scrolling to) some other
+  // enabled card elsewhere in the carousel.
+  if (!nearest || nearest.classList.contains("challenge-card-disabled")) return;
   nearest.dispatchEvent(new CustomEvent("challenge-select"));
 }
 
@@ -3632,7 +3644,7 @@ function makeDieBadge(
     });
     badge.appendChild(targetBtn);
   }
-  if (influenceUiDie === die.label && effectiveIdx >= 0) {
+  if (allowInfluence && influenceUiDie === die.label && effectiveIdx >= 0) {
     badge.classList.add("influence-target");
   }
   return badge;
@@ -4106,6 +4118,11 @@ function renderPopHousingTrack(pop = 0, housing = 0, vagrants = 0) {
     }
   });
   popHousingOverlay.appendChild(track);
+
+  const tooltipOptions = { buildingOverrides: activeChallenge()?.rules?.buildingOverrides };
+  setPopover(popHousingOverlay, popHousingTooltip(pop, housing, vagrants, tooltipOptions), {
+    render: (container) => renderPopHousingTooltip(container, pop, housing, vagrants, tooltipOptions),
+  });
 }
 
 function renderInfluenceTrack({ influenceEarned = 0, influenceSpent = 0 } = {}) {

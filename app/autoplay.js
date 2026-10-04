@@ -34,17 +34,25 @@ export async function tryAlternateLocationPair(h) {
   // deselected. The advisory forfeit-via-empty-plot click (handled by the caller) only works
   // while locationSelection has length 2 (onCellClick's early "select two dice first" guard
   // blocks the click otherwise), so leaving dice deselected here would strand the caller.
+  //
+  // Note: if a windrose die was rolled, it may stay pinned in locationSelection with NO
+  // location-selected class and cannot be deselected. deselectCurrentPair() will click all
+  // visible badges with the location-selected class (max ~5 tries) and return true if the
+  // phase is "splitting", allowing the pinned die to remain.
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const originalPair = (h.state.locationSelection || []).map(String);
 
   function deselectCurrentPair() {
     return (async () => {
       let tries = 0;
-      while (h.currentTurnPhase() !== "splitting" && tries < 5) {
+      // Click all visible badges with the location-selected class (up to 5 attempts).
+      // A pinned windrose die may remain selected without the class and cannot be deselected,
+      // so we only require the phase to be "splitting", not an empty selection.
+      while (tries < 5) {
         const el = Array.from(document.querySelectorAll(DIE_BADGE_SELECTOR)).find(
           (d) => isElementVisible(d) && d.className.includes("location-selected")
         );
-        if (!el) return false;
+        if (!el) break;
         el.click();
         await wait(50);
         tries++;
@@ -55,13 +63,29 @@ export async function tryAlternateLocationPair(h) {
 
   function selectPair(a, b) {
     return (async () => {
-      const da = Array.from(document.querySelectorAll(`${DIE_BADGE_SELECTOR}[data-idx="${a}"]`)).find(isElementVisible);
-      const db = Array.from(document.querySelectorAll(`${DIE_BADGE_SELECTOR}[data-idx="${b}"]`)).find(isElementVisible);
-      if (!da || !db) return false;
-      da.click();
-      await wait(50);
-      db.click();
-      await wait(50);
+      // Only click a die if its index is not already in the current selection.
+      // This prevents toggling a pinned/auto-selected die (which has no location-selected class).
+      const currentSelection = (h.state.locationSelection || []).map(String);
+      const da = !currentSelection.includes(a)
+        ? Array.from(document.querySelectorAll(`${DIE_BADGE_SELECTOR}[data-idx="${a}"]`)).find(isElementVisible)
+        : null;
+      const db = !currentSelection.includes(b)
+        ? Array.from(document.querySelectorAll(`${DIE_BADGE_SELECTOR}[data-idx="${b}"]`)).find(isElementVisible)
+        : null;
+      if (!da && !db) return false;
+      if (da) {
+        da.click();
+        await wait(50);
+      }
+      // Re-check the selection before clicking the second die, in case the first click changed it.
+      const updatedSelection = (h.state.locationSelection || []).map(String);
+      const dbFinal = !updatedSelection.includes(b)
+        ? Array.from(document.querySelectorAll(`${DIE_BADGE_SELECTOR}[data-idx="${b}"]`)).find(isElementVisible)
+        : null;
+      if (dbFinal) {
+        dbFinal.click();
+        await wait(50);
+      }
       return true;
     })();
   }
@@ -319,7 +343,7 @@ export function progressKey(h) {
   );
   const totalPop = (s.populationNodes || []).flat().reduce((a, b) => a + (b || 0), 0);
   const totalWorkers = (s.workerAllocations || []).flat().reduce((a, b) => a + (b || 0), 0);
-  const influenceSpent = (s.influence?.spent || 0) + (s.influence?.pending || 0);
+  const influenceSpent = s.influence?.spent || 0;
   const activationDone = s.activationComplete ? 1 : 0;
   return [s.turnIndex || 0, built, forfeited, totalPop, totalWorkers, influenceSpent, activationDone].join("|");
 }
@@ -357,12 +381,15 @@ export function startAutoplaySession(options = {}) {
   let isPaused = options.paused ?? false;
   let isStopped = false;
   let singleStepRequested = false;
+  let loop = options.loop ?? false;
 
   const session = {
     get isPaused() { return isPaused; },
     get isStopped() { return isStopped; },
     get trace() { return trace; },
     get stepDelay() { return stepDelay; },
+    get loop() { return loop; },
+    set loop(value) { loop = value; },
     setSpeed(ms) {
       stepDelay = Math.max(10, Number(ms) || 350);
     },
@@ -391,7 +418,7 @@ export function startAutoplaySession(options = {}) {
   const runLoop = async () => {
     let stopReason = "exhausted";
 
-    while (safety-- > 0 && !isStopped) {
+    while (safety > 0 && !isStopped) {
       if (isPaused) {
         if (singleStepRequested) {
           singleStepRequested = false;
@@ -400,12 +427,13 @@ export function startAutoplaySession(options = {}) {
           continue;
         }
       }
+      safety--;
 
       if (h.state.finalScore !== undefined && h.state.finalScore !== null) {
         stopReason = "final-score";
         if (options.onStep) options.onStep("final-score", { stopReason, finalScore: h.state.finalScore });
 
-        if (options.loop && !isStopped) {
+        if (loop && !isStopped) {
           await wait(1500);
           if (isStopped) break;
           if (typeof h.newGame === "function") {
@@ -439,7 +467,7 @@ export function startAutoplaySession(options = {}) {
       if (options.onStep) {
         options.onStep(action, {
           phase: h.currentTurnPhase(),
-          turn: h.state.turn,
+          turn: (h.state.turnIndex ?? 0) + 1,
           message: typeof h.actionMessage === "function" ? h.actionMessage() : "",
         });
       }

@@ -199,20 +199,28 @@ describe("autoplay module", () => {
       // Simulate every die-badge click toggling a shared "location-selected" class so
       // deselect/select calls are observable, and the game never reports a valid building phase
       // (every combo is a dead end for this roll).
-      badges.forEach((b) => {
-        b.click = vi.fn(() => {
-          b.classList.toggle("location-selected");
-        });
-        Object.defineProperty(b, "offsetParent", { value: {}, configurable: true });
-      });
-      badges[0].classList.add("location-selected");
-      badges[1].classList.add("location-selected");
-
       const h = {
         state: { locationSelection: ["0", "1"] },
         currentTurnPhase: () => "splitting",
         actionMessage: () => "No valid location pairs; spend Influence or click on any empty plot to forfeit it.",
       };
+      badges.forEach((b) => {
+        b.click = vi.fn(() => {
+          const idx = b.dataset.idx;
+          b.classList.toggle("location-selected");
+          // Update the state to reflect the toggle
+          if (b.classList.contains("location-selected")) {
+            if (!h.state.locationSelection.includes(idx)) {
+              h.state.locationSelection.push(idx);
+            }
+          } else {
+            h.state.locationSelection = h.state.locationSelection.filter((x) => x !== idx);
+          }
+        });
+        Object.defineProperty(b, "offsetParent", { value: {}, configurable: true });
+      });
+      badges[0].classList.add("location-selected");
+      badges[1].classList.add("location-selected");
 
       const result = await tryAlternateLocationPair(h);
       expect(result).toBe(false);
@@ -220,6 +228,55 @@ describe("autoplay module", () => {
       // rather than left deselected.
       expect(badges[0].classList.contains("location-selected")).toBe(true);
       expect(badges[1].classList.contains("location-selected")).toBe(true);
+    });
+
+    it("handles a pinned windrose die that stays selected without the location-selected class", async () => {
+      document.body.innerHTML = `
+        <div id="diceView">
+          <div class="die-badge" data-idx="0"></div>
+          <div class="die-badge" data-idx="1"></div>
+          <div class="die-badge" data-idx="2"></div>
+          <div class="die-badge" data-idx="3"></div>
+        </div>
+      `;
+      const badges = Array.from(document.querySelectorAll(".die-badge"));
+      // Windrose die at index 0 stays pinned in selection with no location-selected class.
+      // Only badge at index 1 has the location-selected class and can be deselected.
+      const h = {
+        state: { locationSelection: ["0", "1"] },
+        currentTurnPhase: () => "splitting",
+        actionMessage: () => "No valid location pairs; spend Influence or click on any empty plot to forfeit it.",
+      };
+      badges.forEach((b) => {
+        b.click = vi.fn(() => {
+          const idx = b.dataset.idx;
+          // Die 0 (windrose) cannot be toggled; it stays pinned.
+          if (idx === "0") {
+            return;
+          }
+          b.classList.toggle("location-selected");
+          // Update the state to reflect the toggle
+          if (b.classList.contains("location-selected")) {
+            if (!h.state.locationSelection.includes(idx)) {
+              h.state.locationSelection.push(idx);
+            }
+          } else {
+            h.state.locationSelection = h.state.locationSelection.filter((x) => x !== idx);
+          }
+        });
+        Object.defineProperty(b, "offsetParent", { value: {}, configurable: true });
+      });
+      // Badge 0 (windrose) has NO location-selected class and stays in state.
+      // Badge 1 has location-selected class and can be deselected.
+      badges[1].classList.add("location-selected");
+
+      const result = await tryAlternateLocationPair(h);
+      expect(result).toBe(false);
+      // Badge 0 (pinned windrose) must remain selected in state, and badge 1 must be re-selected.
+      expect(h.state.locationSelection).toContain("0");
+      expect(badges[1].classList.contains("location-selected")).toBe(true);
+      // The windrose die should never have been clicked (it's pinned).
+      expect(badges[0].click).not.toHaveBeenCalled();
     });
   });
 

@@ -50,15 +50,15 @@ describe("buildingTooltip", () => {
   it("appends a sum-only/max-built note only on the sheet for advanced buildings", () => {
     const sheet = buildingTooltip("T", { context: "sheet" });
     const board = buildingTooltip("T", { context: "board" });
-    expect(sheet).toContain("Sum only · Max. 1");
-    expect(board).not.toContain("Sum only");
+    expect(sheet).toContain("Max. 1");
+    expect(board).not.toContain("Max. 1");
   });
 
   it("uses the Guilds-specific max-built note on the sheet's generic Guild row (no guildLabel)", () => {
     const text = buildingTooltip("G", { context: "sheet" });
     expect(text).toContain("Guild");
     expect(text).toContain("15 RP if its condition is met.");
-    expect(text).toContain("Sum only · Max. 2, unique types");
+    expect(text).toContain("Max. 2, unique types");
   });
 
   it("names and scores a specific guild hitbox by its target building", () => {
@@ -79,7 +79,7 @@ describe("buildingTooltip", () => {
 
   it("does not apply the sum-only/max-built note to basic buildings", () => {
     const text = buildingTooltip("F", { context: "sheet" });
-    expect(text).not.toContain("Sum only");
+    expect(text).not.toContain("Max. 1");
   });
 
   it("appends a forfeited-labourers note as its own row on the board when given", () => {

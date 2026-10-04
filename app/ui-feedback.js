@@ -25,6 +25,18 @@ export function formatButtonLabelHtml(label, targetId) {
 }
 
 /**
+ * app.js owns syncActionBarState() (it reads/toggles classes on #actionBar,
+ * which this module doesn't have references to) but flashHint() needs to
+ * re-run it whenever it replaces/restores the banner HTML, since that HTML
+ * determines `.has-inline-roll` / `.has-inline-finish`. Registered once from
+ * app.js to avoid a circular import.
+ */
+let actionBarSyncHook = null;
+export function registerActionBarSync(fn) {
+  actionBarSyncHook = fn;
+}
+
+/**
  * Keep inline-action buttons inside the action banner disabled/enabled in
  * sync with the real controls they target (#rollBtn, #finishActivation).
  */
@@ -223,6 +235,7 @@ export function flashHint(text) {
   void actionBannerEl.offsetWidth; // restart animation
   actionBannerEl.classList.add("bump");
   syncInlineActionButtons();
+  actionBarSyncHook?.();
   flashHintTimer = setTimeout(() => {
     flashHintTimer = null;
     if (!actionBannerEl) return;
@@ -237,5 +250,6 @@ export function flashHint(text) {
       actionBannerEl.textContent = restoreText;
     }
     syncInlineActionButtons();
+    actionBarSyncHook?.();
   }, 3000);
 }

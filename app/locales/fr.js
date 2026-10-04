@@ -43,8 +43,8 @@ export default {
     labourersReducedValue: "{req} ({base} − {boost} Source)",
     labourersNone: "Aucun Ouvrier requis",
     filledValue: "{filled}/{req}",
-    advancedNote: "Somme uniquement · Max. 1",
-    guildsNote: "Somme uniquement · Max. 2, types différents",
+    advancedNote: "Max. 1",
+    guildsNote: "Max. 2, types différents",
     onBuildSpringhouse: "À la construction : retire 1 Ouvrier requis (min 0) d'un bâtiment adjacent.",
     onBuildCottage: "À la construction : tracez 1 unité de Logement (loge 4 Population).",
     guildConditionGeneric: "15 PR si sa condition est remplie.",
@@ -75,6 +75,20 @@ export default {
       U: "5/8/12/15 PR pour 1/2/3/4 bâtiments Avancés uniques construits.",
       A: "Annule jusqu'à 12 PR de pénalité de vagabonds.",
     },
+  },
+  // Texte de l'infobulle au survol/focus pour la section Population & Logement de la
+  // feuille de joueur (voir app/pop-housing-info.js).
+  popHousingInfo: {
+    title: "Population & Logement",
+    labels: {
+      population: "Population",
+      housing: "Logement",
+      vagrants: "Vagabonds",
+    },
+    cottageLine: "Chaque Logis encadre 1 logement (4 Population).",
+    barracksLine: "Chaque Quartier actif procure 2 unités de Logement (8 Population).",
+    vagrantLine: "La Population au-delà du Logement devient des Vagabonds : −1 PR chacun.",
+    influenceNote: "Recouvrir une ★ sur la piste accorde 1 Influence.",
   },
   html: {
     siteTitle: "Rolling Fiefdoms",
