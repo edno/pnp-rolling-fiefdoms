@@ -2833,6 +2833,15 @@ button.has-popover:not(:disabled) {
   .action-bar.is-pre-roll .action-bar-controls {
     display: none;
   }
+
+  /* With the dice row gone, let the prompt use that freed space so a wrapped
+     prompt (e.g. FR "Appuyez sur [Lancer les dés] pour commencer votre tour."
+     on phones: a 44px button line + a text line) isn't clipped by the
+     2-line banner slot. */
+  .action-bar.is-pre-roll .action-banner {
+    height: auto;
+    max-height: 100%;
+  }
 }
 
 /* Desktop-specific overrides for the shared two-row bar above: #buildingPicker
