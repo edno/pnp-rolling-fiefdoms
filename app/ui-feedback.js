@@ -185,6 +185,33 @@ export function actionMessage(state, currentPhase, options = {}) {
 }
 
 /**
+ * Switch the banner to its dense (smaller font) style when its content
+ * overflows the fixed-height slot. The 4px threshold ignores the harmless
+ * half-leading overflow of 2-line prompts. Skipped for the single-line
+ * (nowrap + ellipsis) banner of short landscape. `.is-measuring` hides the
+ * inline button's enlarged ::after touch area, which would otherwise count
+ * as overflow. No-op where layout is unavailable.
+ */
+export function fitActionBanner() {
+  if (!actionBannerEl) return;
+  actionBannerEl.classList.remove("is-dense");
+  if (typeof getComputedStyle === "function" && getComputedStyle(actionBannerEl).whiteSpace === "nowrap") return;
+  actionBannerEl.classList.add("is-measuring");
+  const overflow = (actionBannerEl.scrollHeight || 0) - (actionBannerEl.clientHeight || 0);
+  actionBannerEl.classList.remove("is-measuring");
+  if (overflow > 4) {
+    actionBannerEl.classList.add("is-dense");
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("resize", fitActionBanner);
+  if (typeof document !== "undefined" && document.fonts?.ready?.then) {
+    document.fonts.ready.then(fitActionBanner);
+  }
+}
+
+/**
  * Update the action banner with animation
  * currentPhase must be passed in from app.js
  */
@@ -211,6 +238,7 @@ export function updateActionBanner(state, currentPhase, options = {}) {
   }
   actionBannerEl.classList.toggle("is-final", currentPhase === TURN_PHASE.ACTIVATION_DONE);
   syncInlineActionButtons();
+  fitActionBanner();
 }
 
 let flashHintTimer = null;
@@ -235,6 +263,7 @@ export function flashHint(text) {
   void actionBannerEl.offsetWidth; // restart animation
   actionBannerEl.classList.add("bump");
   syncInlineActionButtons();
+  fitActionBanner();
   actionBarSyncHook?.();
   flashHintTimer = setTimeout(() => {
     flashHintTimer = null;
@@ -250,6 +279,7 @@ export function flashHint(text) {
       actionBannerEl.textContent = restoreText;
     }
     syncInlineActionButtons();
+    fitActionBanner();
     actionBarSyncHook?.();
   }, 3000);
 }

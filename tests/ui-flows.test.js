@@ -528,6 +528,67 @@ describe("inline action button in banner (jsdom)", () => {
   });
 });
 
+describe("fitActionBanner (jsdom)", () => {
+  const mockHeights = (banner, scrollHeight, clientHeight) => {
+    Object.defineProperty(banner, "scrollHeight", { value: scrollHeight, configurable: true });
+    Object.defineProperty(banner, "clientHeight", { value: clientHeight, configurable: true });
+  };
+
+  it("adds is-dense when content overflows the slot", async () => {
+    vi.resetModules();
+    stubEnvironment();
+    const { fitActionBanner } = await import("../app/ui-feedback.js");
+    const banner = document.getElementById("actionBanner");
+    mockHeights(banner, 75, 48);
+    fitActionBanner();
+    expect(banner.classList.contains("is-dense")).toBe(true);
+  });
+
+  it("removes is-dense when overflow is within the threshold", async () => {
+    vi.resetModules();
+    stubEnvironment();
+    const { fitActionBanner } = await import("../app/ui-feedback.js");
+    const banner = document.getElementById("actionBanner");
+    banner.classList.add("is-dense");
+    mockHeights(banner, 51, 48);
+    fitActionBanner();
+    expect(banner.classList.contains("is-dense")).toBe(false);
+  });
+
+  it("never densifies the single-line (nowrap) short-landscape banner", async () => {
+    vi.resetModules();
+    stubEnvironment();
+    const { fitActionBanner } = await import("../app/ui-feedback.js");
+    const banner = document.getElementById("actionBanner");
+    banner.classList.add("is-dense");
+    banner.style.whiteSpace = "nowrap";
+    mockHeights(banner, 75, 22);
+    fitActionBanner();
+    expect(banner.classList.contains("is-dense")).toBe(false);
+    banner.style.whiteSpace = "";
+  });
+
+  it("measures with the touch-area ::after hidden (is-measuring) and cleans up", async () => {
+    vi.resetModules();
+    stubEnvironment();
+    const { fitActionBanner } = await import("../app/ui-feedback.js");
+    const banner = document.getElementById("actionBanner");
+    let measuringDuringRead = false;
+    Object.defineProperty(banner, "scrollHeight", {
+      configurable: true,
+      get: () => {
+        measuringDuringRead = banner.classList.contains("is-measuring");
+        return 48;
+      },
+    });
+    Object.defineProperty(banner, "clientHeight", { value: 48, configurable: true });
+    fitActionBanner();
+    expect(measuringDuringRead).toBe(true);
+    expect(banner.classList.contains("is-measuring")).toBe(false);
+    expect(banner.classList.contains("is-dense")).toBe(false);
+  });
+});
+
 describe("score rank banner (jsdom)", () => {
   it("summarizes the final score with a rank label", async () => {
     await setupApp({ enableHooks: true });
