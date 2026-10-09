@@ -212,6 +212,24 @@ if (typeof window !== "undefined") {
 }
 
 /**
+ * Render a banner message inside a single `.action-banner-text` span. The
+ * banner is a flex container (to centre its content vertically); without the
+ * wrapper every text run between tags would become its own flex item, so lines
+ * would break around inline markup (icons, <strong>, the inline button) and
+ * the flex gap would add stray spaces before punctuation.
+ */
+function renderBannerContent(text) {
+  const inner = document.createElement("span");
+  inner.className = "action-banner-text";
+  if (text && text.includes("<")) {
+    inner.innerHTML = text;
+  } else {
+    inner.textContent = text || "";
+  }
+  actionBannerEl.replaceChildren(inner);
+}
+
+/**
  * Update the action banner with animation
  * currentPhase must be passed in from app.js
  */
@@ -226,11 +244,7 @@ export function updateActionBanner(state, currentPhase, options = {}) {
   const prevText = actionBannerEl.dataset.msg || "";
   const changed = prevText !== newText;
   actionBannerEl.dataset.msg = newText;
-  if (newText && newText.includes("<")) {
-    actionBannerEl.innerHTML = newText;
-  } else {
-    actionBannerEl.textContent = newText;
-  }
+  renderBannerContent(newText);
   if (changed) {
     actionBannerEl.classList.remove("bump");
     void actionBannerEl.offsetWidth; // restart animation
@@ -254,11 +268,7 @@ export function flashHint(text) {
   if (flashHintTimer) clearTimeout(flashHintTimer);
   flashHintText = text;
   const restoreText = actionBannerEl.dataset.msg || "";
-  if (text.includes("<")) {
-    actionBannerEl.innerHTML = text;
-  } else {
-    actionBannerEl.textContent = text;
-  }
+  renderBannerContent(text);
   actionBannerEl.classList.remove("bump");
   void actionBannerEl.offsetWidth; // restart animation
   actionBannerEl.classList.add("bump");
@@ -273,11 +283,7 @@ export function flashHint(text) {
     if (flashHintText !== text) return;
     flashHintText = null;
     actionBannerEl.dataset.msg = restoreText;
-    if (restoreText && restoreText.includes("<")) {
-      actionBannerEl.innerHTML = restoreText;
-    } else {
-      actionBannerEl.textContent = restoreText;
-    }
+    renderBannerContent(restoreText);
     syncInlineActionButtons();
     fitActionBanner();
     actionBarSyncHook?.();

@@ -206,8 +206,14 @@ button.menu-item {
   align-content: center;
   align-items: center;
   justify-content: center;
-  column-gap: 0.3em;
   overflow: hidden;
+}
+
+/* Single flex item wrapping the whole message (see renderBannerContent() in
+   ui-feedback.js) so the prompt wraps as one paragraph. */
+.action-banner-text {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .action-bar {
@@ -2769,6 +2775,23 @@ button.has-popover:not(:disabled) {
   .action-bar .action-banner.is-measuring .btn-inline-action::after {
     display: none;
   }
+
+  /* Final score: title on the first line, summary on its own smaller line,
+     sized to fit the 2-line banner slot (the max-width: 600px block shrinks
+     both further for phones). */
+  .action-banner.is-final {
+    font-size: 22px;
+    line-height: 1.2;
+  }
+
+  .action-banner.is-final .final-summary {
+    display: block;
+    font-size: 18px;
+  }
+
+  .action-banner.is-final .final-summary::before {
+    content: none;
+  }
 }
 
 /* The action bar's two-row layout (banner above a centred dice row, with the
@@ -3164,7 +3187,7 @@ button.has-popover:not(:disabled) {
   }
 
   .action-banner.is-final .final-summary {
-    flex-basis: 100%;
+    display: block;
     font-size: 16px;
   }
 

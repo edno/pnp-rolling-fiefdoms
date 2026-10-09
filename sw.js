@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v1.72";
+const CACHE_VERSION = "v1.73";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
 // APP_VERSION also gates the HTTP cache: public/_headers serves app.js/CSS as
 // `immutable` for a year, so the `?v=` token here MUST match the `?v=` query

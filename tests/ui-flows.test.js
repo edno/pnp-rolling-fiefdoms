@@ -568,6 +568,24 @@ describe("fitActionBanner (jsdom)", () => {
     banner.style.whiteSpace = "";
   });
 
+  it("renders flash hints inside a single .action-banner-text wrapper", async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    stubEnvironment();
+    const { flashHint } = await import("../app/ui-feedback.js");
+    const banner = document.getElementById("actionBanner");
+    flashHint('Choisissez <strong>Guilde</strong> ici.');
+    expect(banner.children.length).toBe(1);
+    expect(banner.firstElementChild.classList.contains("action-banner-text")).toBe(true);
+    expect(banner.querySelector(".action-banner-text strong").textContent).toBe("Guilde");
+    expect(banner.textContent).toBe("Choisissez Guilde ici.");
+    flashHint("plain text");
+    expect(banner.children.length).toBe(1);
+    expect(banner.firstElementChild.classList.contains("action-banner-text")).toBe(true);
+    expect(banner.textContent).toBe("plain text");
+    vi.useRealTimers();
+  });
+
   it("measures with the touch-area ::after hidden (is-measuring) and cleans up", async () => {
     vi.resetModules();
     stubEnvironment();
