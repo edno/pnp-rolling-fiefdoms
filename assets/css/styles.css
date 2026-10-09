@@ -2755,11 +2755,14 @@ button.has-popover:not(:disabled) {
   }
 
   /* Set by fitActionBanner() (ui-feedback.js) when a prompt still overflows
-     its slot; the <=600px block shrinks it further for phones. */
+     its slot; the <=600px block shrinks it further for phones. Sized so 3
+     lines fit the 60px slot descenders included; the bottom-only padding
+     (~descender depth) keeps the glyphs optically centred, since the
+     handwriting font sits low in its tight line box. */
   .action-bar .action-banner.is-dense {
-    font-size: 20px;
-    line-height: 20px;
-    padding-block: 0;
+    font-size: 18px;
+    line-height: 19px;
+    padding-block: 0 8px;
   }
 }
 
@@ -3074,9 +3077,9 @@ button.has-popover:not(:disabled) {
   }
 
   .action-bar .action-banner.is-dense {
-    font-size: 15px;
-    line-height: 16px;
-    padding-block: 0;
+    font-size: 14px;
+    line-height: 15px;
+    padding-block: 0 6px;
   }
 
   .action-bar-controls {
