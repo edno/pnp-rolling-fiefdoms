@@ -2734,9 +2734,25 @@ button.has-popover:not(:disabled) {
     opacity: 0.8;
   }
 
-  /* Banner prompts wrap on tablets/phones: keep the inline action button
-     within a text line so "text + [button]" fits the 2-line banner slot,
-     and restore a 44px touch target with an invisible ::after. */
+  /* Set by fitActionBanner() (ui-feedback.js) when a prompt still overflows
+     its slot; the <=600px block shrinks it further for phones. Sized so 3
+     lines fit the 60px slot descenders included; the bottom-only padding
+     (~descender depth) keeps the glyphs optically centred, since the
+     handwriting font sits low in its tight line box. */
+  .action-bar .action-banner.is-dense {
+    font-size: 18px;
+    line-height: 19px;
+    padding-block: 0 8px;
+  }
+}
+
+/* Banner prompts wrap on tablets/phones: keep the inline action button
+   within a text line so "text + [button]" fits the 2-line banner slot, and
+   restore a 44px-tall touch target (centred on the button whatever its font
+   size) with an invisible ::after. Short landscape is excluded: its
+   single-line banner row grows to fit the real 44px button instead (see the
+   (max-height: 500px) and (pointer: coarse) block). */
+@media (max-width: 1100px) and (min-height: 501px) {
   .action-bar .action-banner .btn-inline-action {
     min-height: 0;
     padding: 1px 10px;
@@ -2747,22 +2763,11 @@ button.has-popover:not(:disabled) {
   .action-bar .action-banner .btn-inline-action::after {
     content: "";
     position: absolute;
-    inset: -13px -4px;
+    inset: calc(50% - 22px) -4px;
   }
 
   .action-bar .action-banner.is-measuring .btn-inline-action::after {
     display: none;
-  }
-
-  /* Set by fitActionBanner() (ui-feedback.js) when a prompt still overflows
-     its slot; the <=600px block shrinks it further for phones. Sized so 3
-     lines fit the 60px slot descenders included; the bottom-only padding
-     (~descender depth) keeps the glyphs optically centred, since the
-     handwriting font sits low in its tight line box. */
-  .action-bar .action-banner.is-dense {
-    font-size: 18px;
-    line-height: 19px;
-    padding-block: 0 8px;
   }
 }
 
@@ -2868,10 +2873,12 @@ button.has-popover:not(:disabled) {
   /* With the dice row gone, let the prompt use that freed space so a wrapped
      prompt (e.g. FR "Appuyez sur [Lancer les dés] pour commencer votre tour."
      on phones: a 44px button line + a text line) isn't clipped by the
-     2-line banner slot. */
+     2-line banner slot. The extra block padding keeps the inline button's
+     44px ::after touch area inside the banner's overflow clip. */
   .action-bar.is-pre-roll .action-banner {
     height: auto;
     max-height: 100%;
+    padding-block: 12px;
   }
 }
 
