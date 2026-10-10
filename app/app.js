@@ -1021,6 +1021,12 @@ function buildingDisplayLetter(code) {
   return typeof name === "string" && name.length ? name[0].toUpperCase() : code;
 }
 
+// Picker label for a guild type ("GF"…): the localized guild name, e.g. "Guilde des Fermiers".
+function guildPickLabel(code) {
+  const target = guildTargetFromLabel(code, activeChallenge()?.rules?.buildingOverrides);
+  return target ? t(`buildingInfo.guildNameByTarget.${target}`) : t("buildings.G");
+}
+
 function guildDisplayLabel(guildLabel) {
   const target = guildTargetFromLabel(guildLabel, activeChallenge()?.rules?.buildingOverrides);
   if (!target) return (guildLabel || "G").toUpperCase();
@@ -1692,7 +1698,7 @@ function renderBuildingPicker() {
       const selected = hit.classList.contains("selected");
       btn.classList.toggle("selected", selected);
       btn.setAttribute("aria-pressed", selected ? "true" : "false");
-      btn.textContent = t(`buildings.${code}`);
+      btn.textContent = guildPickLabel(code);
       btn.addEventListener("click", () => hit.click());
       picker.appendChild(btn);
     });

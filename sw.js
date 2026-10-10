@@ -1,10 +1,10 @@
-const CACHE_VERSION = "v1.69";
+const CACHE_VERSION = "v1.74";
 const CACHE_NAME = `rf-cache-${CACHE_VERSION}`;
 // APP_VERSION also gates the HTTP cache: public/_headers serves app.js/CSS as
 // `immutable` for a year, so the `?v=` token here MUST match the `?v=` query
 // used in index.html's app.js/styles.css/fonts.css URLs whenever either file
 // changes, or returning users can keep an old (and SRI-rejected) JS/CSS pair.
-const APP_VERSION = "v36";
+const APP_VERSION = "v38";
 const SHEET_VERSION = "v2.0";
 const SHEET_BASE_PATH = "/resources/rolling-fiefdoms-player-sheet";
 // Every board-art variant, as a filename suffix appended to SHEET_BASE_PATH ("" = the plain

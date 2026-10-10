@@ -253,6 +253,13 @@ describe("Social Contract center-building choices (jsdom)", () => {
       (el) => el.dataset.code,
     );
     expect(pickerCodes.sort()).toEqual(overlayCodes.sort());
+    // Guild types are labelled with their localized guild name, never a raw i18n key.
+    const pickerLabels = Array.from(picker.querySelectorAll(".building-pick")).map((el) => el.textContent.trim());
+    expect(pickerLabels.length).toBeGreaterThan(0);
+    pickerLabels.forEach((label) => {
+      expect(label).not.toBe("");
+      expect(label.startsWith("buildings.")).toBe(false);
+    });
 
     const pickBtn = picker.querySelector('.building-pick[data-code="GF"]');
     expect(pickBtn).toBeTruthy();
@@ -525,6 +532,85 @@ describe("inline action button in banner (jsdom)", () => {
       '<button type="button" class="btn-label-inline btn-inline-action" data-target="finishActivation">Finish Activation</button>';
     document.querySelector('#actionBanner .btn-inline-action').click();
     expect(onClick).toHaveBeenCalled();
+  });
+});
+
+describe("fitActionBanner (jsdom)", () => {
+  const mockHeights = (banner, scrollHeight, clientHeight) => {
+    Object.defineProperty(banner, "scrollHeight", { value: scrollHeight, configurable: true });
+    Object.defineProperty(banner, "clientHeight", { value: clientHeight, configurable: true });
+  };
+
+  it("adds is-dense when content overflows the slot", async () => {
+    vi.resetModules();
+    stubEnvironment();
+    const { fitActionBanner } = await import("../app/ui-feedback.js");
+    const banner = document.getElementById("actionBanner");
+    mockHeights(banner, 75, 48);
+    fitActionBanner();
+    expect(banner.classList.contains("is-dense")).toBe(true);
+  });
+
+  it("removes is-dense when overflow is within the threshold", async () => {
+    vi.resetModules();
+    stubEnvironment();
+    const { fitActionBanner } = await import("../app/ui-feedback.js");
+    const banner = document.getElementById("actionBanner");
+    banner.classList.add("is-dense");
+    mockHeights(banner, 51, 48);
+    fitActionBanner();
+    expect(banner.classList.contains("is-dense")).toBe(false);
+  });
+
+  it("never densifies the single-line (nowrap) short-landscape banner", async () => {
+    vi.resetModules();
+    stubEnvironment();
+    const { fitActionBanner } = await import("../app/ui-feedback.js");
+    const banner = document.getElementById("actionBanner");
+    banner.classList.add("is-dense");
+    banner.style.whiteSpace = "nowrap";
+    mockHeights(banner, 75, 22);
+    fitActionBanner();
+    expect(banner.classList.contains("is-dense")).toBe(false);
+    banner.style.whiteSpace = "";
+  });
+
+  it("renders flash hints inside a single .action-banner-text wrapper", async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    stubEnvironment();
+    const { flashHint } = await import("../app/ui-feedback.js");
+    const banner = document.getElementById("actionBanner");
+    flashHint('Choisissez <strong>Guilde</strong> ici.');
+    expect(banner.children.length).toBe(1);
+    expect(banner.firstElementChild.classList.contains("action-banner-text")).toBe(true);
+    expect(banner.querySelector(".action-banner-text strong").textContent).toBe("Guilde");
+    expect(banner.textContent).toBe("Choisissez Guilde ici.");
+    flashHint("plain text");
+    expect(banner.children.length).toBe(1);
+    expect(banner.firstElementChild.classList.contains("action-banner-text")).toBe(true);
+    expect(banner.textContent).toBe("plain text");
+    vi.useRealTimers();
+  });
+
+  it("measures with the touch-area ::after hidden (is-measuring) and cleans up", async () => {
+    vi.resetModules();
+    stubEnvironment();
+    const { fitActionBanner } = await import("../app/ui-feedback.js");
+    const banner = document.getElementById("actionBanner");
+    let measuringDuringRead = false;
+    Object.defineProperty(banner, "scrollHeight", {
+      configurable: true,
+      get: () => {
+        measuringDuringRead = banner.classList.contains("is-measuring");
+        return 48;
+      },
+    });
+    Object.defineProperty(banner, "clientHeight", { value: 48, configurable: true });
+    fitActionBanner();
+    expect(measuringDuringRead).toBe(true);
+    expect(banner.classList.contains("is-measuring")).toBe(false);
+    expect(banner.classList.contains("is-dense")).toBe(false);
   });
 });
 
