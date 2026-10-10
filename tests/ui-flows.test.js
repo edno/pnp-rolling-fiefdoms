@@ -253,6 +253,13 @@ describe("Social Contract center-building choices (jsdom)", () => {
       (el) => el.dataset.code,
     );
     expect(pickerCodes.sort()).toEqual(overlayCodes.sort());
+    // Guild types are labelled with their localized guild name, never a raw i18n key.
+    const pickerLabels = Array.from(picker.querySelectorAll(".building-pick")).map((el) => el.textContent.trim());
+    expect(pickerLabels.length).toBeGreaterThan(0);
+    pickerLabels.forEach((label) => {
+      expect(label).not.toBe("");
+      expect(label.startsWith("buildings.")).toBe(false);
+    });
 
     const pickBtn = picker.querySelector('.building-pick[data-code="GF"]');
     expect(pickBtn).toBeTruthy();

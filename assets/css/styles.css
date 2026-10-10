@@ -2708,11 +2708,22 @@ button.has-popover:not(:disabled) {
   .building-picker:not([hidden]) {
     display: flex;
     flex-wrap: nowrap;
-    justify-content: center;
+    justify-content: flex-start;
     gap: 6px 8px;
     padding: 0;
     overflow-x: auto;
     scrollbar-width: none;
+  }
+
+  /* Auto margins instead of justify-content: center: centred when the row
+     fits, but scrollable from the first button when it overflows (centring
+     would push the first buttons off the left edge, out of scroll reach). */
+  .building-picker:not([hidden]) > :first-child {
+    margin-inline-start: auto;
+  }
+
+  .building-picker:not([hidden]) > :last-child {
+    margin-inline-end: auto;
   }
 
   .building-picker:not([hidden])::-webkit-scrollbar {
