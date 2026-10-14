@@ -137,7 +137,7 @@ async function compressFile(filePath) {
   
   try {
     const content = await readFile(filePath);
-    const compressed = brotli.compress(content, {
+    const compressed = await brotli.compress(content, {
       mode: 0, // generic mode
       quality: 11, // max compression (0-11)
       lgwin: 22, // window size
