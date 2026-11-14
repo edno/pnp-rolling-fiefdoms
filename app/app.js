@@ -35,6 +35,7 @@ import {
   soloSwapAvailable,
 } from "./swap.js";
 import { createState, resetTurnState, lockDiceSnapshot } from "./state-controller.js";
+import { saveGame, loadGame, clearSavedGame } from "./persistence.js";
 import {
   beginTurn,
   tallyUnrestAndCheckBarricade,
@@ -582,7 +583,9 @@ async function init() {
     const _apChallengeId = _apIdx === 0 ? null : (CHALLENGE_ORDER[_apIdx - 1] || null);
     newGame(_apChallengeId);
   } else {
-    openChallengePicker();
+    const saved = autoplayRequested ? null : loadGame();
+    if (saved) resumeGame(saved);
+    else openChallengePicker();
   }
 }
 
@@ -2422,6 +2425,23 @@ function log(msg) {
     unreadLogCount += 1;
     updateLogUnreadBadge();
   }
+  persistGame();
+}
+
+// Saves the game in progress to localStorage after every committed change (called from
+// log() and updateActionBanner()); skipped mid-animation and during autoplay, and the save
+// is dropped once the game has ended.
+function persistGame() {
+  try {
+    if (!hasStartedAnyGame || autoplayRequested || state.diceRolling || rollingInProgress) return;
+    if (state.finalScore != null) {
+      clearSavedGame();
+      return;
+    }
+    saveGame(state);
+  } catch {
+    // ignore (e.g. called before module-level flags are initialised)
+  }
 }
 
 // Tally Unrest for the just-completed turn here, the moment the turn is actually done -
@@ -2614,6 +2634,43 @@ function newGame(challengeId = null) {
   if (newGameBtn) newGameBtn.style.display = "none";
   refreshDiceVisibility();
   updateActiveChallengeBadge();
+}
+
+// Restores a saved game (see persistence.js) instead of opening the challenge picker.
+function resumeGame(saved) {
+  if (!saved) return;
+  hasStartedAnyGame = true;
+  influenceUiDie = null;
+  hideChallengeOutcomeOverlay();
+  clearTimeout(barricadeAlertTimeout);
+  if (barricadeAlertOverlay) barricadeAlertOverlay.hidden = true;
+  Object.assign(state, createState(), saved);
+  state.diceRolling = false;
+  state.bannerOverride = null;
+  state.deferStatusAppend = false;
+  if (logEl) logEl.innerHTML = state.log.map((m) => `<li>${m}</li>`).join("");
+  unreadLogCount = 0;
+  updateLogUnreadBadge();
+  setAllSheetImageSources();
+  renderTurnTrack(state.turnTrack);
+  renderBoard();
+  updateTracks();
+  const awaitingGuildType = Boolean(state.pendingCenterBuilding?.awaitingGuildType);
+  renderBuildingOverlay([], awaitingGuildType);
+  renderGuildOverlay(
+    awaitingGuildType
+      ? guildTypes.filter((gt) => (state.pendingCenterBuilding.choices || ["T", ...guildTypes]).includes(gt))
+      : [],
+  );
+  updateDiceAssignments(true);
+  if (finishActivationBtn) finishActivationBtn.style.display = state.activationMode ? "block" : "none";
+  if (newGameBtn) newGameBtn.style.display = "none";
+  updateTurnStatusChip();
+  refreshDiceVisibility();
+  updateActiveChallengeBadge();
+  updateUnrestBadge();
+  updateActionBanner();
+  log(t("game.resumed"));
 }
 
 let pickedChallengeId = null;
@@ -3228,6 +3285,7 @@ function updateActionBanner() {
   });
   syncPlotConfirmControls();
   syncActionBarState();
+  persistGame();
 }
 
 // Confirm/Change plot buttons are normally shown/hidden via showPlotConfirmControls()/
@@ -4101,6 +4159,8 @@ function autoForfeitUnfillable(finalize = false) {
       cancelPendingPlot,
       rollDice,
       newGame,
+      resumeGame,
+      persistGame,
       log,
       updateActionBanner,
       syncActionBarState,

@@ -127,8 +127,11 @@ function stubEnvironment({ withChallengePicker = false } = {}) {
   Image = InstantImage;
 }
 
-async function setupApp({ numbered = [], x = [], debug = false, enableHooks = false, withChallengePicker = false } = {}) {
+async function setupApp({ numbered = [], x = [], debug = false, enableHooks = false, withChallengePicker = false, save = null } = {}) {
   vi.resetModules();
+  // Saved games persist in jsdom's localStorage; start every boot clean unless a save is given.
+  window.localStorage.clear();
+  if (save !== null) window.localStorage.setItem("rf-game-v1", save);
   numberedQueue.length = 0;
   xQueue.length = 0;
   stubEnvironment({ withChallengePicker });
@@ -1977,5 +1980,54 @@ describe("syncActionBarState (jsdom) - JS-managed action-bar/aux classes", () =>
     state.pendingPlot = { r: 0, c: 0, kind: "population" };
     renderBoard();
     expect(document.getElementById("board").classList.contains("has-pending")).toBe(false);
+  });
+});
+
+describe("save and resume (jsdom)", () => {
+  async function playToPendingPopulation() {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.newGame();
+    const { state, placeBuilding } = hooks;
+    state.buildDice = [
+      { label: "X1", face: 2, resolved: 2 },
+      { label: "X2", face: 3, resolved: 3 },
+    ];
+    state.buildChoice = { code: "F", source: "die1", popGain: 3 };
+    placeBuilding(0, 0, "F");
+    return hooks;
+  }
+
+  it("saves the game after a building is placed", async () => {
+    await playToPendingPopulation();
+    const saved = JSON.parse(window.localStorage.getItem("rf-game-v1"));
+    expect(saved.schema).toBe(1);
+    expect(saved.state.board[0][0].building).toBe("F");
+  });
+
+  it("resumes a saved game on boot instead of opening the challenge picker", async () => {
+    await playToPendingPopulation();
+    const raw = window.localStorage.getItem("rf-game-v1");
+    await setupApp({ enableHooks: true, withChallengePicker: true, save: raw });
+    const hooks = window.__rfTestHooks;
+    expect(document.getElementById("challengePicker").hidden).toBe(true);
+    expect(hooks.state.board[0][0].building).toBe("F");
+    expect(hooks.state.pendingPopulation?.remaining).toBeGreaterThan(0);
+    expect(document.querySelector("#board .cell .building")?.textContent).toBeTruthy();
+    expect(latestLogs()[0]).toBe("Game resumed.");
+  });
+
+  it("falls back to the challenge picker and removes a corrupt save", async () => {
+    await setupApp({ enableHooks: true, withChallengePicker: true, save: "{not json" });
+    expect(document.getElementById("challengePicker").hidden).toBe(false);
+    expect(window.localStorage.getItem("rf-game-v1")).toBeNull();
+  });
+
+  it("leaves no save once the game has ended", async () => {
+    const hooks = await playToPendingPopulation();
+    expect(window.localStorage.getItem("rf-game-v1")).not.toBeNull();
+    hooks.state.finalScore = 10;
+    hooks.updateActionBanner();
+    expect(window.localStorage.getItem("rf-game-v1")).toBeNull();
   });
 });

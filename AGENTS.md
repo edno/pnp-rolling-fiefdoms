@@ -40,6 +40,7 @@
 - Action banner on tablets/phones (<=1100px): the bar height stays fixed; inline action buttons in the banner render compact (text-line height) with an expanded ::after 44px-tall touch area (not in short landscape, <=500px tall, whose banner row grows to fit the real 44px button), and when a prompt still overflows its slot (`fitActionBanner()` in `app/ui-feedback.js`) the banner switches to `.is-dense` (fits 3 lines with descenders and stays optically centred: 18px/19px, 14px/15px at <=600px, bottom-only padding compensating the handwriting font's low glyphs). Before the roll (`.is-pre-roll`) the banner may also grow into the hidden dice row's space.
 
 - Action banner content is rendered inside a single `.action-banner-text` span (`renderBannerContent()` in `app/ui-feedback.js`) so a prompt wraps as one paragraph; the banner itself stays a flex container only to centre it vertically. French strings use a non-breaking space (`\u00a0`) before `?`, `!`, `:` and `;` (enforced by `tests/locale-typography.test.js`).
+- Save/resume: the game in progress is stored in localStorage under `rf-game-v1` (JSON with a `schema` field, see `app/persistence.js`), written after every committed change by `persistGame()` (called from `updateActionBanner()` and `log()` in `app/app.js`). It is not saved during the dice animation or in autoplay, is cleared when the game ends and replaced on New Game, and finished or invalid saves are discarded. On load, `init()` restores it via `resumeGame()` instead of opening the challenge picker.
 
 ## Appendix: TODO / Known Gaps
 
