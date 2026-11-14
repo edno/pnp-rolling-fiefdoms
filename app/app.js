@@ -1892,6 +1892,8 @@ function renderBoard() {
   renderPopulationNodes();
   highlightLocations();
   restoreFocus(boardEl, focusToken);
+  // The roving tab stop was chosen before focus came back; make the restored plot the tab stop.
+  if (focusToken) syncBoardA11y();
   renderTopTracks();
   updateActionBanner();
 }
@@ -3649,8 +3651,15 @@ function renderPopulationNodes() {
         onPopulationNodeClick(r, c);
       };
       const isCandidate = node.classList.contains("highlight");
+      // A square sits at the corner shared by plot rows r+1/r+2 and columns c+1/c+2. During
+      // activation, announce what is left of its population, as the pips show.
+      const squarePos = { row1: r + 1, row2: r + 2, col1: c + 1, col2: c + 2 };
+      const squareLabel =
+        state.activationMode && typeof availableVal === "number"
+          ? t("a11y.populationSquareRemaining", { ...squarePos, remaining: availableVal, count: originalVal })
+          : t("a11y.populationSquare", { ...squarePos, count: originalVal });
       setControlState(node, {
-        label: t("a11y.populationSquare", { count: originalVal }) + (isCandidate ? t("a11y.availableSuffix") : ""),
+        label: squareLabel + (isCandidate ? t("a11y.availableSuffix") : ""),
         disabled: !isCandidate,
       });
       grid.appendChild(node);

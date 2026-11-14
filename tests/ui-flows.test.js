@@ -2151,6 +2151,30 @@ describe("keyboard and screen-reader support (jsdom)", () => {
     const after = document.activeElement;
     expect(after.dataset.row).toBe("1");
     expect(after.dataset.col).toBe("2");
+    // The restored plot must be the board's only tab stop, so Tab-ing away and back returns to it.
+    const tabStops = Array.from(document.querySelectorAll('#board .cell[tabindex="0"]'));
+    expect(tabStops).toEqual([after]);
+  });
+
+  it("names population squares by position and announces what is left during activation", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.newGame();
+    const { state } = hooks;
+    state.populationNodes[0][0] = 3;
+    state.populationNodes[1][2] = 3;
+    hooks.renderBoard();
+    const labelOf = (r, c) =>
+      document.querySelector(`.population-node[data-node-row="${r}"][data-node-col="${c}"]`).getAttribute("aria-label");
+    expect(labelOf(0, 0)).toBe("Population square between rows 1–2 and columns 1–2, 3 population");
+    expect(labelOf(1, 2)).toBe("Population square between rows 2–3 and columns 3–4, 3 population");
+    expect(labelOf(0, 0)).not.toBe(labelOf(1, 2));
+
+    state.activationMode = true;
+    state.populationAvailable = state.populationNodes.map((row) => row.slice());
+    state.populationAvailable[0][0] = 1;
+    hooks.renderBoard();
+    expect(labelOf(0, 0)).toMatch(/^Population square between rows 1–2 and columns 1–2, 1 of 3 population left/);
   });
 
   it("labels guild hitboxes with a localized name, not the raw code", async () => {

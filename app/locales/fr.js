@@ -330,7 +330,9 @@ export default {
     builtPlot: "Ligne {row}, colonne {col}, {building}",
     forfeitedPlot: "Ligne {row}, colonne {col}, parcelle abandonnée",
     availableSuffix: ", disponible",
-    populationSquare: "Case de population, {count} population",
+    populationSquare: "Case de population entre les lignes {row1}–{row2} et les colonnes {col1}–{col2}, {count} population",
+    populationSquareRemaining:
+      "Case de population entre les lignes {row1}–{row2} et les colonnes {col1}–{col2}, {remaining} population restante sur {count}",
   },
   hints: {
     pressRollToStart: "Appuyez sur {rollBtn} pour commencer votre tour.",

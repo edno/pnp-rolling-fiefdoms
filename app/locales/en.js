@@ -329,7 +329,9 @@ export default {
     builtPlot: "Row {row}, column {col}, {building}",
     forfeitedPlot: "Row {row}, column {col}, forfeited plot",
     availableSuffix: ", available",
-    populationSquare: "Population square, {count} population",
+    populationSquare: "Population square between rows {row1}–{row2} and columns {col1}–{col2}, {count} population",
+    populationSquareRemaining:
+      "Population square between rows {row1}–{row2} and columns {col1}–{col2}, {remaining} of {count} population left",
   },
   hints: {
     pressRollToStart: "Press {rollBtn} to start your turn.",
