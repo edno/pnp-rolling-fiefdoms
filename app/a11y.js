@@ -40,12 +40,6 @@ export function initKeyboardActivation(root = document) {
   });
 }
 
-function selectorFor(token) {
-  return Object.entries(token)
-    .map(([k, v]) => `[data-${k.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`)}="${String(v).replace(/"/g, '\\"')}"]`)
-    .join("");
-}
-
 /** Returns a token identifying the focused element inside container, or null. */
 export function captureFocus(container) {
   const active = typeof document !== "undefined" ? document.activeElement : null;
@@ -65,7 +59,11 @@ export function captureFocus(container) {
 /** Re-focuses the element matching a token from captureFocus() after a rebuild. */
 export function restoreFocus(container, token) {
   if (!container || !token) return;
-  const next = container.querySelector(selectorFor(token));
+  // Compare dataset values directly rather than building a selector string from them.
+  const keys = Object.keys(token);
+  const next = Array.from(container.querySelectorAll("[data-row], [data-node-row], [data-code]")).find((el) =>
+    keys.every((key) => el.dataset?.[key] === token[key]),
+  );
   if (next && typeof next.focus === "function") next.focus({ preventScroll: true });
 }
 
