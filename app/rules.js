@@ -875,3 +875,21 @@ export function computePestilenceInfo(dice) {
 export function availableLocationPairs(dice, board) {
   return filterAvailablePairs(uniqueLocationPairs(dice), board);
 }
+
+// Re-roll rule: a roll with exactly two numbered (N) dice that both show windrose.
+export function shouldRerollDoubleWindrose(dice) {
+  if (!Array.isArray(dice) || dice.length < 4) return false;
+  const numbered = dice.filter((d) => d?.label?.startsWith("N"));
+  if (numbered.length !== 2) return false;
+  return numbered.every((d) => d.face === "windrose");
+}
+
+// Cardinal (orthogonal) neighbours of (r, c) that lie inside the board.
+export function adjacentCells(board, r, c) {
+  return [
+    [r - 1, c],
+    [r + 1, c],
+    [r, c - 1],
+    [r, c + 1],
+  ].filter(([rr, cc]) => rr >= 0 && cc >= 0 && rr < board.length && cc < board[0].length);
+}

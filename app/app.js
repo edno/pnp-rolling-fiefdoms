@@ -24,7 +24,16 @@ import {
   computeActivationMap,
   scoreBuildingAt,
   guildTargetFromLabel,
+  shouldRerollDoubleWindrose,
+  adjacentCells,
 } from "./rules.js";
+import {
+  computeSwapChoice,
+  lockedPairChoice,
+  soloBaseSelections,
+  soloSwapUnavailableReasonKey,
+  soloSwapAvailable,
+} from "./swap.js";
 import { createState, resetTurnState, lockDiceSnapshot } from "./state-controller.js";
 import {
   beginTurn,
@@ -43,7 +52,6 @@ import {
   recalcTracks,
   maybeRollAfterLockState,
   isReadyToRoll,
-  canRescueLocationWithInfluence,
 } from "./game-state.js";
 import { rollNumberedDie, rollXDie } from "./dice.js";
 import {
@@ -402,7 +410,7 @@ function currentTurnPhase() {
 
 function effectiveLockedLocationPairs() {
   if (!state.lockedLocationDice || state.lockedLocationDice.length !== 2) return [];
-  const choice = lockedPairChoice();
+  const choice = lockedPairChoice(state);
   const locDice = choice.locDice || state.lockedLocationDice;
   return uniqueLocationPairs(applyInfluenceToDice(state, locDice || []));
 }
@@ -431,13 +439,6 @@ function prepareNextRoll() {
   refreshDiceVisibility();
   highlightLocations();
   updateSwapButton();
-}
-
-function shouldRerollDoubleWindrose(dice) {
-  if (!Array.isArray(dice) || dice.length < 4) return false;
-  const numbered = dice.filter((d) => d?.label?.startsWith("N"));
-  if (numbered.length !== 2) return false;
-  return numbered.every((d) => d.face === "windrose");
 }
 
 function setTurnHint(text) {
@@ -1464,7 +1465,7 @@ function fillBuildings(buildDice) {
     (hasLockedLocation && lockedPairs.length > 0) || (state.locationSelection.length === 2 && availablePairs.length > 0);
   let effectiveBuildDice = hasLockedLocation && state.lockedBuildDice?.length === 2 ? state.lockedBuildDice : buildDice;
   if (hasLockedLocation) {
-    const choice = lockedPairChoice();
+    const choice = lockedPairChoice(state);
     effectiveBuildDice = choice.buildDice || effectiveBuildDice;
     // keep state in sync so downstream pop calculation has the swapped build dice
     state.buildDice = effectiveBuildDice;
@@ -1580,7 +1581,7 @@ function renderBuildingOverlay(options = [], disabled = false) {
       state.pestilence);
   const buildDice =
     hasLockedLocation && state.lockedBuildDice?.length === 2
-      ? (lockedPairChoice().buildDice || state.lockedBuildDice)
+      ? (lockedPairChoice(state).buildDice || state.lockedBuildDice)
       : state.buildDice;
   if ((!options || !options.length) && buildDice?.length && !forceDisabled) {
     const fallback = restrictBuildOptionsForBoard(
@@ -2291,7 +2292,7 @@ function placeBuilding(r, c, code) {
 }
 
 function handleSpringhouseTargeting(r, c) {
-  const options = adjacentCells(r, c).filter(([rr, cc]) => {
+  const options = adjacentCells(state.board, r, c).filter(([rr, cc]) => {
     const target = state.board[rr][cc];
     if (!target.building || target.forfeited) return false;
     const rule = BUILDING_RULES[target.building];
@@ -3223,7 +3224,7 @@ function updateActionBanner() {
   const phase = currentTurnPhase();
   updateBannerUI(state, phase, {
     currentScore,
-    lockedPairChoice,
+    lockedPairChoice: () => lockedPairChoice(state),
   });
   syncPlotConfirmControls();
   syncActionBarState();
@@ -3274,7 +3275,7 @@ function syncActionBarState() {
 
 function updateSwapButton() {
   if (swapPairBtn && swapBtnWrap) {
-    const reasonKey = soloSwapUnavailableReasonKey();
+    const reasonKey = soloSwapUnavailableReasonKey(state);
     const hidden = reasonKey === "hidden";
     const showSwap = reasonKey === null;
     swapBtnWrap.style.display = hidden ? "none" : "inline-flex";
@@ -3524,7 +3525,7 @@ function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPrev
     if (!(Array.isArray(state.lockedLocationDice) && state.lockedLocationDice.length === 2)) {
       return { loc: locationDice, build: buildDice };
     }
-    const choice = lockedPairChoice();
+    const choice = lockedPairChoice(state);
     return { loc: choice.locDice || locationDice, build: choice.buildDice || buildDice };
   };
 
@@ -3797,133 +3798,12 @@ function updateDiceAssignments(renderOnly = false) {
   updateSwapButton();
 }
 
-function computeSwapChoice(baseLoc = [], baseBuild = [], swapFlag = false) {
-  // X dice with resolved numbers can be location dice, only X without numbers need swap
-  const locHasXWithoutNumber = baseLoc.some((d) => d?.face === "X" && typeof d?.resolved !== "number");
-  const buildHasXWithoutNumber = baseBuild.some((d) => d?.face === "X" && typeof d?.resolved !== "number");
-  const locHasWindrose = baseLoc.some((d) => d?.face === "windrose");
-  const buildHasWindrose = baseBuild.some((d) => d?.face === "windrose");
-
-  let forcedSwap = false;
-  if (locHasXWithoutNumber && !buildHasXWithoutNumber) forcedSwap = true;
-  if (!locHasWindrose && buildHasWindrose) forcedSwap = true;
-
-  const swapAllowed = !locHasXWithoutNumber && !buildHasXWithoutNumber && !forcedSwap && !(locHasWindrose && !buildHasWindrose);
-  const doSwap = forcedSwap || (swapAllowed && swapFlag);
-  return {
-    locDice: doSwap ? baseBuild : baseLoc,
-    buildDice: doSwap ? baseLoc : baseBuild,
-    swapped: doSwap,
-    swapAllowed,
-  };
-}
-
-function lockedPairChoice() {
-  const baseLoc = (state.lockedLocationDice || []).slice(0, 2);
-  const baseBuild = (state.lockedBuildDice || state.buildDice || []).slice(0, 2);
-  return computeSwapChoice(baseLoc, baseBuild, false);
-}
-
-function soloBaseSelections() {
-  if (!Array.isArray(state.dice) || state.dice.length < 4) return null;
-  const storedBase = Array.isArray(state.autoLocationSelection) && state.autoLocationSelection.length === 2
-    ? state.autoLocationSelection.slice()
-    : null;
-  let baseLocIdx = storedBase;
-  if (!baseLocIdx || baseLocIdx.length !== 2) {
-    baseLocIdx = state.dice
-      .map((die, idx) => ({ die, idx }))
-      .filter(({ die }) => die?.label?.startsWith("N"))
-      .map(({ idx }) => idx)
-      .slice(0, 2);
-  }
-  if (!baseLocIdx || baseLocIdx.length !== 2) return null;
-  const baseBuildIdx = state.dice
-    .map((_, idx) => idx)
-    .filter((idx) => !baseLocIdx.includes(idx))
-    .slice(0, 2);
-  if (baseBuildIdx.length !== 2) return null;
-  const baseLocDice = baseLocIdx.map((i) => state.dice[i]).filter(Boolean);
-  const baseBuildDice = baseBuildIdx.map((i) => state.dice[i]).filter(Boolean);
-  if (baseLocDice.length !== 2 || baseBuildDice.length !== 2) return null;
-  return { baseLocIdx: baseLocIdx.slice(), baseBuildIdx: baseBuildIdx.slice(), baseLocDice, baseBuildDice };
-}
-
-function soloPairChoice() {
-  const base = soloBaseSelections();
-  if (!base) return { locDice: [], buildDice: [], swapped: false, swapAllowed: false };
-  const choice = computeSwapChoice(base.baseLocDice, base.baseBuildDice, state.nonActiveSwap);
-  return {
-    ...choice,
-    baseLocIdx: base.baseLocIdx,
-    baseBuildIdx: base.baseBuildIdx,
-    baseLocDice: base.baseLocDice,
-    baseBuildDice: base.baseBuildDice,
-  };
-}
-
-function soloPairHasValidLocations(diceList = []) {
-  if (!Array.isArray(diceList) || diceList.length !== 2) return false;
-  if (!Array.isArray(state.board) || !state.board.length) return false;
-  const adjusted = applyInfluenceToDice(state, diceList);
-  const pairs = filterAvailablePairs(uniqueLocationPairs(adjusted), state.board);
-  return pairs.length > 0;
-}
-
-function soloPairCanBeRescued(diceList = []) {
-  if (!Array.isArray(diceList) || diceList.length !== 2) return false;
-  if (!Array.isArray(state.board) || !state.board.length) return false;
-  return canRescueLocationWithInfluence(state, diceList, state.board, {
-    uniqueLocationPairs,
-    filterAvailablePairs,
-  });
-}
-
-// Returns "hidden" when the swap button doesn't apply to the current turn at all (no dice to
-// swap), a locale key naming the reason it's disabled-but-visible, or null when swap is fully
-// available. Centralizing this lets the button show a grey/disabled state with an explanatory
-// tooltip instead of just disappearing (see updateSwapButton()).
-function soloSwapUnavailableReasonKey() {
-  if (state.activeTurn || state.pestilence || state.activationMode) return "hidden";
-  const choice = soloPairChoice();
-  if (!choice.baseLocIdx || !choice.baseBuildIdx) return "hidden";
-  if (!choice.swapAllowed) {
-    return "html.swapUnavailableOnlyOnePairing";
-  }
-
-  const baseValid = soloPairHasValidLocations(choice.baseLocDice);
-  const altValid = soloPairHasValidLocations(choice.baseBuildDice);
-
-  const baseCanBeRescued = !baseValid && soloPairCanBeRescued(choice.baseLocDice);
-  const altCanBeRescued = !altValid && soloPairCanBeRescued(choice.baseBuildDice);
-  const basePossible = baseValid || baseCanBeRescued;
-  const altPossible = altValid || altCanBeRescued;
-  if (!basePossible && !altPossible) {
-    return "html.swapUnavailableNoValidPairing";
-  }
-
-  // One pairing is possible, but if it's the one currently in effect (not the one
-  // swapping would switch to), swapping would land on a pairing with no valid
-  // location. `choice.swapped` reflects the pairing currently active: true means the
-  // alt (base build dice as location) pairing is in effect, so swapping would switch
-  // to the base pairing, and vice versa.
-  const targetPossible = choice.swapped ? basePossible : altPossible;
-  if (!targetPossible) {
-    return "html.swapUnavailableNoValidLocationOnSwap";
-  }
-  return null;
-}
-
-function soloSwapAvailable() {
-  return soloSwapUnavailableReasonKey() === null;
-}
-
 function nonActiveAutoHintText() {
-  return generateNonActiveHint(soloSwapAvailable());
+  return generateNonActiveHint(soloSwapAvailable(state));
 }
 
 function toggleSoloPairChoice() {
-  const base = soloBaseSelections();
+  const base = soloBaseSelections(state);
   if (!base) return false;
   const choice = computeSwapChoice(base.baseLocDice, base.baseBuildDice, state.nonActiveSwap);
   if (!choice.swapAllowed) return false;
@@ -4160,14 +4040,6 @@ function advanceTurnTrack() {
   renderTurnTrack(state.turnTrack);
 }
 
-function adjacentCells(r, c) {
-  return [
-    [r - 1, c],
-    [r + 1, c],
-    [r, c - 1],
-    [r, c + 1],
-  ].filter(([rr, cc]) => rr >= 0 && cc >= 0 && rr < state.board.length && cc < state.board[0].length);
-}
 function allocateWorkersFromPop(popSel, buildingSel) {
   const result = allocateWorker(state, popSel, buildingSel, {
     nodesForCell,
@@ -4215,7 +4087,7 @@ function autoForfeitUnfillable(finalize = false) {
       actionMessage: (stateArg, _unused, phase) => {
         const s = stateArg || state;
         const ph = phase || currentTurnPhase();
-        return generateActionMessage(s, ph, { currentScore, lockedPairChoice });
+        return generateActionMessage(s, ph, { currentScore, lockedPairChoice: () => lockedPairChoice(state) });
       },
       renderTurnTrack,
       maybeRollAfterLock,
