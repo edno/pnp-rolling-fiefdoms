@@ -3544,7 +3544,15 @@ function syncActionBarState() {
     actionBannerEl?.querySelector('.btn-inline-action[data-target="finishActivation"]'),
   );
   const hasDiceBadge = Boolean(diceView?.querySelector(".die-badge"));
-  const preRoll = hasInlineRoll && !hasDiceBadge;
+  // Keep the main row (and its Undo button) reachable between a turn's last placement and
+  // the next roll; otherwise the pre-roll state hides the row the button lives in.
+  let undoAvailable;
+  try {
+    undoAvailable = canUndo();
+  } catch {
+    undoAvailable = false; // called before the undo stack is initialised
+  }
+  const preRoll = hasInlineRoll && !hasDiceBadge && !undoAvailable;
 
   if (actionBarAuxEl) {
     const isOpen = confirmVisible || pickerVisible || stepperVisible;
