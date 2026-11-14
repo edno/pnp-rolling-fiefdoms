@@ -2023,6 +2023,58 @@ describe("save and resume (jsdom)", () => {
     expect(window.localStorage.getItem("rf-game-v1")).toBeNull();
   });
 
+  it("restores the fiefdom name into its input on resume", async () => {
+    const hooks = await playToPendingPopulation();
+    hooks.state.fiefdomName = "Valdoré";
+    hooks.updateActionBanner();
+    const raw = window.localStorage.getItem("rf-game-v1");
+    await setupApp({ enableHooks: true, withChallengePicker: true, save: raw });
+    expect(window.__rfTestHooks.state.fiefdomName).toBe("Valdoré");
+    expect(document.getElementById("fiefdomInput").value).toBe("Valdoré");
+  });
+
+  it("re-offers the unbuilt guild types when resuming with a Guild chosen but no type yet", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.newGame();
+    const { state } = hooks;
+    state.activeTurn = true;
+    state.dice = [
+      { label: "N1", face: 1, resolved: 1 },
+      { label: "N2", face: 2, resolved: 2 },
+      { label: "X1", face: 5, resolved: 5 },
+      { label: "X2", face: 5, resolved: 5 },
+    ];
+    state.locationSelection = [0, 1];
+    state.locationPairs = [[1, 2]];
+    state.buildDice = [state.dice[2], state.dice[3]];
+    state.board[4][4].building = "G";
+    state.board[4][4].buildingLabel = "GF";
+    state.buildChoice = { code: "G", source: "sum", popGain: 0 };
+    state.selectedGuildType = null;
+    hooks.persistGame();
+    const raw = window.localStorage.getItem("rf-game-v1");
+    expect(JSON.parse(raw).state.buildChoice.code).toBe("G");
+
+    await setupApp({ enableHooks: true, withChallengePicker: true, save: raw });
+    expect(window.__rfTestHooks.state.buildChoice?.code).toBe("G");
+    const available = Array.from(document.querySelectorAll("#guildsOverlay .guild-hit.available")).map(
+      (el) => el.dataset.code,
+    );
+    expect(available.length).toBeGreaterThan(0);
+    expect(available).not.toContain("GF");
+  });
+
+  it("falls back to the challenge picker when a parseable save cannot be restored", async () => {
+    const hooks = await playToPendingPopulation();
+    const data = JSON.parse(window.localStorage.getItem("rf-game-v1"));
+    data.state.log = null;
+    await setupApp({ enableHooks: true, withChallengePicker: true, save: JSON.stringify(data) });
+    expect(hooks).toBeTruthy();
+    expect(document.getElementById("challengePicker").hidden).toBe(false);
+    expect(window.localStorage.getItem("rf-game-v1")).toBeNull();
+  });
+
   it("leaves no save once the game has ended", async () => {
     const hooks = await playToPendingPopulation();
     expect(window.localStorage.getItem("rf-game-v1")).not.toBeNull();

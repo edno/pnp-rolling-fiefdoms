@@ -31,6 +31,7 @@ export function parseSavedGame(json) {
     if (!saved || typeof saved !== "object") return null;
     if (!isValidBoard(saved.board)) return null;
     if (!Array.isArray(saved.populationNodes)) return null;
+    if (!Array.isArray(saved.log) || !saved.log.every((line) => typeof line === "string")) return null;
     if (saved.finalScore !== null && saved.finalScore !== undefined) return null;
     return saved;
   } catch {

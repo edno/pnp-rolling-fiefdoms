@@ -54,6 +54,8 @@ describe("persistence", () => {
     const s = boardedState();
     const wrap = (state, schema = SAVE_SCHEMA) => JSON.stringify({ schema, state });
     expect(parseSavedGame("garbage")).toBeNull();
+    expect(parseSavedGame(wrap({ ...s, log: null }))).toBeNull();
+    expect(parseSavedGame(wrap({ ...s, log: [1, 2] }))).toBeNull();
     expect(parseSavedGame(null)).toBeNull();
     expect(parseSavedGame(wrap(s, 99))).toBeNull();
     expect(parseSavedGame(JSON.stringify({ schema: SAVE_SCHEMA }))).toBeNull();
