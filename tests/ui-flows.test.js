@@ -2083,3 +2083,80 @@ describe("save and resume (jsdom)", () => {
     expect(window.localStorage.getItem("rf-game-v1")).toBeNull();
   });
 });
+
+describe("keyboard and screen-reader support (jsdom)", () => {
+  function pressEnter(el) {
+    el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+  }
+
+  async function setupBuildReady(hooks) {
+    hooks.state.dice = [
+      { label: "N1", face: 1, resolved: 1 },
+      { label: "N2", face: 2, resolved: 2 },
+      { label: "B1", face: 7, resolved: 7 },
+      { label: "B2", face: 7, resolved: 7 },
+    ];
+    hooks.state.locationSelection = [0, 1];
+    hooks.state.rollAvailable = false;
+    hooks.state.board = createEmptyBoard();
+    hooks.updateDiceAssignments();
+    await flushMicrotasks();
+  }
+
+  it("gives board cells a role, label and a single roving tabstop", async () => {
+    await setupApp({ enableHooks: true });
+    const cells = Array.from(document.querySelectorAll("#board .cell"));
+    expect(cells.length).toBeGreaterThan(0);
+    cells.forEach((cell) => {
+      expect(cell.getAttribute("role")).toBe("button");
+      expect(cell.getAttribute("aria-label")).toBeTruthy();
+    });
+    expect(cells.filter((cell) => cell.getAttribute("tabindex") === "0")).toHaveLength(1);
+  });
+
+  it("places a building with keyboard Enter on the building hit and the cell", async () => {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    const { setConfirmStepOverride } = await import("../app/confirm-step.js");
+    setConfirmStepOverride(false);
+    try {
+      await setupBuildReady(hooks);
+      const hit = document.querySelector(".building-hit.available");
+      expect(hit).toBeTruthy();
+      expect(hit.getAttribute("aria-label")).not.toBe(hit.dataset.code);
+      expect(hit.getAttribute("aria-disabled")).toBeNull();
+      expect(hit.getAttribute("tabindex")).toBe("0");
+      pressEnter(hit);
+      await flushMicrotasks();
+      const code = hit.dataset.code;
+      expect(hooks.state.buildChoice?.code).toBe(code);
+      const cell = document.querySelector('.cell[data-row="0"][data-col="1"]');
+      expect(cell.getAttribute("aria-label")).toMatch(/available/);
+      pressEnter(cell);
+      await flushMicrotasks();
+      expect(hooks.state.board[0][1].building).toBe(code);
+    } finally {
+      setConfirmStepOverride(null);
+    }
+  });
+
+  it("keeps focus on the same cell across renderBoard()", async () => {
+    await setupApp({ enableHooks: true });
+    const cell = document.querySelector('#board .cell[data-row="1"][data-col="2"]');
+    cell.focus();
+    expect(document.activeElement).toBe(cell);
+    window.__rfTestHooks.renderBoard();
+    const after = document.activeElement;
+    expect(after.dataset.row).toBe("1");
+    expect(after.dataset.col).toBe("2");
+  });
+
+  it("labels guild hitboxes with a localized name, not the raw code", async () => {
+    await setupApp({ enableHooks: true });
+    const hit = document.querySelector("#guildsOverlay .guild-hit");
+    expect(hit).toBeTruthy();
+    const label = hit.getAttribute("aria-label");
+    expect(label).toBeTruthy();
+    expect(label).not.toBe(hit.dataset.code);
+  });
+});

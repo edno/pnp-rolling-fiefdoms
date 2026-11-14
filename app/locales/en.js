@@ -324,6 +324,13 @@ export default {
     rankForgottenTitle: "Forgotten",
     rankForgottenDesc: "Your fief leaves little mark upon the chronicles.",
   },
+  a11y: {
+    emptyPlot: "Row {row}, column {col}, empty plot",
+    builtPlot: "Row {row}, column {col}, {building}",
+    forfeitedPlot: "Row {row}, column {col}, forfeited plot",
+    availableSuffix: ", available",
+    populationSquare: "Population square, {count} population",
+  },
   hints: {
     pressRollToStart: "Press {rollBtn} to start your turn.",
     lockSplitToContinue: "Lock the split to continue building.",

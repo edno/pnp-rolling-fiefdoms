@@ -178,9 +178,9 @@ export function setPopover(el, text, options = {}) {
 
   // Ensure keyboard users can focus non-interactive elements (e.g. divs/spans)
   // so the existing focusin handler can show the popover. Targets with
-  // tap:false (e.g. board cells that are already interactive via click, not
-  // via this popover) don't need this: adding tabindex there would make a
-  // plain tap focus the cell and pop the tooltip open unexpectedly.
+  // tap:false (e.g. board cells) get their tabindex from app/a11y.js instead,
+  // and handleFocusIn only shows their popover for :focus-visible (keyboard)
+  // focus, so a plain tap doesn't pop the tooltip open unexpectedly.
   const isNativelyFocusable = /^(button|a|input|select|textarea)$/i.test(el.tagName);
   if (options.tap !== false && !isNativelyFocusable && !el.hasAttribute("tabindex")) {
     el.setAttribute("tabindex", "0");
@@ -272,6 +272,18 @@ export function initPopovers(root = document) {
   // Delegated focusin handler
   const handleFocusIn = (e) => {
     const target = targetEl(e)?.closest("[data-popover]");
+    // tap:false targets are focusable (role=button, tabindex) for keyboard use, so
+    // only keyboard-driven focus may open their tooltip; a mouse/touch tap must not.
+    // If :focus-visible is unsupported (throws), fall back to showing as before.
+    if (target && target.dataset.popoverTap === "false") {
+      let keyboardFocus;
+      try {
+        keyboardFocus = target.matches(":focus-visible");
+      } catch {
+        keyboardFocus = true;
+      }
+      if (!keyboardFocus) return;
+    }
     if (target) {
       lastFocusShowTarget = target;
       lastFocusShowTime = Date.now();
