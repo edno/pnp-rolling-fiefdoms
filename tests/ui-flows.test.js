@@ -2186,3 +2186,38 @@ describe("keyboard and screen-reader support (jsdom)", () => {
     expect(label).not.toBe(hit.dataset.code);
   });
 });
+
+describe("challenge picker modal focus (jsdom)", () => {
+  it("moves focus inside the challenge picker when it opens", async () => {
+    await setupApp({ enableHooks: true, withChallengePicker: true });
+    const picker = document.getElementById("challengePicker");
+    expect(picker.hidden).toBe(false);
+    expect(picker.contains(document.activeElement)).toBe(true);
+  });
+
+  it("does not close the first-run picker on Escape", async () => {
+    await setupApp({ enableHooks: true, withChallengePicker: true });
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(document.getElementById("challengePicker").hidden).toBe(false);
+  });
+
+  it("closes the picker on Escape after a game has started and returns focus to the opener", async () => {
+    await setupApp({ enableHooks: true, withChallengePicker: true });
+    document.getElementById("challengeConfirmBtn").click();
+    await flushMicrotasks();
+    const picker = document.getElementById("challengePicker");
+    expect(picker.hidden).toBe(true);
+
+    const opener = document.getElementById("newGameBtn");
+    opener.style.display = "";
+    opener.focus();
+    opener.click();
+    expect(picker.hidden).toBe(false);
+    expect(picker.contains(document.activeElement)).toBe(true);
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(picker.hidden).toBe(true);
+    expect(document.activeElement).toBe(opener);
+    expect(document.body.querySelector("[inert]")).toBeNull();
+  });
+});

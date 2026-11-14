@@ -88,3 +88,82 @@ export function moveGridFocus(container, event) {
   }
   return true;
 }
+
+const MODAL_FOCUSABLE =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const modalStack = [];
+
+function modalFocusables(overlay) {
+  return Array.from(overlay.querySelectorAll(MODAL_FOCUSABLE)).filter((el) => {
+    if (el.hasAttribute("hidden") || el.style?.display === "none") return false;
+    const hiddenAncestor = el.closest("[hidden]");
+    return !(hiddenAncestor && overlay.contains(hiddenAncestor));
+  });
+}
+
+// Wraps Tab / Shift+Tab inside the overlay (also pulls focus back in when it has escaped).
+function trapModalTab(overlay, e) {
+  if (e.key !== "Tab") return;
+  const items = modalFocusables(overlay);
+  const active = document.activeElement;
+  const outside = !active || !overlay.contains(active) || active === overlay;
+  if (!items.length) {
+    e.preventDefault();
+    return;
+  }
+  const first = items[0];
+  const last = items[items.length - 1];
+  if (e.shiftKey && (outside || active === first)) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && (outside || active === last)) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
+/**
+ * Opens a modal overlay: makes the other body children inert, moves focus into the
+ * overlay (initialFocus, else first focusable, else the dialog) and traps Tab inside it.
+ * Dialogs nest via a module-level stack; calling it again for an open overlay is a no-op.
+ */
+export function openModal(overlay, { initialFocus } = {}) {
+  if (!overlay || modalStack.some((entry) => entry.overlay === overlay)) return;
+  const previous = typeof document !== "undefined" ? document.activeElement : null;
+  const inerted = [];
+  Array.from(document.body?.children || []).forEach((el) => {
+    if (el === overlay || el.contains(overlay) || el.hasAttribute("inert")) return;
+    el.setAttribute("inert", "");
+    inerted.push(el);
+  });
+  const onKeydown = (e) => trapModalTab(overlay, e);
+  overlay.addEventListener("keydown", onKeydown);
+  modalStack.push({ overlay, previous, inerted, onKeydown });
+  let target = initialFocus && initialFocus.isConnected ? initialFocus : modalFocusables(overlay)[0];
+  if (!target) {
+    const dialog = overlay.querySelector(".modal-dialog") || overlay;
+    if (!dialog.hasAttribute("tabindex")) dialog.setAttribute("tabindex", "-1");
+    target = dialog;
+  }
+  if (typeof target.focus === "function") target.focus({ preventScroll: true });
+}
+
+/**
+ * Closes a modal opened with openModal(): removes the inert marks it set, drops its Tab
+ * trap and returns focus to the element that was focused before it opened (if still usable).
+ */
+export function closeModal(overlay) {
+  const index = modalStack.findIndex((entry) => entry.overlay === overlay);
+  if (index === -1) return;
+  const [entry] = modalStack.splice(index, 1);
+  entry.overlay.removeEventListener("keydown", entry.onKeydown);
+  entry.inerted.forEach((el) => el.removeAttribute("inert"));
+  const prev = entry.previous;
+  if (prev && prev.isConnected && typeof prev.focus === "function" && !prev.hasAttribute("disabled")) {
+    try {
+      prev.focus({ preventScroll: true });
+    } catch {
+      // Focus restoration is best-effort; ignore elements that refuse focus.
+    }
+  }
+}

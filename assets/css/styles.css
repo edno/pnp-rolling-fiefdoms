@@ -2105,6 +2105,9 @@ select {
   width: 100%;
   max-height: 85dvh;
   overflow-y: auto;
+  /* Receives programmatic focus when the dialog opens (see openModal() in a11y.js);
+     the container itself should not draw a focus ring. */
+  outline: none;
 }
 
 .modal-dialog h2 {
