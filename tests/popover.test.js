@@ -515,6 +515,26 @@ describe("initPopovers", () => {
     expect(popover.textContent).toBe("Div focus text");
   });
 
+  it("tap:false targets show their popover on keyboard focus only, not on pointer focus", () => {
+    initPopovers(root);
+    const div = document.createElement("div");
+    setPopover(div, "Cell text", { tap: false });
+    root.appendChild(div);
+    const popover = document.querySelector(".rf-popover");
+
+    // jsdom may not implement :focus-visible, so stub the seam handleFocusIn uses.
+    let keyboard = false;
+    div.matches = (sel) => (sel === ":focus-visible" ? keyboard : Element.prototype.matches.call(div, sel));
+
+    div.dispatchEvent(new Event("focusin", { bubbles: true }));
+    expect(popover.hidden).toBe(true);
+
+    keyboard = true;
+    div.dispatchEvent(new Event("focusin", { bubbles: true }));
+    expect(popover.hidden).toBe(false);
+    expect(popover.textContent).toBe("Cell text");
+  });
+
   it("handles non-Element targets in event handlers without throwing", () => {
     initPopovers(root);
     const btn = document.createElement("button");

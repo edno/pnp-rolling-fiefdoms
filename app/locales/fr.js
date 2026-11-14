@@ -325,6 +325,15 @@ export default {
     rankForgottenTitle: "Oublié",
     rankForgottenDesc: "Votre fief laisse peu de traces dans les chroniques.",
   },
+  a11y: {
+    emptyPlot: "Ligne {row}, colonne {col}, parcelle vide",
+    builtPlot: "Ligne {row}, colonne {col}, {building}",
+    forfeitedPlot: "Ligne {row}, colonne {col}, parcelle abandonnée",
+    availableSuffix: ", disponible",
+    populationSquare: "Case de population entre les lignes {row1}–{row2} et les colonnes {col1}–{col2}, {count} population",
+    populationSquareRemaining:
+      "Case de population entre les lignes {row1}–{row2} et les colonnes {col1}–{col2}, {remaining} population restante sur {count}",
+  },
   hints: {
     pressRollToStart: "Appuyez sur {rollBtn} pour commencer votre tour.",
     lockSplitToContinue: "Verrouillez la répartition pour continuer à construire.",

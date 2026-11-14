@@ -179,6 +179,7 @@ import { CHALLENGES, CHALLENGE_ORDER } from "./challenges.js";
 import { initSheetWindows } from "./sheet-layout.js";
 import { onMouseHover } from "./hover.js";
 import { initPopovers, setPopover } from "./popover.js";
+import { setControlState, initKeyboardActivation, captureFocus, restoreFocus, moveGridFocus } from "./a11y.js";
 import { updateScrollCue } from "./scroll-cue.js";
 import { buildingTooltip, renderBuildingTooltip } from "./building-info.js";
 import { popHousingTooltip, renderPopHousingTooltip } from "./pop-housing-info.js";
@@ -781,6 +782,8 @@ async function initializeApp() {
 
     // Initialize popovers for tooltips
     initPopovers();
+    initKeyboardActivation();
+    boardEl?.addEventListener("keydown", (e) => moveGridFocus(boardEl, e));
 
     // Remove loading state only after everything is ready
     document.body.classList.remove("loading");
@@ -1542,6 +1545,7 @@ function enforceBuildingSelection(options = []) {
   const selected = document.querySelector(".building-hit.selected");
   if (selected && !optionCodes.has(selected.dataset.code)) {
     selected.classList.remove("selected");
+    syncHitPressedState();
   }
   if (state.buildChoice && !optionCodes.has(state.buildChoice.code)) {
     state.buildChoice = null;
@@ -1570,6 +1574,14 @@ function activeBuildingHitboxes() {
     hidden.add(overrides[base] === swapped ? base : swapped);
   });
   return buildingHitboxes.filter((hit) => !hidden.has(hit.code));
+}
+
+// Keeps aria-pressed on the sheet hitboxes in step with their .selected class when a
+// click handler changes the selection without a full overlay re-render.
+function syncHitPressedState() {
+  document.querySelectorAll(".building-hit, .guild-hit").forEach((el) => {
+    el.setAttribute("aria-pressed", el.classList.contains("selected") ? "true" : "false");
+  });
 }
 
 function renderBuildingOverlay(options = [], disabled = false) {
@@ -1606,6 +1618,7 @@ function renderBuildingOverlay(options = [], disabled = false) {
     );
     options = fallback;
   }
+  const focusToken = captureFocus(overlay);
   clearElement(overlay);
   const disableOverlay = forceDisabled || !options?.length;
   overlay.classList.toggle("disabled", disableOverlay);
@@ -1646,15 +1659,18 @@ function renderBuildingOverlay(options = [], disabled = false) {
       if ((!hasLockedLocation && state.locationSelection.length !== 2) || diceLockedForBuild) return;
       document.querySelectorAll(".building-hit.selected").forEach((el) => el.classList.remove("selected"));
       div.classList.add("selected");
+      syncHitPressedState();
       handleBuildingChoice();
       renderSelectionDice();
     });
-    div.setAttribute(
-      "aria-label",
-      `${hit.code}${opt?.sourceLabel ? t("build.viaSource", { source: opt.sourceLabel }) : ""}`,
-    );
+    setControlState(div, {
+      label: `${t(`buildings.${hit.code}`)}${opt?.sourceLabel ? t("build.viaSource", { source: opt.sourceLabel }) : ""}`,
+      disabled: !div.classList.contains("available"),
+      pressed: div.classList.contains("selected"),
+    });
     overlay.appendChild(div);
   });
+  restoreFocus(overlay, focusToken);
   renderBuildingPicker();
 }
 
@@ -1745,6 +1761,7 @@ function clearMarketHighlights() {
 }
 
 function renderBoard() {
+  const focusToken = captureFocus(boardEl);
   clearElement(boardEl);
   // Dims other highlighted candidates while a plot/forfeit placement is pending
   // confirm (see #board.has-pending in styles.css); JS-managed rather than
@@ -1874,6 +1891,9 @@ function renderBoard() {
   });
   renderPopulationNodes();
   highlightLocations();
+  restoreFocus(boardEl, focusToken);
+  // The roving tab stop was chosen before focus came back; make the restored plot the tab stop.
+  if (focusToken) syncBoardA11y();
   renderTopTracks();
   updateActionBanner();
 }
@@ -2067,7 +2087,46 @@ function cancelPendingPlot() {
   updateActionBanner();
 }
 
+/**
+ * Syncs role/label/aria-disabled/roving tabindex on board cells from the classes
+ * highlightLocationsCore() just set (.highlight = candidate, .disabled = click no-op).
+ * Cells with neither class (e.g. before a location is chosen) stay enabled.
+ */
+function syncBoardA11y() {
+  if (!boardEl) return;
+  const cells = Array.from(boardEl.querySelectorAll(".cell"));
+  if (!cells.length) return;
+  const focused = cells.find((cell) => cell === document.activeElement);
+  const rovingCell = focused || cells.find((cell) => cell.classList.contains("highlight")) || cells[0];
+  cells.forEach((cell) => {
+    const r = Number(cell.dataset.row);
+    const c = Number(cell.dataset.col);
+    const data = state.board?.[r]?.[c] || {};
+    const pos = { row: r + 1, col: c + 1 };
+    let label;
+    if (data.forfeited) {
+      label = t("a11y.forfeitedPlot", pos);
+    } else if (data.building) {
+      const building = data.building === "G" ? guildPickLabel(data.buildingLabel) : t(`buildings.${data.building}`);
+      label = t("a11y.builtPlot", { ...pos, building });
+    } else {
+      label = t("a11y.emptyPlot", pos);
+    }
+    if (cell.classList.contains("highlight")) label += t("a11y.availableSuffix");
+    setControlState(cell, {
+      label,
+      disabled: cell.classList.contains("disabled"),
+      tabindex: cell === rovingCell ? 0 : -1,
+    });
+  });
+}
+
 function highlightLocations() {
+  highlightLocationsCore();
+  syncBoardA11y();
+}
+
+function highlightLocationsCore() {
   forEachCell((cell) => {
     cell.classList.remove("highlight", "disabled");
     const oct = cell.querySelector(".octagon");
@@ -3139,6 +3198,7 @@ function renderGuildOverlay(available = []) {
   // hover/focus; onclick below already no-ops while locked/unavailable.
   overlay.style.pointerEvents = "auto";
   overlay.classList.toggle("disabled", locked || !available.length);
+  const focusToken = captureFocus(overlay);
   clearElement(overlay);
   const availableSet = new Set(available);
   guildHitboxes.forEach((hit) => {
@@ -3171,6 +3231,7 @@ function renderGuildOverlay(available = []) {
       const oldType = state.selectedGuildType;
       document.querySelectorAll(".guild-hit.selected").forEach((el) => el.classList.remove("selected"));
       div.classList.add("selected");
+      syncHitPressedState();
       state.selectedGuildType = hit.code;
       if (oldType !== hit.code) {
         clearPendingPlot();
@@ -3179,9 +3240,14 @@ function renderGuildOverlay(available = []) {
       updateActionBanner();
       guideToStep("plot:G:" + hit.code, () => document.querySelector(".cell.highlight"));
     };
-    div.setAttribute("aria-label", hit.code);
+    setControlState(div, {
+      label: guildPickLabel(hit.code),
+      disabled: !div.classList.contains("available"),
+      pressed: div.classList.contains("selected"),
+    });
     overlay.appendChild(div);
   });
+  restoreFocus(overlay, focusToken);
   renderBuildingPicker();
 }
 
@@ -3475,6 +3541,7 @@ function maybeRollAfterLock() {
 
 function renderPopulationNodes() {
   const existingGrid = boardEl.querySelector(".pop-node-grid");
+  const focusToken = captureFocus(existingGrid);
   if (existingGrid) existingGrid.remove();
   const gridSource =
     state.activationMode && state.populationAvailable ? state.populationAvailable : state.populationNodes;
@@ -3583,10 +3650,23 @@ function renderPopulationNodes() {
         if (state.diceRolling) return;
         onPopulationNodeClick(r, c);
       };
+      const isCandidate = node.classList.contains("highlight");
+      // A square sits at the corner shared by plot rows r+1/r+2 and columns c+1/c+2. During
+      // activation, announce what is left of its population, as the pips show.
+      const squarePos = { row1: r + 1, row2: r + 2, col1: c + 1, col2: c + 2 };
+      const squareLabel =
+        state.activationMode && typeof availableVal === "number"
+          ? t("a11y.populationSquareRemaining", { ...squarePos, remaining: availableVal, count: originalVal })
+          : t("a11y.populationSquare", { ...squarePos, count: originalVal });
+      setControlState(node, {
+        label: squareLabel + (isCandidate ? t("a11y.availableSuffix") : ""),
+        disabled: !isCandidate,
+      });
       grid.appendChild(node);
     }
   }
   boardEl.appendChild(grid);
+  restoreFocus(grid, focusToken);
 }
 
 function renderSelectionDice(locationDice = [], buildDice = [], { forceBuildPreview = false, ignoreState = false } = {}) {
