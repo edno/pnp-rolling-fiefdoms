@@ -425,7 +425,7 @@ export function computeScore(board, populationNodes, workerAllocations = null, o
 
 // Count cells with the given building code that are currently active. Shared by computeScore's
 // housing calc and game-state.js's live recalcTracks so both agree on active-Barracks housing.
-export function activeBuildingCount(board, activation, code) {
+function activeBuildingCount(board, activation, code) {
   let count = 0;
   for (let r = 0; r < board.length; r++) {
     for (let c = 0; c < board[0].length; c++) {

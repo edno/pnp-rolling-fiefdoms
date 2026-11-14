@@ -49,7 +49,7 @@ function storedLocale() {
   return null;
 }
 
-export function detectLocale() {
+function detectLocale() {
   const stored = storedLocale();
   if (stored) return stored;
   const nav = (typeof navigator !== "undefined" && navigator.language) || DEFAULT_LOCALE;

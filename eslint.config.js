@@ -17,7 +17,7 @@ module.exports = [
     },
     rules: {
       ...js.configs.recommended.rules,
-      "no-unused-vars": ["warn", { args: "none", varsIgnorePattern: "^_" }],
+      "no-unused-vars": ["error", { args: "none", varsIgnorePattern: "^_" }],
       "no-console": "off",
     },
   },

@@ -1,5 +1,5 @@
-export const POPS_PER_INFLUENCE = 8;
-export const FIRST_INFLUENCE_MILESTONE = 9;
+const POPS_PER_INFLUENCE = 8;
+const FIRST_INFLUENCE_MILESTONE = 9;
 export const DICE_MIN_VALUE = 1;
 export const DICE_MAX_VALUE = 5;
 
@@ -15,7 +15,7 @@ export function isInfluenceMilestone(pipIndex = 0) {
   return (pipNumber - FIRST_INFLUENCE_MILESTONE) % POPS_PER_INFLUENCE === 0;
 }
 
-export function clampDieValue(value) {
+function clampDieValue(value) {
   if (typeof value !== "number") return value;
   if (Number.isNaN(value)) return value;
   return Math.max(DICE_MIN_VALUE, Math.min(DICE_MAX_VALUE, value));
@@ -29,7 +29,7 @@ export function isInfluenceEligibleDie(die) {
   return typeof die.resolved === "number";
 }
 
-export function influenceDeltaForDie(state, die) {
+function influenceDeltaForDie(state, die) {
   if (!die?.label || !state?.influenceAdjustments) return 0;
   const entry = state.influenceAdjustments[die.label];
   if (!entry || typeof entry.delta !== "number") return 0;

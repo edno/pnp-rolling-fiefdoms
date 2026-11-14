@@ -3121,13 +3121,7 @@ function nodesForCell(r, c) {
 }
 
 function beginPopulationPlacement(r, c, count) {
-  if (debugMode) {
-    console.log('[beginPopulationPlacement] Starting with count =', count, 'at', r, c);
-  }
   const result = startPopulationPlacement(state, [r, c], count, { nodesForCell });
-  if (debugMode) {
-    console.log('[beginPopulationPlacement] After startPopulationPlacement:', result, 'state.pendingPopulation =', state.pendingPopulation);
-  }
   if (!result.started) {
     if (result.message) log(result.message);
     autoAdvance();
@@ -3889,14 +3883,11 @@ function soloPairCanBeRescued(diceList = []) {
 // swap), a locale key naming the reason it's disabled-but-visible, or null when swap is fully
 // available. Centralizing this lets the button show a grey/disabled state with an explanatory
 // tooltip instead of just disappearing (see updateSwapButton()).
-let lastSwapDebugFingerprint = null;
-
 function soloSwapUnavailableReasonKey() {
   if (state.activeTurn || state.pestilence || state.activationMode) return "hidden";
   const choice = soloPairChoice();
   if (!choice.baseLocIdx || !choice.baseBuildIdx) return "hidden";
   if (!choice.swapAllowed) {
-    logSwapDebugTrace(choice, "html.swapUnavailableOnlyOnePairing", {});
     return "html.swapUnavailableOnlyOnePairing";
   }
 
@@ -3907,9 +3898,7 @@ function soloSwapUnavailableReasonKey() {
   const altCanBeRescued = !altValid && soloPairCanBeRescued(choice.baseBuildDice);
   const basePossible = baseValid || baseCanBeRescued;
   const altPossible = altValid || altCanBeRescued;
-  const details = { baseValid, altValid, baseCanBeRescued, altCanBeRescued };
   if (!basePossible && !altPossible) {
-    logSwapDebugTrace(choice, "html.swapUnavailableNoValidPairing", details);
     return "html.swapUnavailableNoValidPairing";
   }
 
@@ -3920,35 +3909,9 @@ function soloSwapUnavailableReasonKey() {
   // to the base pairing, and vice versa.
   const targetPossible = choice.swapped ? basePossible : altPossible;
   if (!targetPossible) {
-    logSwapDebugTrace(choice, "html.swapUnavailableNoValidLocationOnSwap", details);
     return "html.swapUnavailableNoValidLocationOnSwap";
   }
   return null;
-}
-
-// Diagnostic trace for the swap-button availability decision, logged to the console whenever
-// it computes "unavailable" - throttled so it only re-logs when the inputs actually change,
-// since this is re-evaluated on nearly every render. Intended to help track down reports of
-// the button appearing available/orange while this logic believes it's unavailable (or vice
-// versa) without a way to reproduce the exact dice/board state that triggered it.
-function logSwapDebugTrace(choice, reasonKey, details) {
-  if (!debugMode) return;
-  const fingerprint = JSON.stringify({
-    loc: choice.baseLocDice?.map((d) => [d.label, d.face, d.resolved]),
-    build: choice.baseBuildDice?.map((d) => [d.label, d.face, d.resolved]),
-    reasonKey,
-    influence: state.influence,
-    adjustments: state.influenceAdjustments,
-  });
-  if (fingerprint === lastSwapDebugFingerprint) return;
-  lastSwapDebugFingerprint = fingerprint;
-  console.debug("[swap-button]", reasonKey, {
-    baseLocDice: choice.baseLocDice,
-    baseBuildDice: choice.baseBuildDice,
-    influence: state.influence,
-    influenceAdjustments: state.influenceAdjustments,
-    ...details,
-  });
 }
 
 function soloSwapAvailable() {

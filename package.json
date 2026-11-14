@@ -5,7 +5,7 @@
   "license": "MIT",
   "description": "Rolling Fiefdoms (online version).",
   "scripts": {
-    "lint": "eslint . --ext .js",
+    "lint": "eslint .",
     "test": "npm run lint && vitest run",
     "serve": "node scripts/serve.js",
     "serve:dist": "node scripts/serve.js --dist",
