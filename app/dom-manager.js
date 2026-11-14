@@ -45,6 +45,7 @@ export const finishActivationBtn = document.getElementById("finishActivation");
 export const newGameBtn = document.getElementById("newGameBtn");
 export const swapPairBtn = document.getElementById("swapPairBtn");
 export const swapBtnWrap = document.querySelector(".swap-btn-wrap");
+export const undoBtn = document.getElementById("undoBtn");
 export const confirmPlotBtn = document.getElementById("confirmPlotBtn");
 export const cancelPlotBtn = document.getElementById("cancelPlotBtn");
 

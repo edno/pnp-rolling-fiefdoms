@@ -114,6 +114,7 @@ export default {
     splitAndBuild: "Pair & Build",
     swapTitle: "Click to swap dice pairs allocation",
     swapAriaLabel: "Swap location/build dice pairs",
+    undoAriaLabel: "Undo last placement",
     swapUnavailableOnlyOnePairing: "Swap unavailable: only one dice pairing is valid this turn.",
     swapUnavailableNoValidPairing: "Swap unavailable: neither dice pairing has a valid location.",
     swapUnavailableNoValidLocationOnSwap: "Swap unavailable: the other dice pairing has no valid location.",
@@ -196,6 +197,7 @@ export default {
   game: {
     started: "Game started.",
     resumed: "Game resumed.",
+    undone: "Last placement undone.",
     loadFailed: "Failed to load game. Please refresh.",
     boardFull: "Board full.",
     turnLimitReached: "Turn limit reached.",

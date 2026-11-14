@@ -39,7 +39,7 @@
     <title>Rolling Fiefdoms - Online Solo</title>
     <link rel="canonical" href="https://rolling-fiefdoms.edno.io/" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="modulepreload" href="app/app.js?v=v43" />
+    <link rel="modulepreload" href="app/app.js?v=v44" />
     <link rel="icon" type="image/png" href="assets/img/ink-splatter.png" />
     <script type="application/ld+json">
       {
@@ -78,8 +78,8 @@
         z-index: 999;
       }
     </style>
-    <link rel="stylesheet" href="assets/css/fonts.css?v=v43" />
-    <link rel="stylesheet" href="assets/css/styles.css?v=v43" />
+    <link rel="stylesheet" href="assets/css/fonts.css?v=v44" />
+    <link rel="stylesheet" href="assets/css/styles.css?v=v44" />
   </head>
   <body class="loading">
     <header>
@@ -275,6 +275,21 @@
                 data-i18n-attr="aria-label:html.swapAriaLabel"
               >
                 <img src="assets/img/swap.svg" alt="" class="swap-icon" />
+              </button>
+            </span>
+            <span class="undo-btn-wrap" style="display: none">
+              <button
+                id="undoBtn"
+                class="icon-btn"
+                type="button"
+                aria-label="Undo last placement"
+                title="Undo last placement"
+                data-i18n-attr="aria-label:html.undoAriaLabel;title:html.undoAriaLabel"
+              >
+                <svg class="undo-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M9 14 4 9l5-5" />
+                  <path d="M4 9h10a6 6 0 0 1 0 12h-3" />
+                </svg>
               </button>
             </span>
             <button id="finishActivation" style="display: none" data-i18n="html.finishActivation">
@@ -694,6 +709,6 @@
     </div>
 
     <script type="module" src="app/inline-init.js?v=v1"></script>
-    <script type="module" src="app/app.js?v=v43"></script>
+    <script type="module" src="app/app.js?v=v44"></script>
   </body>
 </html>

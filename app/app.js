@@ -100,6 +100,7 @@ import {
   newGameBtn,
   swapPairBtn,
   swapBtnWrap,
+  undoBtn,
   confirmPlotBtn,
   cancelPlotBtn,
   fullscreenBtn,
@@ -887,6 +888,18 @@ async function setupControls() {
   if (swapBtnWrap) {
     swapBtnWrap.style.display = "none";
   }
+  if (undoBtn) {
+    undoBtn.onclick = () => undoLastPlacement();
+    updateUndoButton();
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "z" && e.key !== "Z") return;
+    if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+    const tag = e.target?.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.target?.isContentEditable) return;
+    if ((challengePickerEl && !challengePickerEl.hidden) || (challengeInfoModal && !challengeInfoModal.hidden)) return;
+    if (undoLastPlacement()) e.preventDefault();
+  });
   if (confirmPlotBtn) {
     confirmPlotBtn.onclick = () => confirmPendingPlot();
     confirmPlotBtn.style.display = "none";
@@ -954,6 +967,7 @@ function rollDice() {
       log(t("turn.rollAlreadyUsed"));
       return;
     }
+    clearUndoStack();
   const n1 = rollNumberedDie("N1");
   const n2 = rollNumberedDie("N2");
   const x1 = rollXDie("X1");
@@ -2273,7 +2287,11 @@ function markAdvancedBuiltIfNeeded(code) {
   }
 }
 
-function placeBuilding(r, c, code) {
+function placeBuilding(...args) {
+  return withUndoPoint(() => placeBuildingImpl(...args));
+}
+
+function placeBuildingImpl(r, c, code) {
   const cell = state.board[r][c];
   if (cell.building || cell.forfeited) {
     log(t("build.cellOccupiedOrForfeited"));
@@ -2365,7 +2383,11 @@ function placeBuilding(r, c, code) {
   }
 }
 
-function handleSpringhouseTargeting(r, c) {
+function handleSpringhouseTargeting(...args) {
+  return withUndoPoint(() => handleSpringhouseTargetingImpl(...args));
+}
+
+function handleSpringhouseTargetingImpl(r, c) {
   const options = adjacentCells(state.board, r, c).filter(([rr, cc]) => {
     const target = state.board[rr][cc];
     if (!target.building || target.forfeited) return false;
@@ -2408,11 +2430,17 @@ function applySpringhouseBoost(target) {
 }
 
 function applySpringhouseTarget(target) {
-  state.pendingSpringhouseTarget = null;
-  applySpringhouseBoost(target);
+  withUndoPoint(() => {
+    state.pendingSpringhouseTarget = null;
+    applySpringhouseBoost(target);
+  });
 }
 
-function forfeitCell(r, c) {
+function forfeitCell(...args) {
+  return withUndoPoint(() => forfeitCellImpl(...args));
+}
+
+function forfeitCellImpl(r, c) {
   const cell = state.board[r][c];
   if (cell.building || cell.forfeited) {
     log(t("build.cellOccupiedOrForfeited"));
@@ -2584,6 +2612,7 @@ function finishActivation() {
   finishActivationState(state);
   const scoreResult = currentScore({ allowPopulationActivation: true });
   state.finalScore = scoreResult.total;
+  clearUndoStack();
   state.activationSelection = { pop: null };
   if (finishActivationBtn) finishActivationBtn.style.display = "none";
   if (newGameBtn) newGameBtn.style.display = "inline-block";
@@ -2652,7 +2681,11 @@ function showBarricadeAlert() {
 
 // Places the Social Contract forced center-plot building once chosen live on the board
 // (Townhall, or a Guild of the chosen subtype), clears the pending-choice gate, and logs it.
-function placeCenterBuilding(code, guildType) {
+function placeCenterBuilding(...args) {
+  return withUndoPoint(() => placeCenterBuildingImpl(...args));
+}
+
+function placeCenterBuildingImpl(code, guildType) {
   const centerRow = Math.floor(BOARD_SIZE / 2);
   const centerCol = Math.floor(BOARD_SIZE / 2);
   state.board[centerRow][centerCol] = { building: code, buildingLabel: guildType, forfeited: false, springBoost: 0 };
@@ -2682,9 +2715,77 @@ function handleCenterBuildingChoice(code) {
   }
 }
 
+// ---- Undo (in-memory only; never across a dice roll) ----
+const undoStack = [];
+let undoDepth = 0;
+
+function undoFingerprint() {
+  try {
+    return JSON.stringify([
+      state.board,
+      state.populationNodes,
+      state.barricadedNodes,
+      state.workerAllocations,
+      state.populationAvailable,
+    ]);
+  } catch {
+    return null;
+  }
+}
+
+// Runs a committing action; keeps a pre-action snapshot only if the game actually changed.
+// Nested calls (placeBuilding -> handleSpringhouseTargeting, confirmPendingPlot -> ...) share the outermost snapshot.
+function withUndoPoint(fn) {
+  if (undoDepth > 0) return fn();
+  let snapshot;
+  let before = null;
+  try {
+    snapshot = JSON.parse(JSON.stringify(state));
+    snapshot.diceRolling = false;
+    before = undoFingerprint();
+  } catch {
+    snapshot = null;
+  }
+  undoDepth++;
+  try {
+    return fn();
+  } finally {
+    undoDepth--;
+    if (snapshot && undoFingerprint() !== before) {
+      undoStack.push(snapshot);
+      updateUndoButton();
+    }
+  }
+}
+
+function clearUndoStack() {
+  undoStack.length = 0;
+  updateUndoButton();
+}
+
+function canUndo() {
+  return undoStack.length > 0 && !state.diceRolling && !rollingInProgress && state.finalScore == null;
+}
+
+function updateUndoButton() {
+  if (!undoBtn) return;
+  const show = canUndo();
+  (undoBtn.closest(".undo-btn-wrap") || undoBtn).style.display = show ? "inline-flex" : "none";
+}
+
+function undoLastPlacement() {
+  if (!canUndo()) return false;
+  const snapshot = undoStack.pop();
+  restoreStateAndRefresh(snapshot);
+  log(t("game.undone"));
+  updateUndoButton();
+  return true;
+}
+
 function newGame(challengeId = null) {
   hasStartedAnyGame = true;
   influenceUiDie = null;
+  clearUndoStack();
   hideChallengeOutcomeOverlay();
   clearTimeout(barricadeAlertTimeout);
   if (barricadeAlertOverlay) barricadeAlertOverlay.hidden = true;
@@ -2711,7 +2812,15 @@ function newGame(challengeId = null) {
 function resumeGame(saved) {
   if (!saved) return;
   hasStartedAnyGame = true;
+  clearUndoStack();
+  restoreStateAndRefresh(saved);
+  log(t("game.resumed"));
+}
+
+// Replaces the live state with `saved` and refreshes the whole UI (shared by resume and undo).
+function restoreStateAndRefresh(saved) {
   influenceUiDie = null;
+  lastGuidedStep = null;
   hideChallengeOutcomeOverlay();
   clearTimeout(barricadeAlertTimeout);
   if (barricadeAlertOverlay) barricadeAlertOverlay.hidden = true;
@@ -2753,7 +2862,6 @@ function resumeGame(saved) {
   updateActiveChallengeBadge();
   updateUnrestBadge();
   updateActionBanner();
-  log(t("game.resumed"));
 }
 
 let pickedChallengeId = null;
@@ -3311,7 +3419,11 @@ function beginPopulationPlacement(r, c, count) {
   }
 }
 
-function onPopulationNodeClick(nr, nc) {
+function onPopulationNodeClick(...args) {
+  return withUndoPoint(() => onPopulationNodeClickImpl(...args));
+}
+
+function onPopulationNodeClickImpl(nr, nc) {
   if (state.pendingBarricade?.active) {
     const result = chooseBarricadeNode(state, nr, nc);
     if (result.message) log(result.message);
@@ -3360,7 +3472,11 @@ function onPopulationNodeClick(nr, nc) {
  * Actual population placement commit, shared by the direct (mouse) click
  * path and confirmPendingPlot() on coarse-pointer devices.
  */
-function doPlacePopulationNode(nr, nc) {
+function doPlacePopulationNode(...args) {
+  return withUndoPoint(() => doPlacePopulationNodeImpl(...args));
+}
+
+function doPlacePopulationNodeImpl(nr, nc) {
   const result = placePopulationNode(state, nr, nc, {
     nodesForCell,
     allocatePopulationToNode,
@@ -3441,6 +3557,7 @@ function syncActionBarState() {
 }
 
 function updateSwapButton() {
+  updateUndoButton();
   if (swapPairBtn && swapBtnWrap) {
     const reasonKey = soloSwapUnavailableReasonKey(state);
     const hidden = reasonKey === "hidden";
@@ -4221,7 +4338,11 @@ function advanceTurnTrack() {
   renderTurnTrack(state.turnTrack);
 }
 
-function allocateWorkersFromPop(popSel, buildingSel) {
+function allocateWorkersFromPop(...args) {
+  return withUndoPoint(() => allocateWorkersFromPopImpl(...args));
+}
+
+function allocateWorkersFromPopImpl(popSel, buildingSel) {
   const result = allocateWorker(state, popSel, buildingSel, {
     nodesForCell,
     buildingRules: BUILDING_RULES,
@@ -4283,6 +4404,8 @@ function autoForfeitUnfillable(finalize = false) {
       rollDice,
       newGame,
       resumeGame,
+      undoLastPlacement,
+      undoStackLength: () => undoStack.length,
       persistGame,
       log,
       updateActionBanner,

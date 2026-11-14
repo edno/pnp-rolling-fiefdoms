@@ -115,6 +115,7 @@ export default {
     splitAndBuild: "Grouper et construire",
     swapTitle: "Cliquez pour échanger l'attribution des paires de dés",
     swapAriaLabel: "Échanger les paires de dés coordonnées/construction",
+    undoAriaLabel: "Annuler le dernier placement",
     swapUnavailableOnlyOnePairing: "Échange indisponible\u00a0: une seule répartition des dés est valide ce tour-ci.",
     swapUnavailableNoValidPairing: "Échange indisponible\u00a0: aucune des deux répartitions n'a d'emplacement valide.",
     swapUnavailableNoValidLocationOnSwap: "Échange indisponible\u00a0: l'autre répartition des dés n'a pas d'emplacement valide.",
@@ -197,6 +198,7 @@ export default {
   game: {
     started: "Partie commencée.",
     resumed: "Partie reprise.",
+    undone: "Dernier placement annulé.",
     loadFailed: "Échec du chargement de la partie. Veuillez actualiser.",
     boardFull: "Plateau complet.",
     turnLimitReached: "Limite de tours atteinte.",

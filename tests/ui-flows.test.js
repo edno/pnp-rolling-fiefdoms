@@ -46,6 +46,7 @@ const baseHtml = `
     <div id="actionBanner"></div>
     <div class="action-bar-controls">
       <button id="rollBtn"></button>
+      <span class="undo-btn-wrap" style="display: none"><button id="undoBtn"></button></span>
       <button id="finishActivation"></button>
     </div>
     <div class="action-bar-aux" id="actionBarAux">
@@ -2219,5 +2220,130 @@ describe("challenge picker modal focus (jsdom)", () => {
     expect(picker.hidden).toBe(true);
     expect(document.activeElement).toBe(opener);
     expect(document.body.querySelector("[inert]")).toBeNull();
+  });
+});
+
+describe("undo last placement (jsdom)", () => {
+  const undoWrap = () => document.querySelector(".undo-btn-wrap");
+
+  async function setupPlaceable() {
+    await setupApp({ enableHooks: true });
+    const hooks = window.__rfTestHooks;
+    hooks.newGame();
+    const { state } = hooks;
+    state.dice = [
+      { label: "N1", face: 1, resolved: 1 },
+      { label: "N2", face: 2, resolved: 2 },
+      { label: "X1", face: 2, resolved: 2 },
+      { label: "X2", face: 3, resolved: 3 },
+    ];
+    state.buildDice = [
+      { label: "X1", face: 2, resolved: 2 },
+      { label: "X2", face: 3, resolved: 3 },
+    ];
+    state.rollAvailable = false;
+    state.locationSelection = [0, 1];
+    hooks.updateDiceAssignments();
+    await flushMicrotasks();
+    state.buildChoice = { code: "F", source: "die1", popGain: 3 };
+    return hooks;
+  }
+
+  it("undoes a building: empty plot, same dice and choice, log line swapped", async () => {
+    const hooks = await setupPlaceable();
+    const { state } = hooks;
+    const diceBefore = JSON.stringify(state.dice);
+    const choiceBefore = JSON.stringify(state.buildChoice);
+    const selBefore = JSON.stringify(state.locationSelection);
+    hooks.placeBuilding(0, 0, "F");
+    expect(state.board[0][0].building).toBe("F");
+    expect(hooks.undoStackLength()).toBe(1);
+    expect(hooks.undoLastPlacement()).toBe(true);
+    expect(state.board[0][0].building).toBeFalsy();
+    expect(JSON.stringify(state.dice)).toBe(diceBefore);
+    expect(JSON.stringify(state.buildChoice)).toBe(choiceBefore);
+    expect(JSON.stringify(state.locationSelection)).toBe(selBefore);
+    expect(latestLogs()[0]).toBe("Last placement undone.");
+    expect(latestLogs().some((m) => m.includes("Farm") || /placed/i.test(m))).toBe(false);
+  });
+
+  it("steps back through building then population", async () => {
+    const hooks = await setupPlaceable();
+    const { state } = hooks;
+    hooks.placeBuilding(0, 0, "F");
+    expect(hooks.undoStackLength()).toBe(1);
+    hooks.onPopulationNodeClick(0, 0);
+    expect(hooks.undoStackLength()).toBe(2);
+    hooks.undoLastPlacement();
+    expect(state.board[0][0].building).toBe("F");
+    expect(state.pendingPopulation?.remaining).toBe(3);
+    hooks.undoLastPlacement();
+    expect(state.board[0][0].building).toBeFalsy();
+    expect(hooks.undoStackLength()).toBe(0);
+  });
+
+  it("is unavailable before a placement and a roll clears the stack", async () => {
+    const hooks = await setupPlaceable();
+    expect(hooks.undoLastPlacement()).toBe(false);
+    expect(undoWrap().style.display).toBe("none");
+    hooks.placeBuilding(0, 0, "F");
+    expect(undoWrap().style.display).not.toBe("none");
+    hooks.state.rollAvailable = true;
+    hooks.state.pendingPopulation = null;
+    hooks.rollDice();
+    await flushMicrotasks();
+    expect(hooks.undoStackLength()).toBe(0);
+    expect(hooks.undoLastPlacement()).toBe(false);
+    expect(undoWrap().style.display).toBe("none");
+  });
+
+  it("clears the stack on newGame and resumeGame", async () => {
+    const hooks = await setupPlaceable();
+    hooks.placeBuilding(0, 0, "F");
+    const saved = JSON.parse(window.localStorage.getItem("rf-game-v1")).state;
+    hooks.resumeGame(saved);
+    expect(hooks.undoStackLength()).toBe(0);
+    hooks.state.buildChoice = { code: "F", source: "die1", popGain: 3 };
+    hooks.placeBuilding(1, 1, "F");
+    expect(hooks.undoStackLength()).toBe(1);
+    hooks.newGame();
+    expect(hooks.undoStackLength()).toBe(0);
+  });
+
+  it("undoes a forfeit", async () => {
+    const hooks = await setupPlaceable();
+    hooks.forfeitCell(2, 2);
+    expect(hooks.state.board[2][2].forfeited).toBe(true);
+    expect(hooks.undoStackLength()).toBe(1);
+    hooks.undoLastPlacement();
+    expect(hooks.state.board[2][2].forfeited).toBeFalsy();
+  });
+
+  it("is a no-op once the game is over", async () => {
+    const hooks = await setupPlaceable();
+    hooks.placeBuilding(0, 0, "F");
+    hooks.state.finalScore = 10;
+    expect(hooks.undoLastPlacement()).toBe(false);
+    expect(hooks.state.board[0][0].building).toBe("F");
+  });
+
+  it("handles Ctrl+Z but ignores it inside the fiefdom input", async () => {
+    const hooks = await setupPlaceable();
+    hooks.placeBuilding(0, 0, "F");
+    const input = document.getElementById("fiefdomInput");
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true }));
+    expect(hooks.state.board[0][0].building).toBe("F");
+    const ev = new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true });
+    document.body.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(true);
+    expect(hooks.state.board[0][0].building).toBeFalsy();
+  });
+
+  it("persists the restored state after an undo", async () => {
+    const hooks = await setupPlaceable();
+    hooks.placeBuilding(0, 0, "F");
+    hooks.undoLastPlacement();
+    const saved = JSON.parse(window.localStorage.getItem("rf-game-v1"));
+    expect(saved.state.board[0][0].building).toBeFalsy();
   });
 });
