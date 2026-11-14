@@ -10,6 +10,8 @@ import {
   filterAvailablePairs,
   computePestilenceInfo,
   restrictBuildOptionsForBoard,
+  shouldRerollDoubleWindrose,
+  adjacentCells,
   allocatePopulationToNode,
   availableLocationPairs,
   BUILDING_RULES,
@@ -1118,5 +1120,52 @@ describe("Piscary (Challenge VIII: Edge of the World)", () => {
     workers[1][1] = 4;
     const result = computeScore(board, emptyPop(), workers, { buildingOverrides: { W: "P" } });
     expect(result.breakdown["guilds-gw"]).toBe(15);
+  });
+});
+
+describe("shouldRerollDoubleWindrose", () => {
+  const die = (label, face) => ({ label, face, resolved: face });
+
+  it("is true only when exactly two N dice both show windrose in a 4-dice roll", () => {
+    expect(
+      shouldRerollDoubleWindrose([die("N1", "windrose"), die("N2", "windrose"), die("X1", 3), die("X2", 4)]),
+    ).toBe(true);
+  });
+
+  it("is false with fewer than four dice", () => {
+    expect(shouldRerollDoubleWindrose([die("N1", "windrose"), die("N2", "windrose"), die("X1", 3)])).toBe(false);
+  });
+
+  it("is false when only one of the N dice shows windrose", () => {
+    expect(
+      shouldRerollDoubleWindrose([die("N1", "windrose"), die("N2", 3), die("X1", "windrose"), die("X2", 4)]),
+    ).toBe(false);
+  });
+
+  it("is false for a non-array input", () => {
+    expect(shouldRerollDoubleWindrose(null)).toBe(false);
+    expect(shouldRerollDoubleWindrose("windrose")).toBe(false);
+  });
+});
+
+describe("adjacentCells", () => {
+  const board = Array.from({ length: 5 }, () => Array(5).fill(null));
+
+  it("returns two cells for a corner", () => {
+    expect(adjacentCells(board, 0, 0)).toEqual([[1, 0], [0, 1]]);
+  });
+
+  it("returns three cells for an edge", () => {
+    expect(adjacentCells(board, 0, 2)).toHaveLength(3);
+  });
+
+  it("returns four cells for the centre", () => {
+    expect(adjacentCells(board, 2, 2)).toHaveLength(4);
+  });
+
+  it("is cardinal only (no diagonal neighbours)", () => {
+    const cells = adjacentCells(board, 2, 2);
+    expect(cells).toEqual(expect.arrayContaining([[1, 2], [3, 2], [2, 1], [2, 3]]));
+    expect(cells).not.toContainEqual([1, 1]);
   });
 });
