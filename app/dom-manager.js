@@ -117,14 +117,3 @@ export function createOctagon() {
 export function clearElement(element) {
   if (element) element.innerHTML = "";
 }
-
-/**
- * Debug logging helper (logs only in debug mode)
- * @param {boolean} debugMode - Whether debug mode is enabled
- * @param  {...any} args - Arguments to log
- */
-export function debugLog(debugMode, ...args) {
-  if (debugMode && typeof console !== "undefined") {
-    console.log(...args);
-  }
-}

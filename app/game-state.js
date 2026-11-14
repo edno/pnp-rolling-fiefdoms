@@ -597,7 +597,7 @@ export function turnLimitReached(state) {
   return typeof state.turnLimit === "number" && state.turnIndex >= state.turnLimit;
 }
 
-export function evaluateAutoAdvance(state, board) {
+function evaluateAutoAdvance(state, board) {
   if (state.pendingPopulation?.remaining > 0 || state.pendingBarricade?.active) return "wait";
   if (boardFull(board) || turnLimitReached(state)) return "activate";
   if (state.diceLocked) return "wait";
