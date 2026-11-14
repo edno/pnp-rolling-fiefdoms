@@ -1545,6 +1545,7 @@ function enforceBuildingSelection(options = []) {
   const selected = document.querySelector(".building-hit.selected");
   if (selected && !optionCodes.has(selected.dataset.code)) {
     selected.classList.remove("selected");
+    syncHitPressedState();
   }
   if (state.buildChoice && !optionCodes.has(state.buildChoice.code)) {
     state.buildChoice = null;
@@ -1573,6 +1574,14 @@ function activeBuildingHitboxes() {
     hidden.add(overrides[base] === swapped ? base : swapped);
   });
   return buildingHitboxes.filter((hit) => !hidden.has(hit.code));
+}
+
+// Keeps aria-pressed on the sheet hitboxes in step with their .selected class when a
+// click handler changes the selection without a full overlay re-render.
+function syncHitPressedState() {
+  document.querySelectorAll(".building-hit, .guild-hit").forEach((el) => {
+    el.setAttribute("aria-pressed", el.classList.contains("selected") ? "true" : "false");
+  });
 }
 
 function renderBuildingOverlay(options = [], disabled = false) {
@@ -1650,6 +1659,7 @@ function renderBuildingOverlay(options = [], disabled = false) {
       if ((!hasLockedLocation && state.locationSelection.length !== 2) || diceLockedForBuild) return;
       document.querySelectorAll(".building-hit.selected").forEach((el) => el.classList.remove("selected"));
       div.classList.add("selected");
+      syncHitPressedState();
       handleBuildingChoice();
       renderSelectionDice();
     });
@@ -3219,6 +3229,7 @@ function renderGuildOverlay(available = []) {
       const oldType = state.selectedGuildType;
       document.querySelectorAll(".guild-hit.selected").forEach((el) => el.classList.remove("selected"));
       div.classList.add("selected");
+      syncHitPressedState();
       state.selectedGuildType = hit.code;
       if (oldType !== hit.code) {
         clearPendingPlot();

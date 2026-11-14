@@ -2130,6 +2130,8 @@ describe("keyboard and screen-reader support (jsdom)", () => {
       await flushMicrotasks();
       const code = hit.dataset.code;
       expect(hooks.state.buildChoice?.code).toBe(code);
+      expect(document.querySelector(".building-hit.selected")?.getAttribute("aria-pressed")).toBe("true");
+      expect(document.querySelectorAll('.building-hit[aria-pressed="true"]').length).toBe(1);
       const cell = document.querySelector('.cell[data-row="0"][data-col="1"]');
       expect(cell.getAttribute("aria-label")).toMatch(/available/);
       pressEnter(cell);
