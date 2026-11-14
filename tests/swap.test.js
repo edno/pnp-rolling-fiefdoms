@@ -123,4 +123,56 @@ describe("soloSwapUnavailableReasonKey", () => {
     state.dice = fourDice();
     expect(soloSwapUnavailableReasonKey(state)).toBeNull();
   });
+
+  // Base pairing = N1/N2 (3,4) -> plots (row 3, col 4) / (row 4, col 3); alt pairing = N3/N4
+  // (2,5) -> plots (row 2, col 5) / (row 5, col 2).
+  const emptyBoard = () =>
+    Array.from({ length: 5 }, () =>
+      Array.from({ length: 5 }, () => ({ building: null, forfeited: false, springBoost: 0 })),
+    );
+  const block = (board, cells) => cells.forEach(([r, c]) => { board[r][c].building = "C"; });
+  const BASE_PLOTS = [[2, 3], [3, 2]];
+  const ALT_PLOTS = [[1, 4], [4, 1]];
+  const soloState = ({ blocked = [], nonActiveSwap = false, influenceEarned = 0 } = {}) => {
+    const state = createState();
+    state.activeTurn = false;
+    state.board = emptyBoard();
+    block(state.board, blocked);
+    state.dice = fourDice();
+    state.nonActiveSwap = nonActiveSwap;
+    state.influence = { earned: influenceEarned, spent: 0, pending: 0 };
+    return state;
+  };
+
+  it("allows swapping away from a blocked base pairing to the viable alt pairing", () => {
+    const state = soloState({ blocked: BASE_PLOTS, nonActiveSwap: false });
+    expect(soloSwapUnavailableReasonKey(state)).toBeNull();
+  });
+
+  it("refuses to swap from the viable alt pairing back to a blocked base pairing", () => {
+    const state = soloState({ blocked: BASE_PLOTS, nonActiveSwap: true });
+    expect(soloSwapUnavailableReasonKey(state)).toBe("html.swapUnavailableNoValidLocationOnSwap");
+  });
+
+  it("refuses to swap from the viable base pairing to a blocked alt pairing", () => {
+    const state = soloState({ blocked: ALT_PLOTS, nonActiveSwap: false });
+    expect(soloSwapUnavailableReasonKey(state)).toBe("html.swapUnavailableNoValidLocationOnSwap");
+  });
+
+  it("allows swapping back from a blocked alt pairing to the viable base pairing", () => {
+    const state = soloState({ blocked: ALT_PLOTS, nonActiveSwap: true });
+    expect(soloSwapUnavailableReasonKey(state)).toBeNull();
+  });
+
+  it("reports no valid pairing when both are blocked and there is no influence", () => {
+    const state = soloState({ blocked: [...BASE_PLOTS, ...ALT_PLOTS] });
+    expect(soloSwapUnavailableReasonKey(state)).toBe("html.swapUnavailableNoValidPairing");
+  });
+
+  it("treats a blocked target pairing as viable when influence can rescue it", () => {
+    // Swapping back to the blocked base pairing: 1 influence can nudge a die (e.g. 3 -> 2)
+    // onto an open plot, so the swap stays available.
+    const state = soloState({ blocked: BASE_PLOTS, nonActiveSwap: true, influenceEarned: 1 });
+    expect(soloSwapUnavailableReasonKey(state)).toBeNull();
+  });
 });
