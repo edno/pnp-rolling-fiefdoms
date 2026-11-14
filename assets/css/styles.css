@@ -898,7 +898,8 @@ main {
    must not get the octagon ring (see .population-node.cell-pending below). */
 .cell.highlight::after,
 .cell.cell-pending::after,
-.cell.selected-building::after {
+.cell.selected-building::after,
+.cell:focus-visible::before {
   content: "";
   position: absolute;
   inset: var(--ring-inset, 0);
@@ -924,6 +925,20 @@ main {
     calc(50% - var(--o) - var(--y)) var(--x),
     calc(50% + var(--o) + var(--y)) var(--x)
   );
+}
+
+/* Keyboard focus on a plot: the same octagon ring shape instead of the generic
+   square outline, in ink and drawn just outside the state ring (on ::before, so
+   a focused plot can still show its highlight/pending/selected ring on ::after). */
+.cell:focus-visible {
+  outline: none;
+}
+
+.cell:focus-visible::before {
+  --ring-color: var(--ink);
+  --ring-b: 3px;
+  --ring-inset: -4px;
+  z-index: 1;
 }
 
 .cell.disabled {
