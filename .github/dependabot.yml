@@ -9,3 +9,9 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+    # Wait until a release is at least a week old before proposing it, so merged
+    # bumps are installable under local minimum-package-age policies and freshly
+    # published (possibly compromised) versions are skipped. Security updates are
+    # not delayed by this setting.
+    cooldown:
+      default-days: 7
