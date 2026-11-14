@@ -1,6 +1,14 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from "vitest";
-import { setControlState, initKeyboardActivation, captureFocus, restoreFocus, moveGridFocus } from "../app/a11y.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  setControlState,
+  initKeyboardActivation,
+  captureFocus,
+  restoreFocus,
+  moveGridFocus,
+  openModal,
+  closeModal,
+} from "../app/a11y.js";
 
 function key(target, k) {
   const e = new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true });
@@ -139,5 +147,185 @@ describe("moveGridFocus", () => {
     send("ArrowDown");
     expect(document.activeElement).toBe(at(1, 1));
     expect(send("Enter")).toBe(false);
+  });
+});
+
+describe("openModal / closeModal", () => {
+  function buildPage() {
+    document.body.innerHTML = `
+      <main id="page"><button id="behind">behind</button></main>
+      <div id="modalA" class="modal-overlay">
+        <div class="modal-dialog" role="dialog" aria-modal="true">
+          <button id="a1">first</button>
+          <button id="a2" hidden>hidden</button>
+          <button id="a3">last</button>
+        </div>
+      </div>
+      <div id="modalB" class="modal-overlay">
+        <div class="modal-dialog" role="dialog" aria-modal="true">
+          <p>no controls</p>
+        </div>
+      </div>
+    `;
+    return {
+      page: document.getElementById("page"),
+      behind: document.getElementById("behind"),
+      overlayA: document.getElementById("modalA"),
+      overlayB: document.getElementById("modalB"),
+    };
+  }
+
+  function press(target, k, shiftKey = false) {
+    const e = new KeyboardEvent("keydown", { key: k, shiftKey, bubbles: true, cancelable: true });
+    target.dispatchEvent(e);
+    return e;
+  }
+
+  afterEach(() => {
+    closeModal(document.getElementById("modalA"));
+    closeModal(document.getElementById("modalB"));
+    document.body.innerHTML = "";
+  });
+
+  it("leaves controls hidden by a stylesheet out of the Tab wrap", () => {
+    const { overlayA } = buildPage();
+    const style = document.createElement("style");
+    style.textContent = "#a3 { display: none; } .gone { display: none; }";
+    document.head.appendChild(style);
+    const wrapper = document.createElement("div");
+    wrapper.className = "gone";
+    wrapper.innerHTML = '<button id="a4">inside a hidden wrapper</button>';
+    overlayA.querySelector(".modal-dialog").appendChild(wrapper);
+    try {
+      openModal(overlayA);
+      const a1 = document.getElementById("a1");
+      // a1 is now the only visible control: both directions wrap onto it.
+      expect(document.activeElement).toBe(a1);
+      expect(press(a1, "Tab").defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(a1);
+      expect(press(a1, "Tab", true).defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(a1);
+    } finally {
+      style.remove();
+    }
+  });
+
+  it("wraps from the non-tabbable dialog container that holds the initial focus", () => {
+    const { overlayA } = buildPage();
+    const dialog = overlayA.querySelector(".modal-dialog");
+    dialog.setAttribute("tabindex", "-1");
+    openModal(overlayA, { initialFocus: dialog });
+    expect(document.activeElement).toBe(dialog);
+    expect(press(dialog, "Tab", true).defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(document.getElementById("a3"));
+    dialog.focus();
+    expect(press(dialog, "Tab").defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(document.getElementById("a1"));
+  });
+
+  it("keeps only the topmost of two nested dialogs interactive", () => {
+    const { page, overlayA, overlayB } = buildPage();
+    openModal(overlayA);
+    expect(overlayB.hasAttribute("inert")).toBe(true);
+    openModal(overlayB);
+    expect(overlayB.hasAttribute("inert")).toBe(false);
+    expect(overlayA.hasAttribute("inert")).toBe(true);
+    expect(page.hasAttribute("inert")).toBe(true);
+    closeModal(overlayB);
+    expect(overlayA.hasAttribute("inert")).toBe(false);
+    expect(overlayB.hasAttribute("inert")).toBe(true);
+    expect(page.hasAttribute("inert")).toBe(true);
+    closeModal(overlayA);
+    expect(overlayB.hasAttribute("inert")).toBe(false);
+    expect(page.hasAttribute("inert")).toBe(false);
+  });
+
+  it("makes the other body children inert but not the overlay itself", () => {
+    const { page, overlayA } = buildPage();
+    openModal(overlayA);
+    expect(page.hasAttribute("inert")).toBe(true);
+    expect(overlayA.hasAttribute("inert")).toBe(false);
+  });
+
+  it("leaves a pre-existing inert alone on close", () => {
+    const { page, overlayA } = buildPage();
+    page.setAttribute("inert", "");
+    openModal(overlayA);
+    closeModal(overlayA);
+    expect(page.hasAttribute("inert")).toBe(true);
+  });
+
+  it("focuses initialFocus when given and connected", () => {
+    const { overlayA } = buildPage();
+    const target = document.getElementById("a3");
+    openModal(overlayA, { initialFocus: target });
+    expect(document.activeElement).toBe(target);
+  });
+
+  it("focuses the first focusable element, skipping hidden ones", () => {
+    const { overlayA } = buildPage();
+    openModal(overlayA);
+    expect(document.activeElement.id).toBe("a1");
+  });
+
+  it("falls back to the dialog when nothing inside is focusable", () => {
+    const { overlayB } = buildPage();
+    openModal(overlayB);
+    const dialog = overlayB.querySelector(".modal-dialog");
+    expect(document.activeElement).toBe(dialog);
+    expect(dialog.getAttribute("tabindex")).toBe("-1");
+  });
+
+  it("wraps Tab from the last focusable element to the first", () => {
+    const { overlayA } = buildPage();
+    openModal(overlayA);
+    document.getElementById("a3").focus();
+    const e = press(document.getElementById("a3"), "Tab");
+    expect(e.defaultPrevented).toBe(true);
+    expect(document.activeElement.id).toBe("a1");
+  });
+
+  it("wraps Shift+Tab from the first focusable element to the last", () => {
+    const { overlayA } = buildPage();
+    openModal(overlayA);
+    const e = press(document.getElementById("a1"), "Tab", true);
+    expect(e.defaultPrevented).toBe(true);
+    expect(document.activeElement.id).toBe("a3");
+  });
+
+  it("removes inert and returns focus to the previously focused element on close", () => {
+    const { page, behind, overlayA } = buildPage();
+    behind.focus();
+    openModal(overlayA);
+    expect(document.activeElement.id).toBe("a1");
+    closeModal(overlayA);
+    expect(page.hasAttribute("inert")).toBe(false);
+    expect(document.activeElement).toBe(behind);
+  });
+
+  it("restores nested modals in reverse order", () => {
+    const { page, behind, overlayA, overlayB } = buildPage();
+    behind.focus();
+    openModal(overlayA);
+    openModal(overlayB);
+    expect(overlayA.hasAttribute("inert")).toBe(true);
+    closeModal(overlayB);
+    expect(overlayA.hasAttribute("inert")).toBe(false);
+    expect(page.hasAttribute("inert")).toBe(true);
+    expect(document.activeElement.id).toBe("a1");
+    closeModal(overlayA);
+    expect(page.hasAttribute("inert")).toBe(false);
+    expect(document.activeElement).toBe(behind);
+  });
+
+  it("is a no-op when the same overlay is opened twice", () => {
+    const { behind, overlayA } = buildPage();
+    behind.focus();
+    openModal(overlayA);
+    document.getElementById("a3").focus();
+    openModal(overlayA);
+    expect(document.activeElement.id).toBe("a3");
+    closeModal(overlayA);
+    expect(document.activeElement).toBe(behind);
   });
 });

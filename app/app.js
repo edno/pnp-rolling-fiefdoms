@@ -179,7 +179,7 @@ import { CHALLENGES, CHALLENGE_ORDER } from "./challenges.js";
 import { initSheetWindows } from "./sheet-layout.js";
 import { onMouseHover } from "./hover.js";
 import { initPopovers, setPopover } from "./popover.js";
-import { setControlState, initKeyboardActivation, captureFocus, restoreFocus, moveGridFocus } from "./a11y.js";
+import { setControlState, initKeyboardActivation, captureFocus, restoreFocus, moveGridFocus, openModal, closeModal } from "./a11y.js";
 import { updateScrollCue } from "./scroll-cue.js";
 import { buildingTooltip, renderBuildingTooltip } from "./building-info.js";
 import { popHousingTooltip, renderPopHousingTooltip } from "./pop-housing-info.js";
@@ -2797,6 +2797,9 @@ function setupChallengePicker() {
     else if (e.key === "ArrowLeft") scrollChallengeCarousel(-1);
     else if (e.key === "Escape" && hasStartedAnyGame) closeChallengePicker();
   });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && challengeInfoModal && !challengeInfoModal.hidden) closeChallengeInfoModal();
+  });
   if (challengeOutcomeOverlay) {
     challengeOutcomeOverlay.onclick = (e) => {
       if (e.target === challengeOutcomeOverlay) hideChallengeOutcomeOverlay();
@@ -2840,10 +2843,13 @@ function openChallengeInfoModal() {
     appendChallengeCardSection(challengeInfoSetup, "challenges.picker.setupLabel", challenge.setupKeys);
   }
   challengeInfoModal.hidden = false;
+  openModal(challengeInfoModal, { initialFocus: challengeInfoCloseBtn });
 }
 
 function closeChallengeInfoModal() {
-  if (challengeInfoModal) challengeInfoModal.hidden = true;
+  if (!challengeInfoModal) return;
+  challengeInfoModal.hidden = true;
+  closeModal(challengeInfoModal);
 }
 
 function updateActiveChallengeBadge() {
@@ -2967,6 +2973,10 @@ function openChallengePicker() {
   if (challengeCancelBtn) challengeCancelBtn.style.display = hasStartedAnyGame ? "inline-block" : "none";
   challengePickerEl.hidden = false;
   const dialog = challengePickerEl.querySelector(".modal-dialog");
+  // Focus the dialog itself rather than a card: the picker opens on page load, and a
+  // programmatic focus on a card would draw a focus ring there for every visitor.
+  if (dialog && !dialog.hasAttribute("tabindex")) dialog.setAttribute("tabindex", "-1");
+  openModal(challengePickerEl, { initialFocus: dialog });
   if (dialog) {
     updateScrollCue(dialog);
     if (!dialog.dataset.scrollCueBound) {
@@ -2988,7 +2998,9 @@ function openChallengePicker() {
 }
 
 function closeChallengePicker() {
-  if (challengePickerEl) challengePickerEl.hidden = true;
+  if (!challengePickerEl) return;
+  challengePickerEl.hidden = true;
+  closeModal(challengePickerEl);
 }
 
 const UPCOMING_CHALLENGES = [];
@@ -3075,6 +3087,10 @@ function renderChallengeCarouselDots(count) {
 
 function renderChallengeCards() {
   cachedCarouselCardStep = null;
+  // Rebuilding the cards removes the focused one; remember its position to refocus it below.
+  const focusedCardIndex = challengeCardsEl.contains(document.activeElement)
+    ? Array.from(challengeCardsEl.children).indexOf(document.activeElement)
+    : -1;
   clearElement(challengeCardsEl);
   const entries = [
     { id: null, nameKey: "challenges.picker.normalGameName", descKey: "challenges.picker.normalGameDescription" },
@@ -3122,6 +3138,9 @@ function renderChallengeCards() {
   UPCOMING_CHALLENGES.forEach((entry) => {
     appendChallengePlaceholderCard(t(entry.nameKey), t(entry.descKey), entry.difficulty);
   });
+  if (focusedCardIndex !== -1 && !challengePickerEl?.hidden) {
+    challengeCardsEl.children[focusedCardIndex]?.focus?.({ preventScroll: true });
+  }
   renderChallengeCarouselDots(challengeCardsEl.children.length);
   challengeCardsEl.querySelectorAll(".challenge-card").forEach((card) => updateScrollCue(card));
   if (!window.__rfChallengeCardResizeBound) {
