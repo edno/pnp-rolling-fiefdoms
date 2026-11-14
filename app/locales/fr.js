@@ -196,6 +196,7 @@ export default {
   },
   game: {
     started: "Partie commencée.",
+    resumed: "Partie reprise.",
     loadFailed: "Échec du chargement de la partie. Veuillez actualiser.",
     boardFull: "Plateau complet.",
     turnLimitReached: "Limite de tours atteinte.",

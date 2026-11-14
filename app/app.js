@@ -35,6 +35,7 @@ import {
   soloSwapAvailable,
 } from "./swap.js";
 import { createState, resetTurnState, lockDiceSnapshot } from "./state-controller.js";
+import { saveGame, loadGame, clearSavedGame } from "./persistence.js";
 import {
   beginTurn,
   tallyUnrestAndCheckBarricade,
@@ -582,7 +583,21 @@ async function init() {
     const _apChallengeId = _apIdx === 0 ? null : (CHALLENGE_ORDER[_apIdx - 1] || null);
     newGame(_apChallengeId);
   } else {
-    openChallengePicker();
+    const saved = autoplayRequested ? null : loadGame();
+    let resumed = false;
+    if (saved) {
+      try {
+        resumeGame(saved);
+        resumed = true;
+      } catch (err) {
+        // A save that cannot be restored must not block the app on every reload.
+        console.error("Could not resume the saved game:", err);
+        Object.assign(state, createState());
+        hasStartedAnyGame = false;
+        clearSavedGame();
+      }
+    }
+    if (!resumed) openChallengePicker();
   }
 }
 
@@ -2422,6 +2437,23 @@ function log(msg) {
     unreadLogCount += 1;
     updateLogUnreadBadge();
   }
+  persistGame();
+}
+
+// Saves the game in progress to localStorage after every committed change (called from
+// log() and updateActionBanner()); skipped mid-animation and during autoplay, and the save
+// is dropped once the game has ended.
+function persistGame() {
+  try {
+    if (!hasStartedAnyGame || autoplayRequested || state.diceRolling || rollingInProgress) return;
+    if (state.finalScore != null) {
+      clearSavedGame();
+      return;
+    }
+    saveGame(state);
+  } catch {
+    // ignore (e.g. called before module-level flags are initialised)
+  }
 }
 
 // Tally Unrest for the just-completed turn here, the moment the turn is actually done -
@@ -2614,6 +2646,55 @@ function newGame(challengeId = null) {
   if (newGameBtn) newGameBtn.style.display = "none";
   refreshDiceVisibility();
   updateActiveChallengeBadge();
+}
+
+// Restores a saved game (see persistence.js) instead of opening the challenge picker.
+function resumeGame(saved) {
+  if (!saved) return;
+  hasStartedAnyGame = true;
+  influenceUiDie = null;
+  hideChallengeOutcomeOverlay();
+  clearTimeout(barricadeAlertTimeout);
+  if (barricadeAlertOverlay) barricadeAlertOverlay.hidden = true;
+  Object.assign(state, createState(), saved);
+  state.diceRolling = false;
+  state.bannerOverride = null;
+  state.deferStatusAppend = false;
+  if (logEl) logEl.innerHTML = state.log.map((m) => `<li>${m}</li>`).join("");
+  unreadLogCount = 0;
+  updateLogUnreadBadge();
+  setAllSheetImageSources();
+  renderTurnTrack(state.turnTrack);
+  renderBoard();
+  updateTracks();
+  const fiefdomInput = document.getElementById("fiefdomInput");
+  if (fiefdomInput) {
+    fiefdomInput.value = state.fiefdomName || "";
+    fiefdomInput.closest(".fiefdom-overlay")?.classList.toggle("filled", Boolean(fiefdomInput.value.trim()));
+  }
+  const awaitingGuildType = Boolean(state.pendingCenterBuilding?.awaitingGuildType);
+  renderBuildingOverlay([], awaitingGuildType);
+  updateDiceAssignments(true);
+  // After the dice/building refresh (which clears the guild overlay unless a Guild is the
+  // current choice): re-offer the guild types for a forced centre building or a Guild that
+  // was chosen but whose type was still to be picked/placed.
+  let resumedGuildTypes = [];
+  if (awaitingGuildType) {
+    resumedGuildTypes = guildTypes.filter((gt) =>
+      (state.pendingCenterBuilding.choices || ["T", ...guildTypes]).includes(gt),
+    );
+  } else if (state.buildChoice?.code === "G") {
+    resumedGuildTypes = guildTypes.filter((gt) => !builtGuildTypes(state.board).has(gt));
+  }
+  renderGuildOverlay(resumedGuildTypes);
+  if (finishActivationBtn) finishActivationBtn.style.display = state.activationMode ? "block" : "none";
+  if (newGameBtn) newGameBtn.style.display = "none";
+  updateTurnStatusChip();
+  refreshDiceVisibility();
+  updateActiveChallengeBadge();
+  updateUnrestBadge();
+  updateActionBanner();
+  log(t("game.resumed"));
 }
 
 let pickedChallengeId = null;
@@ -3228,6 +3309,7 @@ function updateActionBanner() {
   });
   syncPlotConfirmControls();
   syncActionBarState();
+  persistGame();
 }
 
 // Confirm/Change plot buttons are normally shown/hidden via showPlotConfirmControls()/
@@ -4101,6 +4183,8 @@ function autoForfeitUnfillable(finalize = false) {
       cancelPendingPlot,
       rollDice,
       newGame,
+      resumeGame,
+      persistGame,
       log,
       updateActionBanner,
       syncActionBarState,

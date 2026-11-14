@@ -195,6 +195,7 @@ export default {
   },
   game: {
     started: "Game started.",
+    resumed: "Game resumed.",
     loadFailed: "Failed to load game. Please refresh.",
     boardFull: "Board full.",
     turnLimitReached: "Turn limit reached.",
