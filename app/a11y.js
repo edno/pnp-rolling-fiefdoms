@@ -92,53 +92,80 @@ export function moveGridFocus(container, event) {
 const MODAL_FOCUSABLE =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 const modalStack = [];
+// Elements this module made inert (as opposed to ones that already were), so only
+// those are released again.
+const ownedInert = new Set();
+
+// True when el, or an ancestor up to and including the overlay, is not rendered:
+// the [hidden] attribute, or display:none / visibility:hidden from any stylesheet
+// (e.g. controls a breakpoint hides).
+function isHiddenWithin(el, overlay) {
+  for (let node = el; node && node.nodeType === 1; node = node.parentElement) {
+    if (node.hasAttribute("hidden")) return true;
+    const style = typeof getComputedStyle === "function" ? getComputedStyle(node) : null;
+    if (style && (style.display === "none" || style.visibility === "hidden")) return true;
+    if (node === overlay) break;
+  }
+  return false;
+}
 
 function modalFocusables(overlay) {
-  return Array.from(overlay.querySelectorAll(MODAL_FOCUSABLE)).filter((el) => {
-    if (el.hasAttribute("hidden") || el.style?.display === "none") return false;
-    const hiddenAncestor = el.closest("[hidden]");
-    return !(hiddenAncestor && overlay.contains(hiddenAncestor));
+  return Array.from(overlay.querySelectorAll(MODAL_FOCUSABLE)).filter((el) => !isHiddenWithin(el, overlay));
+}
+
+// Only the topmost open dialog is interactive: every other body child is inert,
+// including dialogs underneath it. Inert marks that existed beforehand are left alone.
+function syncModalInert() {
+  const top = modalStack.length ? modalStack[modalStack.length - 1].overlay : null;
+  Array.from(document.body?.children || []).forEach((el) => {
+    const shouldBeInert = Boolean(top) && el !== top && !el.contains(top);
+    if (shouldBeInert) {
+      if (!el.hasAttribute("inert")) {
+        el.setAttribute("inert", "");
+        ownedInert.add(el);
+      }
+    } else if (ownedInert.has(el)) {
+      el.removeAttribute("inert");
+      ownedInert.delete(el);
+    }
   });
 }
 
-// Wraps Tab / Shift+Tab inside the overlay (also pulls focus back in when it has escaped).
+// Wraps Tab / Shift+Tab inside the overlay. Focus that is not on one of the tabbable
+// controls (outside the overlay, or on the non-tabbable dialog container that receives
+// the initial focus) is treated as a boundary and sent to the first/last control.
 function trapModalTab(overlay, e) {
   if (e.key !== "Tab") return;
   const items = modalFocusables(overlay);
-  const active = document.activeElement;
-  const outside = !active || !overlay.contains(active) || active === overlay;
   if (!items.length) {
     e.preventDefault();
     return;
   }
+  const active = document.activeElement;
+  const offList = !items.includes(active);
   const first = items[0];
   const last = items[items.length - 1];
-  if (e.shiftKey && (outside || active === first)) {
+  if (e.shiftKey && (offList || active === first)) {
     e.preventDefault();
     last.focus();
-  } else if (!e.shiftKey && (outside || active === last)) {
+  } else if (!e.shiftKey && (offList || active === last)) {
     e.preventDefault();
     first.focus();
   }
 }
 
 /**
- * Opens a modal overlay: makes the other body children inert, moves focus into the
+ * Opens a modal overlay: makes everything else on the page inert, moves focus into the
  * overlay (initialFocus, else first focusable, else the dialog) and traps Tab inside it.
  * Dialogs nest via a module-level stack; calling it again for an open overlay is a no-op.
  */
 export function openModal(overlay, { initialFocus } = {}) {
   if (!overlay || modalStack.some((entry) => entry.overlay === overlay)) return;
   const previous = typeof document !== "undefined" ? document.activeElement : null;
-  const inerted = [];
-  Array.from(document.body?.children || []).forEach((el) => {
-    if (el === overlay || el.contains(overlay) || el.hasAttribute("inert")) return;
-    el.setAttribute("inert", "");
-    inerted.push(el);
-  });
   const onKeydown = (e) => trapModalTab(overlay, e);
   overlay.addEventListener("keydown", onKeydown);
-  modalStack.push({ overlay, previous, inerted, onKeydown });
+  modalStack.push({ overlay, previous, onKeydown });
+  syncModalInert();
   let target = initialFocus && initialFocus.isConnected ? initialFocus : modalFocusables(overlay)[0];
   if (!target) {
     const dialog = overlay.querySelector(".modal-dialog") || overlay;
@@ -149,15 +176,16 @@ export function openModal(overlay, { initialFocus } = {}) {
 }
 
 /**
- * Closes a modal opened with openModal(): removes the inert marks it set, drops its Tab
- * trap and returns focus to the element that was focused before it opened (if still usable).
+ * Closes a modal opened with openModal(): drops its Tab trap, hands interactivity back
+ * to the dialog underneath (or the page) and returns focus to the element that was
+ * focused before it opened (if still usable).
  */
 export function closeModal(overlay) {
   const index = modalStack.findIndex((entry) => entry.overlay === overlay);
   if (index === -1) return;
   const [entry] = modalStack.splice(index, 1);
   entry.overlay.removeEventListener("keydown", entry.onKeydown);
-  entry.inerted.forEach((el) => el.removeAttribute("inert"));
+  syncModalInert();
   const prev = entry.previous;
   if (prev && prev.isConnected && typeof prev.focus === "function" && !prev.hasAttribute("disabled")) {
     try {

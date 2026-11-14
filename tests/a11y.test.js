@@ -187,6 +187,59 @@ describe("openModal / closeModal", () => {
     document.body.innerHTML = "";
   });
 
+  it("leaves controls hidden by a stylesheet out of the Tab wrap", () => {
+    const { overlayA } = buildPage();
+    const style = document.createElement("style");
+    style.textContent = "#a3 { display: none; } .gone { display: none; }";
+    document.head.appendChild(style);
+    const wrapper = document.createElement("div");
+    wrapper.className = "gone";
+    wrapper.innerHTML = '<button id="a4">inside a hidden wrapper</button>';
+    overlayA.querySelector(".modal-dialog").appendChild(wrapper);
+    try {
+      openModal(overlayA);
+      const a1 = document.getElementById("a1");
+      // a1 is now the only visible control: both directions wrap onto it.
+      expect(document.activeElement).toBe(a1);
+      expect(press(a1, "Tab").defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(a1);
+      expect(press(a1, "Tab", true).defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(a1);
+    } finally {
+      style.remove();
+    }
+  });
+
+  it("wraps from the non-tabbable dialog container that holds the initial focus", () => {
+    const { overlayA } = buildPage();
+    const dialog = overlayA.querySelector(".modal-dialog");
+    dialog.setAttribute("tabindex", "-1");
+    openModal(overlayA, { initialFocus: dialog });
+    expect(document.activeElement).toBe(dialog);
+    expect(press(dialog, "Tab", true).defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(document.getElementById("a3"));
+    dialog.focus();
+    expect(press(dialog, "Tab").defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(document.getElementById("a1"));
+  });
+
+  it("keeps only the topmost of two nested dialogs interactive", () => {
+    const { page, overlayA, overlayB } = buildPage();
+    openModal(overlayA);
+    expect(overlayB.hasAttribute("inert")).toBe(true);
+    openModal(overlayB);
+    expect(overlayB.hasAttribute("inert")).toBe(false);
+    expect(overlayA.hasAttribute("inert")).toBe(true);
+    expect(page.hasAttribute("inert")).toBe(true);
+    closeModal(overlayB);
+    expect(overlayA.hasAttribute("inert")).toBe(false);
+    expect(overlayB.hasAttribute("inert")).toBe(true);
+    expect(page.hasAttribute("inert")).toBe(true);
+    closeModal(overlayA);
+    expect(overlayB.hasAttribute("inert")).toBe(false);
+    expect(page.hasAttribute("inert")).toBe(false);
+  });
+
   it("makes the other body children inert but not the overlay itself", () => {
     const { page, overlayA } = buildPage();
     openModal(overlayA);
