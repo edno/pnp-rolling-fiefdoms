@@ -33,6 +33,7 @@ import {
   soloBaseSelections,
   soloSwapUnavailableReasonKey,
   soloSwapAvailable,
+  placementCommittedThisTurn,
 } from "./swap.js";
 import { createState, resetTurnState, lockDiceSnapshot } from "./state-controller.js";
 import { saveGame, loadGame, clearSavedGame } from "./persistence.js";
@@ -4157,7 +4158,7 @@ function toggleSoloPairChoice() {
 }
 
 function toggleLockedPairChoice() {
-  if (state.activeTurn) return;
+  if (state.activeTurn || placementCommittedThisTurn(state)) return;
   const toggled = toggleSoloPairChoice();
   if (!toggled) return;
   updateDiceAssignments();

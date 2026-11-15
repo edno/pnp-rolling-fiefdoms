@@ -107,6 +107,32 @@ describe("soloSwapUnavailableReasonKey", () => {
     expect(soloSwapUnavailableReasonKey(activation)).toBe("hidden");
   });
 
+  it("is hidden once the turn's placement is committed, including while population is pending", () => {
+    const board = () =>
+      Array.from({ length: 5 }, () =>
+        Array.from({ length: 5 }, () => ({ building: null, forfeited: false, springBoost: 0 })),
+      );
+    const ready = createState();
+    ready.activeTurn = false;
+    ready.board = board();
+    ready.dice = fourDice();
+    expect(soloSwapUnavailableReasonKey(ready)).toBeNull();
+
+    const placed = createState();
+    placed.activeTurn = false;
+    placed.board = board();
+    placed.dice = fourDice();
+    placed.pendingNextRoll = true;
+    expect(soloSwapUnavailableReasonKey(placed)).toBe("hidden");
+
+    const populating = createState();
+    populating.activeTurn = false;
+    populating.board = board();
+    populating.dice = fourDice();
+    populating.pendingPopulation = { remaining: 4, cell: [0, 0] };
+    expect(soloSwapUnavailableReasonKey(populating)).toBe("hidden");
+  });
+
   it("returns the only-one-pairing key when swap is not allowed", () => {
     const state = createState();
     state.activeTurn = false;
