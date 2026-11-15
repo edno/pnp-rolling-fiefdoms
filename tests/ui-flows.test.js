@@ -2315,6 +2315,29 @@ describe("undo last placement (jsdom)", () => {
     expect(inlineUndo()).toBeNull();
   });
 
+  it("keeps the standalone twin hidden when the bar is refreshed under the inline Undo", async () => {
+    const hooks = await setupPlaceable();
+    hooks.placeBuilding(0, 0, "F");
+    hooks.onPopulationNodeClick(0, 0);
+    await flushMicrotasks();
+    expect(inlineUndo()).toBeTruthy();
+    // A render-only refresh (e.g. a locale switch) ends with updateSwapButton().
+    hooks.updateDiceAssignments(true);
+    expect(inlineUndo()).toBeTruthy();
+    expect(undoWrap().style.display).toBe("none");
+  });
+
+  it("keeps earlier unread log lines unread after an undo", async () => {
+    const hooks = await setupPlaceable();
+    const badge = document.getElementById("logUnreadBadge");
+    const unreadBefore = Number(badge.textContent) || 0;
+    hooks.placeBuilding(0, 0, "F");
+    expect(Number(badge.textContent)).toBeGreaterThan(unreadBefore);
+    hooks.undoLastPlacement();
+    // The placement lines are gone; what was unread before stays unread, plus the undo line.
+    expect(Number(badge.textContent)).toBe(unreadBefore + 1);
+  });
+
   it("is unavailable before a placement and a roll clears the stack", async () => {
     const hooks = await setupPlaceable();
     expect(hooks.undoLastPlacement()).toBe(false);

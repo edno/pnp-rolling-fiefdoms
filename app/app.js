@@ -2790,8 +2790,13 @@ function canUndo() {
   return undoStack.length > 0 && !state.diceRolling && !rollingInProgress && state.finalScore == null;
 }
 
-function updateUndoButton(show = canUndo()) {
+// Single source of truth for the standalone Undo button: shown whenever undo is possible,
+// except while the roll prompt carries an inline Undo button (its twin) - between a turn's
+// last placement and the next roll the main row is hidden, so the prompt offers it instead.
+function updateUndoButton() {
   if (!undoBtn) return;
+  const hasInlineUndo = Boolean(actionBannerEl?.querySelector('.btn-inline-action[data-target="undoBtn"]'));
+  const show = undoAvailableNow() && !hasInlineUndo;
   (undoBtn.closest(".undo-btn-wrap") || undoBtn).style.display = show ? "inline-flex" : "none";
 }
 
@@ -2800,7 +2805,11 @@ function undoLastPlacement() {
   const snapshot = undoStack.pop();
   // The fiefdom name is not a placement: keep whatever the player has typed since.
   snapshot.fiefdomName = state.fiefdomName;
+  // Log lines the player had not read yet stay unread, minus the ones this undo takes back.
+  const removedLogLines = Math.max(0, (state.log?.length || 0) - (snapshot.log?.length || 0));
+  const unreadBeforeUndo = Math.max(0, unreadLogCount - removedLogLines);
   restoreStateAndRefresh(snapshot);
+  unreadLogCount = unreadBeforeUndo;
   log(t("game.undone"));
   updateUndoButton();
   return true;
@@ -3571,11 +3580,8 @@ function syncActionBarState() {
   const hasDiceBadge = Boolean(diceView?.querySelector(".die-badge"));
   const preRoll = hasInlineRoll && !hasDiceBadge;
   // Every bar sync also refreshes the Undo button, so it appears as soon as undo becomes
-  // possible (e.g. once a dice animation that was blocking it has finished). Between a
-  // turn's last placement and the next roll the main row is hidden, so the roll prompt
-  // carries an inline Undo button instead and the standalone one is hidden as its twin.
-  const hasInlineUndo = Boolean(actionBannerEl?.querySelector('.btn-inline-action[data-target="undoBtn"]'));
-  updateUndoButton(undoAvailableNow() && !hasInlineUndo);
+  // possible (e.g. once a dice animation that was blocking it has finished).
+  updateUndoButton();
 
   if (actionBarAuxEl) {
     const isOpen = confirmVisible || pickerVisible || stepperVisible;
@@ -4420,7 +4426,11 @@ function autoForfeitUnfillable(finalize = false) {
       actionMessage: (stateArg, _unused, phase) => {
         const s = stateArg || state;
         const ph = phase || currentTurnPhase();
-        return generateActionMessage(s, ph, { currentScore, lockedPairChoice: () => lockedPairChoice(state) });
+        return generateActionMessage(s, ph, {
+          currentScore,
+          lockedPairChoice: () => lockedPairChoice(state),
+          canUndo: undoAvailableNow(),
+        });
       },
       renderTurnTrack,
       maybeRollAfterLock,
