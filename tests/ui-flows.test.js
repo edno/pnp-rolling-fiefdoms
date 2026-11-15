@@ -78,6 +78,7 @@ const baseHtml = `
   <div id="turnTrackOverlay"></div>
   <div id="popHousingOverlay"></div>
   <button id="newGameBtn"></button>
+  <button id="newGameMenuBtn"></button>
   <button id="fullscreenToggle"></button>
   <span id="turnStatusChip"></span>
   <input id="fiefdomInput" />
@@ -2016,6 +2017,31 @@ describe("save and resume (jsdom)", () => {
     expect(hooks.state.pendingPopulation?.remaining).toBeGreaterThan(0);
     expect(document.querySelector("#board .cell .building")?.textContent).toBeTruthy();
     expect(latestLogs()[0]).toBe("Game resumed.");
+  });
+
+  it("lets the player start a new game from the header while a saved game is in progress", async () => {
+    await playToPendingPopulation();
+    const raw = window.localStorage.getItem("rf-game-v1");
+    await setupApp({ enableHooks: true, withChallengePicker: true, save: raw });
+    const picker = document.getElementById("challengePicker");
+    expect(picker.hidden).toBe(true);
+
+    // Cancel keeps the resumed game.
+    document.getElementById("newGameMenuBtn").click();
+    expect(picker.hidden).toBe(false);
+    expect(document.getElementById("challengeCancelBtn").style.display).not.toBe("none");
+    document.getElementById("challengeCancelBtn").click();
+    expect(picker.hidden).toBe(true);
+    expect(window.__rfTestHooks.state.board[0][0].building).toBe("F");
+
+    // Start replaces it, and the save with it.
+    document.getElementById("newGameMenuBtn").click();
+    document.getElementById("challengeConfirmBtn").click();
+    await flushMicrotasks();
+    expect(picker.hidden).toBe(true);
+    expect(window.__rfTestHooks.state.board[0][0].building).toBeFalsy();
+    const saved = JSON.parse(window.localStorage.getItem("rf-game-v1"));
+    expect(saved.state.board.flat().some((cell) => cell.building)).toBe(false);
   });
 
   it("falls back to the challenge picker and removes a corrupt save", async () => {
