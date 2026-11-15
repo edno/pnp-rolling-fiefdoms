@@ -90,8 +90,15 @@ export function soloPairCanBeRescued(state, diceList = []) {
 // swap), a locale key naming the reason it's disabled-but-visible, or null when swap is fully
 // available. Centralizing this lets the button show a grey/disabled state with an explanatory
 // tooltip instead of just disappearing (see updateSwapButton()).
+// True once this turn's placement or forfeit has been committed (its population may still
+// be pending): the pairing is settled, so swapping it no longer applies.
+export function placementCommittedThisTurn(state) {
+  return Boolean(state.pendingNextRoll) || (state.pendingPopulation?.remaining || 0) > 0;
+}
+
 export function soloSwapUnavailableReasonKey(state) {
   if (state.activeTurn || state.pestilence || state.activationMode) return "hidden";
+  if (placementCommittedThisTurn(state)) return "hidden";
   const choice = soloPairChoice(state);
   if (!choice.baseLocIdx || !choice.baseBuildIdx) return "hidden";
   if (!choice.swapAllowed) {
