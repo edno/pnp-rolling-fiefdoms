@@ -39,7 +39,7 @@
     <title>Rolling Fiefdoms - Online Solo</title>
     <link rel="canonical" href="https://rolling-fiefdoms.edno.io/" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="modulepreload" href="app/app.js?v=v44" />
+    <link rel="modulepreload" href="app/app.js?v=v45" />
     <link rel="icon" type="image/png" href="assets/img/ink-splatter.png" />
     <script type="application/ld+json">
       {
@@ -78,8 +78,8 @@
         z-index: 999;
       }
     </style>
-    <link rel="stylesheet" href="assets/css/fonts.css?v=v44" />
-    <link rel="stylesheet" href="assets/css/styles.css?v=v44" />
+    <link rel="stylesheet" href="assets/css/fonts.css?v=v45" />
+    <link rel="stylesheet" href="assets/css/styles.css?v=v45" />
   </head>
   <body class="loading">
     <header>
@@ -171,6 +171,28 @@
             data-i18n-attr="aria-label:html.switchLanguageTitle;title:html.switchLanguageTitle"
           ></select>
         </div>
+        <button
+          class="menu-item"
+          id="newGameMenuBtn"
+          type="button"
+          aria-label="New game"
+          title="New game"
+          data-i18n-attr="aria-label:html.navNewGame;title:html.navNewGame"
+        >
+          <span class="menu-icon">
+            <svg viewBox="0 0 32 32" width="32" height="32" aria-hidden="true">
+              <path fill="#000" fill-rule="evenodd" transform="rotate(-8 13.5 18.5)" d="M8 9h11a4 4 0 0 1 4 4v11a4 4 0 0 1 -4 4h-11a4 4 0 0 1 -4 -4v-11a4 4 0 0 1 4 -4zM7.1 14a1.9 1.9 0 1 0 3.8 0a1.9 1.9 0 1 0 -3.8 0zM16.1 14a1.9 1.9 0 1 0 3.8 0a1.9 1.9 0 1 0 -3.8 0zM11.6 18.5a1.9 1.9 0 1 0 3.8 0a1.9 1.9 0 1 0 -3.8 0zM7.1 23a1.9 1.9 0 1 0 3.8 0a1.9 1.9 0 1 0 -3.8 0zM16.1 23a1.9 1.9 0 1 0 3.8 0a1.9 1.9 0 1 0 -3.8 0z" />
+              <path
+                d="M25.5 3.5v7.5M21.75 7.25h7.5"
+                fill="none"
+                stroke="#000"
+                stroke-width="2.8"
+                stroke-linecap="round"
+              />
+            </svg>
+          </span>
+          <span class="menu-text" data-i18n="html.navNewGame">New game</span>
+        </button>
         <button
           class="menu-item"
           id="sfxToggle"
@@ -709,6 +731,6 @@
     </div>
 
     <script type="module" src="app/inline-init.js?v=v1"></script>
-    <script type="module" src="app/app.js?v=v44"></script>
+    <script type="module" src="app/app.js?v=v45"></script>
   </body>
 </html>

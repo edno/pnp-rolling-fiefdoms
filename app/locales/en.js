@@ -97,6 +97,7 @@ export default {
     navDownload: "Download",
     navBgg: "BGG",
     navGithub: "GitHub",
+    navNewGame: "New game",
     fullscreen: "Fullscreen",
     switchLanguage: "Language",
     switchLanguageTitle: "Switch language",

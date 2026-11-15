@@ -52,6 +52,7 @@ export const cancelPlotBtn = document.getElementById("cancelPlotBtn");
 // UI Controls
 export const fullscreenBtn = document.getElementById("fullscreenToggle");
 export const sfxToggleBtn = document.getElementById("sfxToggle");
+export const newGameMenuBtn = document.getElementById("newGameMenuBtn");
 export const sfxToggleLabel = document.getElementById("sfxToggleLabel");
 export const sfxToggleIcon = document.getElementById("sfxToggleIcon");
 export const localeSelect = document.getElementById("localeSelect");

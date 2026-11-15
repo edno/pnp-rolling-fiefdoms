@@ -105,6 +105,7 @@ import {
   cancelPlotBtn,
   fullscreenBtn,
   sfxToggleBtn,
+  newGameMenuBtn,
   sfxToggleLabel,
   sfxToggleIcon,
   localeSelect,
@@ -813,6 +814,11 @@ async function setupControls() {
     rollBtn.onclick = () => rollDice();
     rollBtn.style.display = "inline-block";
     updateRollButton();
+  }
+  // Always-available way to start over: since games are saved and resumed on reload, a
+  // reload no longer leads back to the picker. The picker's Cancel keeps the current game.
+  if (newGameMenuBtn) {
+    newGameMenuBtn.onclick = () => openChallengePicker();
   }
   if (newGameBtn) {
     newGameBtn.onclick = () => openChallengePicker();
