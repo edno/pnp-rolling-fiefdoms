@@ -2319,6 +2319,39 @@ describe("undo last placement (jsdom)", () => {
     expect(hooks.state.board[2][2].forfeited).toBeFalsy();
   });
 
+  it("shows the Undo row when the first undoable action completes the turn", async () => {
+    const hooks = await setupPlaceable();
+    hooks.forfeitCell(2, 2);
+    expect(hooks.undoStackLength()).toBe(1);
+    expect(undoWrap().style.display).toBe("inline-flex");
+    expect(document.getElementById("actionBar").classList.contains("is-pre-roll")).toBe(false);
+    hooks.undoLastPlacement();
+    expect(undoWrap().style.display).toBe("none");
+  });
+
+  it("keeps a fiefdom name typed after the placement", async () => {
+    const hooks = await setupPlaceable();
+    hooks.state.fiefdomName = "Before";
+    hooks.placeBuilding(0, 0, "F");
+    hooks.state.fiefdomName = "Valdoré";
+    expect(hooks.undoLastPlacement()).toBe(true);
+    expect(hooks.state.board[0][0].building).toBeFalsy();
+    expect(hooks.state.fiefdomName).toBe("Valdoré");
+    expect(document.getElementById("fiefdomInput").value).toBe("Valdoré");
+  });
+
+  it("reveals the Undo button once a dice animation that blocked it has finished", async () => {
+    const hooks = await setupPlaceable();
+    hooks.state.diceRolling = true;
+    hooks.forfeitCell(2, 2);
+    expect(hooks.undoStackLength()).toBe(1);
+    hooks.updateActionBanner();
+    expect(undoWrap().style.display).toBe("none");
+    hooks.state.diceRolling = false;
+    hooks.updateActionBanner();
+    expect(undoWrap().style.display).toBe("inline-flex");
+  });
+
   it("is a no-op once the game is over", async () => {
     const hooks = await setupPlaceable();
     hooks.placeBuilding(0, 0, "F");

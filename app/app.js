@@ -2753,7 +2753,9 @@ function withUndoPoint(fn) {
     undoDepth--;
     if (snapshot && undoFingerprint() !== before) {
       undoStack.push(snapshot);
-      updateUndoButton();
+      // The bar may already have been synced as "pre-roll" (row hidden) while the stack
+      // was still empty, e.g. when this action completed the turn: re-sync it now.
+      syncActionBarState();
     }
   }
 }
@@ -2767,15 +2769,16 @@ function canUndo() {
   return undoStack.length > 0 && !state.diceRolling && !rollingInProgress && state.finalScore == null;
 }
 
-function updateUndoButton() {
+function updateUndoButton(show = canUndo()) {
   if (!undoBtn) return;
-  const show = canUndo();
   (undoBtn.closest(".undo-btn-wrap") || undoBtn).style.display = show ? "inline-flex" : "none";
 }
 
 function undoLastPlacement() {
   if (!canUndo()) return false;
   const snapshot = undoStack.pop();
+  // The fiefdom name is not a placement: keep whatever the player has typed since.
+  snapshot.fiefdomName = state.fiefdomName;
   restoreStateAndRefresh(snapshot);
   log(t("game.undone"));
   updateUndoButton();
@@ -3553,6 +3556,9 @@ function syncActionBarState() {
     undoAvailable = false; // called before the undo stack is initialised
   }
   const preRoll = hasInlineRoll && !hasDiceBadge && !undoAvailable;
+  // Every bar sync also refreshes the Undo button, so it appears as soon as undo becomes
+  // possible (e.g. once a dice animation that was blocking it has finished).
+  updateUndoButton(undoAvailable);
 
   if (actionBarAuxEl) {
     const isOpen = confirmVisible || pickerVisible || stepperVisible;
