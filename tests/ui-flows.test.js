@@ -2267,19 +2267,52 @@ describe("undo last placement (jsdom)", () => {
     expect(latestLogs().some((m) => m.includes("Farm") || /placed/i.test(m))).toBe(false);
   });
 
-  it("steps back through building then population", async () => {
+  const inlineUndo = () => document.querySelector('#actionBanner .btn-inline-action[data-target="undoBtn"]');
+  const undoOffered = () => Boolean(inlineUndo()) || undoWrap().style.display === "inline-flex";
+  const popTotal = (state) => state.populationNodes.flat().reduce((a, b) => a + b, 0);
+
+  it("takes back a building together with its population in one undo", async () => {
     const hooks = await setupPlaceable();
     const { state } = hooks;
     hooks.placeBuilding(0, 0, "F");
     expect(hooks.undoStackLength()).toBe(1);
     hooks.onPopulationNodeClick(0, 0);
-    expect(hooks.undoStackLength()).toBe(2);
-    hooks.undoLastPlacement();
-    expect(state.board[0][0].building).toBe("F");
-    expect(state.pendingPopulation?.remaining).toBe(3);
-    hooks.undoLastPlacement();
+    // The population placement belongs to the build: no undo step of its own.
+    expect(hooks.undoStackLength()).toBe(1);
+    expect(popTotal(state)).toBe(3);
+    expect(hooks.undoLastPlacement()).toBe(true);
     expect(state.board[0][0].building).toBeFalsy();
+    expect(popTotal(state)).toBe(0);
+    expect(state.pendingPopulation).toBeFalsy();
     expect(hooks.undoStackLength()).toBe(0);
+  });
+
+  it("undoes the building while its population is still to be placed", async () => {
+    const hooks = await setupPlaceable();
+    hooks.placeBuilding(0, 0, "F");
+    expect(hooks.state.pendingPopulation?.remaining).toBe(3);
+    expect(hooks.undoLastPlacement()).toBe(true);
+    expect(hooks.state.board[0][0].building).toBeFalsy();
+    expect(hooks.state.pendingPopulation).toBeFalsy();
+  });
+
+  it("offers Undo inside the roll prompt once the turn is complete", async () => {
+    const hooks = await setupPlaceable();
+    hooks.placeBuilding(0, 0, "F");
+    // Mid-turn the standalone button is shown next to the dice.
+    expect(inlineUndo()).toBeNull();
+    expect(undoWrap().style.display).toBe("inline-flex");
+    hooks.onPopulationNodeClick(0, 0);
+    await flushMicrotasks();
+    const banner = document.getElementById("actionBanner");
+    expect(banner.querySelector('.btn-inline-action[data-target="rollBtn"]')).toBeTruthy();
+    expect(inlineUndo()).toBeTruthy();
+    expect(inlineUndo().disabled).toBe(false);
+    // The standalone twin is hidden, so the button is never alone in the dice row.
+    expect(undoWrap().style.display).toBe("none");
+    inlineUndo().click();
+    expect(hooks.state.board[0][0].building).toBeFalsy();
+    expect(inlineUndo()).toBeNull();
   });
 
   it("is unavailable before a placement and a roll clears the stack", async () => {
@@ -2319,14 +2352,13 @@ describe("undo last placement (jsdom)", () => {
     expect(hooks.state.board[2][2].forfeited).toBeFalsy();
   });
 
-  it("shows the Undo row when the first undoable action completes the turn", async () => {
+  it("offers Undo when the first undoable action of the turn is a forfeit", async () => {
     const hooks = await setupPlaceable();
     hooks.forfeitCell(2, 2);
     expect(hooks.undoStackLength()).toBe(1);
-    expect(undoWrap().style.display).toBe("inline-flex");
-    expect(document.getElementById("actionBar").classList.contains("is-pre-roll")).toBe(false);
+    expect(undoOffered()).toBe(true);
     hooks.undoLastPlacement();
-    expect(undoWrap().style.display).toBe("none");
+    expect(undoOffered()).toBe(false);
   });
 
   it("keeps a fiefdom name typed after the placement", async () => {
@@ -2340,16 +2372,16 @@ describe("undo last placement (jsdom)", () => {
     expect(document.getElementById("fiefdomInput").value).toBe("Valdoré");
   });
 
-  it("reveals the Undo button once a dice animation that blocked it has finished", async () => {
+  it("offers Undo once a dice animation that blocked it has finished", async () => {
     const hooks = await setupPlaceable();
     hooks.state.diceRolling = true;
     hooks.forfeitCell(2, 2);
     expect(hooks.undoStackLength()).toBe(1);
     hooks.updateActionBanner();
-    expect(undoWrap().style.display).toBe("none");
+    expect(undoOffered()).toBe(false);
     hooks.state.diceRolling = false;
     hooks.updateActionBanner();
-    expect(undoWrap().style.display).toBe("inline-flex");
+    expect(undoOffered()).toBe(true);
   });
 
   it("is a no-op once the game is over", async () => {

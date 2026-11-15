@@ -2430,10 +2430,13 @@ function applySpringhouseBoost(target) {
 }
 
 function applySpringhouseTarget(target) {
-  withUndoPoint(() => {
-    state.pendingSpringhouseTarget = null;
-    applySpringhouseBoost(target);
-  });
+  withUndoPoint(
+    () => {
+      state.pendingSpringhouseTarget = null;
+      applySpringhouseBoost(target);
+    },
+    { foldIntoPrevious: true },
+  );
 }
 
 function forfeitCell(...args) {
@@ -2735,8 +2738,11 @@ function undoFingerprint() {
 
 // Runs a committing action; keeps a pre-action snapshot only if the game actually changed.
 // Nested calls (placeBuilding -> handleSpringhouseTargeting, confirmPendingPlot -> ...) share the outermost snapshot.
-function withUndoPoint(fn) {
+function withUndoPoint(fn, { foldIntoPrevious = false } = {}) {
   if (undoDepth > 0) return fn();
+  // A build's follow-up steps (its population placement, a Springhouse target) belong to the
+  // build: they add no undo step of their own, so one undo takes back the whole build.
+  if (foldIntoPrevious && undoStack.length > 0) return fn();
   let snapshot;
   let before = null;
   try {
@@ -2753,10 +2759,25 @@ function withUndoPoint(fn) {
     undoDepth--;
     if (snapshot && undoFingerprint() !== before) {
       undoStack.push(snapshot);
-      // The bar may already have been synced as "pre-roll" (row hidden) while the stack
-      // was still empty, e.g. when this action completed the turn: re-sync it now.
-      syncActionBarState();
+      // The banner and bar were rendered while the stack was still empty (e.g. when this
+      // action completed the turn): render them again so the Undo control appears.
+      updateActionBanner();
     }
+  }
+}
+
+// True while the population granted by a just-placed building is still to be placed
+// (as opposed to a barricade placement or an activation-mode selection).
+function isBuildPopulationStep() {
+  return (state.pendingPopulation?.remaining || 0) > 0 && !state.pendingBarricade?.active;
+}
+
+// canUndo() for callers that may run before the undo stack is initialised.
+function undoAvailableNow() {
+  try {
+    return canUndo();
+  } catch {
+    return false;
   }
 }
 
@@ -3423,7 +3444,7 @@ function beginPopulationPlacement(r, c, count) {
 }
 
 function onPopulationNodeClick(...args) {
-  return withUndoPoint(() => onPopulationNodeClickImpl(...args));
+  return withUndoPoint(() => onPopulationNodeClickImpl(...args), { foldIntoPrevious: isBuildPopulationStep() });
 }
 
 function onPopulationNodeClickImpl(nr, nc) {
@@ -3476,7 +3497,7 @@ function onPopulationNodeClickImpl(nr, nc) {
  * path and confirmPendingPlot() on coarse-pointer devices.
  */
 function doPlacePopulationNode(...args) {
-  return withUndoPoint(() => doPlacePopulationNodeImpl(...args));
+  return withUndoPoint(() => doPlacePopulationNodeImpl(...args), { foldIntoPrevious: isBuildPopulationStep() });
 }
 
 function doPlacePopulationNodeImpl(nr, nc) {
@@ -3510,6 +3531,7 @@ function updateActionBanner() {
   updateBannerUI(state, phase, {
     currentScore,
     lockedPairChoice: () => lockedPairChoice(state),
+    canUndo: undoAvailableNow(),
   });
   syncPlotConfirmControls();
   syncActionBarState();
@@ -3547,18 +3569,13 @@ function syncActionBarState() {
     actionBannerEl?.querySelector('.btn-inline-action[data-target="finishActivation"]'),
   );
   const hasDiceBadge = Boolean(diceView?.querySelector(".die-badge"));
-  // Keep the main row (and its Undo button) reachable between a turn's last placement and
-  // the next roll; otherwise the pre-roll state hides the row the button lives in.
-  let undoAvailable;
-  try {
-    undoAvailable = canUndo();
-  } catch {
-    undoAvailable = false; // called before the undo stack is initialised
-  }
-  const preRoll = hasInlineRoll && !hasDiceBadge && !undoAvailable;
+  const preRoll = hasInlineRoll && !hasDiceBadge;
   // Every bar sync also refreshes the Undo button, so it appears as soon as undo becomes
-  // possible (e.g. once a dice animation that was blocking it has finished).
-  updateUndoButton(undoAvailable);
+  // possible (e.g. once a dice animation that was blocking it has finished). Between a
+  // turn's last placement and the next roll the main row is hidden, so the roll prompt
+  // carries an inline Undo button instead and the standalone one is hidden as its twin.
+  const hasInlineUndo = Boolean(actionBannerEl?.querySelector('.btn-inline-action[data-target="undoBtn"]'));
+  updateUndoButton(undoAvailableNow() && !hasInlineUndo);
 
   if (actionBarAuxEl) {
     const isOpen = confirmVisible || pickerVisible || stepperVisible;

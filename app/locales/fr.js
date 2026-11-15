@@ -116,6 +116,7 @@ export default {
     swapTitle: "Cliquez pour échanger l'attribution des paires de dés",
     swapAriaLabel: "Échanger les paires de dés coordonnées/construction",
     undoAriaLabel: "Annuler le dernier placement",
+    undo: "Annuler",
     swapUnavailableOnlyOnePairing: "Échange indisponible\u00a0: une seule répartition des dés est valide ce tour-ci.",
     swapUnavailableNoValidPairing: "Échange indisponible\u00a0: aucune des deux répartitions n'a d'emplacement valide.",
     swapUnavailableNoValidLocationOnSwap: "Échange indisponible\u00a0: l'autre répartition des dés n'a pas d'emplacement valide.",
@@ -338,6 +339,7 @@ export default {
   },
   hints: {
     pressRollToStart: "Appuyez sur {rollBtn} pour commencer votre tour.",
+    pressRollOrUndo: "Appuyez sur {rollBtn} pour commencer votre tour, ou {undoBtn} le dernier placement.",
     lockSplitToContinue: "Verrouillez la répartition pour continuer à construire.",
     selectBuildingFromOverlay: 'Sélectionnez un bâtiment dans le panneau <span class="panel-title-font">Bâtiments</span>.',
     clickHighlightedPlot: "Choisissez une parcelle en surbrillance pour construire.",

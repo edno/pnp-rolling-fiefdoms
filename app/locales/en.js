@@ -115,6 +115,7 @@ export default {
     swapTitle: "Click to swap dice pairs allocation",
     swapAriaLabel: "Swap location/build dice pairs",
     undoAriaLabel: "Undo last placement",
+    undo: "Undo",
     swapUnavailableOnlyOnePairing: "Swap unavailable: only one dice pairing is valid this turn.",
     swapUnavailableNoValidPairing: "Swap unavailable: neither dice pairing has a valid location.",
     swapUnavailableNoValidLocationOnSwap: "Swap unavailable: the other dice pairing has no valid location.",
@@ -337,6 +338,7 @@ export default {
   },
   hints: {
     pressRollToStart: "Press {rollBtn} to start your turn.",
+    pressRollOrUndo: "Press {rollBtn} to start your turn, or {undoBtn} the last placement.",
     lockSplitToContinue: "Lock the split to continue building.",
     selectBuildingFromOverlay: 'Select a building from the <span class="panel-title-font">Buildings</span> panel.',
     clickHighlightedPlot: "Choose a highlighted plot to build.",
