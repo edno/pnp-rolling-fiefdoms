@@ -160,7 +160,12 @@ export function actionMessage(state, currentPhase, options = {}) {
   }
 
   if (phase === TURN_PHASE.AWAIT_ROLL) {
-    return t("hints.pressRollToStart", { rollBtn: formatButtonLabelHtml(t("html.rollDice"), "rollBtn") });
+    const rollBtn = formatButtonLabelHtml(t("html.rollDice"), "rollBtn");
+    // Between a turn's last placement and the next roll, offer Undo in the same prompt.
+    if (options.canUndo) {
+      return t("hints.pressRollOrUndo", { rollBtn, undoBtn: formatButtonLabelHtml(t("html.undo"), "undoBtn") });
+    }
+    return t("hints.pressRollToStart", { rollBtn });
   }
 
   if (phase === TURN_PHASE.SPLITTING) {

@@ -308,7 +308,8 @@ button.menu-item {
   border-radius: var(--radius-sm);
 }
 
-#swapPairBtn {
+#swapPairBtn,
+#undoBtn {
   width: 36px;
   height: 36px;
   padding: 0;
@@ -320,7 +321,8 @@ button.menu-item {
   pointer-events: none;
 }
 
-.swap-btn-wrap {
+.swap-btn-wrap,
+.undo-btn-wrap {
   display: inline-flex;
   flex: 0 0 auto;
   align-self: center;
@@ -1342,6 +1344,11 @@ main {
 
 .icon-btn svg {
   display: none;
+}
+
+.icon-btn .undo-icon {
+  display: block;
+  pointer-events: none;
 }
 
 .icon-btn .swap-icon {
@@ -3051,12 +3058,14 @@ button.has-popover:not(:disabled) {
     min-height: 44px;
   }
 
-  #swapPairBtn {
+  #swapPairBtn,
+  #undoBtn {
     width: 44px;
     height: 44px;
   }
 
-  .swap-btn-wrap {
+  .swap-btn-wrap,
+  .undo-btn-wrap {
     width: 44px;
     height: 44px;
   }
