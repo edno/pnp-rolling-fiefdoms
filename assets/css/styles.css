@@ -130,11 +130,17 @@ button.menu-item {
   color: #a94442;
 }
 
+/* Labels may be wider than their 48px icon column, but are capped just above the 60px
+   column pitch (48px + 12px gap) so neighbours cannot collide: a longer label, e.g. FR
+   "Nouvelle partie", wraps onto a second line instead. 64px keeps the existing longest
+   labels ("Télécharger", "Plein écran") on one line. */
 .menu-text {
   font-size: 12px;
   font-weight: 700;
   text-align: center;
-  white-space: nowrap;
+  width: max-content;
+  max-width: 64px;
+  line-height: 1.2;
 }
 
 .locale-switcher {
