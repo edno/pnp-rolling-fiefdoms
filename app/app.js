@@ -2528,7 +2528,7 @@ function log(msg) {
   const formatted = formatDiceLabelsInMessage(msg);
   state.log.unshift(formatted);
   if (logEl) {
-    logEl.innerHTML = state.log.map((m) => `<li>${m}</li>`).join("");
+    logEl.innerHTML = state.log.map((m) => `<li>${escapeHtml(String(m ?? ""))}</li>`).join("");
   }
   if (logDrawerEl && !logDrawerEl.open) {
     unreadLogCount += 1;
