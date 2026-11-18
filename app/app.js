@@ -2528,7 +2528,7 @@ function log(msg) {
   const formatted = formatDiceLabelsInMessage(msg);
   state.log.unshift(formatted);
   if (logEl) {
-    logEl.innerHTML = state.log.map((m) => `<li>${m}</li>`).join("");
+    logEl.innerHTML = state.log.map((m) => `<li>${escapeHtml(String(m ?? ""))}</li>`).join("");
   }
   if (logDrawerEl && !logDrawerEl.open) {
     unreadLogCount += 1;
@@ -2868,7 +2868,7 @@ function restoreStateAndRefresh(saved) {
   state.diceRolling = false;
   state.bannerOverride = null;
   state.deferStatusAppend = false;
-  if (logEl) logEl.innerHTML = state.log.map((m) => `<li>${m}</li>`).join("");
+  if (logEl) logEl.innerHTML = state.log.map((m) => `<li>${escapeHtml(String(m ?? ""))}</li>`).join("");
   unreadLogCount = 0;
   updateLogUnreadBadge();
   setAllSheetImageSources();
