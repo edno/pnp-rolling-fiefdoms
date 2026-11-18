@@ -2868,7 +2868,14 @@ function restoreStateAndRefresh(saved) {
   state.diceRolling = false;
   state.bannerOverride = null;
   state.deferStatusAppend = false;
-  if (logEl) logEl.innerHTML = state.log.map((m) => `<li>${m}</li>`).join("");
+  if (logEl) {
+    logEl.textContent = "";
+    state.log.forEach((m) => {
+      const li = document.createElement("li");
+      li.textContent = String(m ?? "");
+      logEl.appendChild(li);
+    });
+  }
   unreadLogCount = 0;
   updateLogUnreadBadge();
   setAllSheetImageSources();
